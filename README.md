@@ -80,8 +80,8 @@ This project provides parsers for various ORCA output file formats and a UI to p
 - [x] **1.8** Parse `.spectrum` files → Extract spectral data
 - [x] **1.11** Parse `_trj.xyz` → Extract trajectory frames
 
-### Binary Files (Not Implemented)
-- `.opt`, `.densitiesinfo`, `.cis`, `.ges` - Binary format, needs special handling
+### Binary Files (Not Supported)
+- `.opt`, `.densitiesinfo`, `.cis`, `.ges` - Proprietary ORCA binary format without public documentation
 
 ### Phase 2: Data Preview Components
 - [x] **2.1** 3D Molecular viewer (using py3Dmol)
