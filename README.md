@@ -68,6 +68,41 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 ---
 
+### 3. Output Files (`.out`)
+
+**Format:** ORCA text output with multiple sections
+
+**Data Contains (52+ sections):**
+- **Job Info:** Method, basis set, charge, multiplicity
+- **Energy:** Final SCF energy, optimization energies
+- **Orbital Energies:** HOMO, LUMO, all occupied/virtual orbitals
+- **Dipole Moment:** X, Y, Z components in a.u. and Debye
+- **Polarizability:** Static polarizability tensor (3x3 matrix)
+- **Mulliken Charges:** Atomic partial charges
+- **Loewdin Charges:** Alternative charge analysis
+- **Mayer Bond Orders:** Covalent bond strengths
+- **Vibrational Frequencies:** All normal modes in cm⁻¹
+- **IR Spectrum:** Frequencies with intensities (km/mol)
+- **Thermochemistry:**
+  - Zero-point energy (ZPE)
+  - Thermal corrections
+  - Enthalpy
+  - Entropy (electronic, vibrational, rotational, translational)
+  - Gibbs free energy
+- **NMR Data:**
+  - Chemical shielding/shifts (ppm)
+  - J-coupling constants (Hz)
+
+**Preview:**
+- Energy convergence plots
+- Orbital energy diagrams
+- IR spectrum stick plots
+- Atomic charge bar charts
+- NMR shift tables
+- Thermochemistry summary
+
+---
+
 ## Roadmap
 
 ### Phase 1: Core Parsers (Current)
