@@ -29,7 +29,7 @@ page = st.sidebar.radio(
         "XYZ - Molecular Geometry",
         "OUT - Main Output",
         "SPECTRUM - Spectra",
-        # "HESS - Frequencies",
+        "HESS - IR Spectrum",
     ]
 )
 
@@ -38,6 +38,7 @@ st.sidebar.markdown("### Status")
 st.sidebar.markdown("✅ XYZ Parser")
 st.sidebar.markdown("✅ OUT Parser")
 st.sidebar.markdown("✅ SPECTRUM Parser")
+st.sidebar.markdown("✅ HESS Parser")
 st.sidebar.markdown("⏳ More parsers coming...")
 
 # Main content
@@ -50,6 +51,9 @@ elif page == "OUT - Main Output":
 elif page == "SPECTRUM - Spectra":
     from previews.spectrum_preview import spectrum_preview_page
     spectrum_preview_page()
+elif page == "HESS - IR Spectrum":
+    from previews.hess_preview import hess_preview_page
+    hess_preview_page()
 
 # Footer
 st.markdown("---")
