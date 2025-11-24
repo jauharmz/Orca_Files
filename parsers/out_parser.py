@@ -147,6 +147,29 @@ class SCFIteration:
 
 
 @dataclass
+class TimingData:
+    """Computational timing breakdown."""
+    total_time: float = 0.0  # seconds
+    scf_time: float = 0.0
+    fock_matrix_time: float = 0.0
+    diagonalization_time: float = 0.0
+    scf_iterations_time: float = 0.0
+    property_time: float = 0.0
+    timings: dict[str, float] = field(default_factory=dict)  # All timing entries
+
+
+@dataclass
+class DFTGridInfo:
+    """DFT numerical integration grid parameters."""
+    integration_accuracy: float = 0.0
+    radial_grid_type: str = ""
+    angular_grid: str = ""
+    pruning_method: str = ""
+    total_grid_points: int = 0
+    avg_points_per_atom: int = 0
+
+
+@dataclass
 class OrcaOutput:
     """Complete parsed ORCA output."""
     job_info: JobInfo
@@ -162,6 +185,8 @@ class OrcaOutput:
     normal_modes: list[NormalMode] = field(default_factory=list)
     scf_iterations: list[SCFIteration] = field(default_factory=list)
     dispersion_correction: Optional[DispersionCorrection] = None
+    timing_data: Optional[TimingData] = None
+    dft_grid_info: Optional[DFTGridInfo] = None
     mulliken_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     loewdin_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     mayer_bond_orders: list[tuple[int, int, float]] = field(default_factory=list)
@@ -224,6 +249,19 @@ class OrcaOutput:
                 'e6_kcal': self.dispersion_correction.e6_kcal,
                 'e8_kcal': self.dispersion_correction.e8_kcal
             } if self.dispersion_correction else None,
+            'timing_data': {
+                'total_time': self.timing_data.total_time,
+                'scf_time': self.timing_data.scf_time,
+                'fock_matrix_time': self.timing_data.fock_matrix_time,
+                'timings': self.timing_data.timings
+            } if self.timing_data else None,
+            'dft_grid_info': {
+                'integration_accuracy': self.dft_grid_info.integration_accuracy,
+                'radial_grid_type': self.dft_grid_info.radial_grid_type,
+                'angular_grid': self.dft_grid_info.angular_grid,
+                'total_grid_points': self.dft_grid_info.total_grid_points,
+                'avg_points_per_atom': self.dft_grid_info.avg_points_per_atom
+            } if self.dft_grid_info else None,
             'mulliken_charges': {
                 str(k): {'element': v[0], 'charge': v[1]}
                 for k, v in self.mulliken_charges.items()
@@ -290,6 +328,8 @@ def parse_out_content(content: str) -> OrcaOutput:
     thermo = parse_thermochemistry(content)
     nmr = parse_nmr_data(content)
     scf_iterations = parse_scf_iterations(content)
+    timing = parse_timing_data(content)
+    dft_grid = parse_dft_grid_info(content)
 
     # Get number of atoms for normal modes parsing
     num_atoms = len(mulliken) if mulliken else 0
@@ -309,6 +349,8 @@ def parse_out_content(content: str) -> OrcaOutput:
         normal_modes=normal_modes,
         scf_iterations=scf_iterations,
         dispersion_correction=dispersion,
+        timing_data=timing,
+        dft_grid_info=dft_grid,
         mulliken_charges=mulliken,
         loewdin_charges=loewdin,
         mayer_bond_orders=bond_orders,
@@ -406,12 +448,14 @@ def parse_dipole_moment(content: str) -> Optional[DipoleMoment]:
 
 
 def parse_polarizability(content: str) -> Optional[Polarizability]:
-    """Extract static polarizability tensor."""
+    """Extract static polarizability tensor with eigenvalues."""
     pol_section = re.search(
-        r'THE POLARIZABILITY TENSOR.*?'
+        r'(?:THE|STATIC) POLARIZABILITY TENSOR.*?'
         r'The raw cartesian tensor \(atomic units\):\s*'
         r'(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s*'
         r'(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s*'
+        r'(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*).*?'
+        r'diagonalized tensor:\s*'
         r'(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*).*?'
         r'Isotropic polarizability\s*:\s*(-?\d+\.?\d*)',
         content, re.DOTALL
@@ -423,9 +467,15 @@ def parse_polarizability(content: str) -> Optional[Polarizability]:
             [float(pol_section.group(4)), float(pol_section.group(5)), float(pol_section.group(6))],
             [float(pol_section.group(7)), float(pol_section.group(8)), float(pol_section.group(9))]
         ]
+        eigenvalues = [
+            float(pol_section.group(10)),
+            float(pol_section.group(11)),
+            float(pol_section.group(12))
+        ]
         return Polarizability(
             tensor=tensor,
-            isotropic=float(pol_section.group(10))
+            isotropic=float(pol_section.group(13)),
+            eigenvalues=eigenvalues
         )
     return None
 
@@ -872,6 +922,99 @@ def parse_scf_iterations(content: str) -> list[SCFIteration]:
     return iterations
 
 
+def parse_dft_grid_info(content: str) -> Optional[DFTGridInfo]:
+    """Extract DFT grid parameters."""
+    grid_section = re.search(
+        r'DFT GRID GENERATION\s*-+(.*?)(?:\n-{20,}|\Z)',
+        content, re.DOTALL | re.IGNORECASE
+    )
+
+    if not grid_section:
+        return None
+
+    section_text = grid_section.group(1)
+    grid = DFTGridInfo()
+
+    # Parse integration accuracy
+    acc_match = re.search(r'General Integration Accuracy\s+IntAcc\s+\.\.\.\s+(\d+\.?\d*)', section_text)
+    if acc_match:
+        grid.integration_accuracy = float(acc_match.group(1))
+
+    # Parse radial grid type
+    radial_match = re.search(r'Radial Grid Type\s+RadialGrid\s+\.\.\.\s+(.+)', section_text)
+    if radial_match:
+        grid.radial_grid_type = radial_match.group(1).strip()
+
+    # Parse angular grid
+    angular_match = re.search(r'Angular Grid \(max\. ang\.\)\s+AngularGrid\s+\.\.\.\s+(.+)', section_text)
+    if angular_match:
+        grid.angular_grid = angular_match.group(1).strip()
+
+    # Parse pruning method
+    pruning_match = re.search(r'Angular grid pruning method\s+GridPruning\s+\.\.\.\s+(.+)', section_text)
+    if pruning_match:
+        grid.pruning_method = pruning_match.group(1).strip()
+
+    # Parse total grid points
+    points_match = re.search(r'Total number of grid points\s+\.\.\.\s+(\d+)', section_text)
+    if points_match:
+        grid.total_grid_points = int(points_match.group(1))
+
+    # Parse average points per atom
+    avg_match = re.search(r'Average number of grid points per atom\s+\.\.\.\s+(\d+)', section_text)
+    if avg_match:
+        grid.avg_points_per_atom = int(avg_match.group(1))
+
+    if grid.total_grid_points > 0:
+        return grid
+    return None
+
+
+def parse_timing_data(content: str) -> Optional[TimingData]:
+    """Extract computational timing breakdown."""
+    timing = TimingData()
+
+    # Find TIMINGS section (usually the last one)
+    timing_sections = list(re.finditer(r'TIMINGS\s*-+\s*(.*?)(?:\n\*+|\Z)', content, re.DOTALL | re.IGNORECASE))
+    if not timing_sections:
+        return None
+
+    # Use the last timing section (final summary)
+    section_text = timing_sections[-1].group(1)
+
+    # Parse total time
+    total_match = re.search(r'Total time\s+\.\.\.\.\s+(\d+\.?\d*)\s+sec', section_text)
+    if total_match:
+        timing.total_time = float(total_match.group(1))
+
+    # Parse SCF time
+    scf_match = re.search(r'Total SCF time:\s+\d+\s+days?\s+\d+\s+hours?\s+\d+\s+min\s+(\d+)', section_text)
+    if scf_match:
+        # Convert to seconds - already in section as total time
+        pass
+
+    # Parse individual timing components
+    timing_patterns = {
+        'scf_preparation': r'SCF preparation\s+\.\.\.\.\s+(\d+\.?\d*)\s+sec',
+        'fock_matrix': r'Fock matrix formation\s+\.\.\.\.\s+(\d+\.?\d*)\s+sec',
+        'diagonalization': r'Diagonalization\s+\.\.\.\.\s+(\d+\.?\d*)\s+sec',
+        'density_formation': r'Density matrix formation\s+\.\.\.\.\s+(\d+\.?\d*)\s+sec',
+        'population_analysis': r'Population analysis\s+\.\.\.\.\s+(\d+\.?\d*)\s+sec',
+        'diis_solution': r'DIIS solution\s+\.\.\.\.\s+(\d+\.?\d*)\s+sec',
+    }
+
+    for key, pattern in timing_patterns.items():
+        match = re.search(pattern, section_text)
+        if match:
+            timing.timings[key] = float(match.group(1))
+            if key == 'fock_matrix':
+                timing.fock_matrix_time = float(match.group(1))
+
+    if timing.total_time > 0:
+        return timing
+    return None
+
+
 if __name__ == '__main__':
     import sys
     import json
@@ -888,6 +1031,9 @@ if __name__ == '__main__':
 
         if result.polarizability:
             print(f"Isotropic Polarizability: {result.polarizability.isotropic:.2f} a.u.")
+            if result.polarizability.eigenvalues:
+                eigs = result.polarizability.eigenvalues
+                print(f"  Eigenvalues: {eigs[0]:.2f}, {eigs[1]:.2f}, {eigs[2]:.2f} a.u.")
 
         if result.orbital_energies:
             occupied = [o for o in result.orbital_energies if o.occupation > 0]
@@ -938,3 +1084,12 @@ if __name__ == '__main__':
             if result.scf_iterations:
                 final = result.scf_iterations[-1]
                 print(f"  Final: ΔE={final.delta_e:.2e}, RMSDP={final.rmsdp:.2e}")
+
+        if result.timing_data:
+            print(f"Total Time: {result.timing_data.total_time:.1f} sec")
+            if result.timing_data.fock_matrix_time > 0:
+                print(f"  Fock Matrix: {result.timing_data.fock_matrix_time:.1f} sec ({result.timing_data.fock_matrix_time/result.timing_data.total_time*100:.1f}%)")
+
+        if result.dft_grid_info:
+            print(f"DFT Grid: {result.dft_grid_info.total_grid_points:,} points")
+            print(f"  {result.dft_grid_info.angular_grid}, {result.dft_grid_info.avg_points_per_atom} pts/atom")
