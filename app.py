@@ -30,16 +30,15 @@ page = st.sidebar.radio(
         "OUT - Main Output",
         "SPECTRUM - Spectra",
         "HESS - IR Spectrum",
+        "INP - Input File",
+        "ENGRAD - Energy & Gradient",
+        "PROPERTY - Charges",
     ]
 )
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Status")
-st.sidebar.markdown("✅ XYZ Parser")
-st.sidebar.markdown("✅ OUT Parser")
-st.sidebar.markdown("✅ SPECTRUM Parser")
-st.sidebar.markdown("✅ HESS Parser")
-st.sidebar.markdown("⏳ More parsers coming...")
+st.sidebar.markdown("✅ All 7 parsers complete")
 
 # Main content
 if page == "XYZ - Molecular Geometry":
@@ -54,6 +53,15 @@ elif page == "SPECTRUM - Spectra":
 elif page == "HESS - IR Spectrum":
     from previews.hess_preview import hess_preview_page
     hess_preview_page()
+elif page == "INP - Input File":
+    from previews.inp_preview import inp_preview_page
+    inp_preview_page()
+elif page == "ENGRAD - Energy & Gradient":
+    from previews.engrad_preview import engrad_preview_page
+    engrad_preview_page()
+elif page == "PROPERTY - Charges":
+    from previews.property_preview import property_preview_page
+    property_preview_page()
 
 # Footer
 st.markdown("---")
