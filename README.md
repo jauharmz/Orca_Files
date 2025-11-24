@@ -26,7 +26,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 | `.densitiesinfo` | Text | Electron density information | ⏳ Pending |
 | `.bibtex` | BibTeX | Citation references | ⏳ Pending |
 | `_trj.xyz` | XYZ | Optimization trajectory | ✅ Done |
-| `.spectrum` | Text | Spectrum data (UV-Vis, IR, etc.) | ⏳ Pending |
+| `.spectrum` | Text | Spectrum data (UV-Vis, IR, etc.) | ✅ Done |
 | `.cis` | Binary/Text | CI Singles data | ⏳ Pending |
 | `.ges` | Binary/Text | Ground/Excited state data | ⏳ Pending |
 
@@ -78,7 +78,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 - [ ] **1.5** Parse `.property.txt` → Extract computed properties
 - [ ] **1.6** Parse `.engrad` files → Extract gradients
 - [ ] **1.7** Parse `.opt` files → Extract optimization steps
-- [ ] **1.8** Parse `.spectrum` files → Extract spectral data
+- [x] **1.8** Parse `.spectrum` files → Extract spectral data
 - [ ] **1.9** Parse `.cpcm` / `.cpcm_corr` → Extract solvation data
 - [ ] **1.10** Parse `.densitiesinfo` → Extract density info
 - [x] **1.11** Parse `_trj.xyz` → Extract trajectory frames
