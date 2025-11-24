@@ -16,7 +16,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 |-----------|--------|-------------|--------|
 | `.xyz` | XYZ | Molecular geometry coordinates | ✅ Done |
 | `.inp` | Text | ORCA input file (calculation settings) | ⏳ Pending |
-| `.out` | Text | Main ORCA output (energies, SCF, etc.) | ⏳ Pending |
+| `.out` | Text | Main ORCA output (energies, SCF, etc.) | ✅ Done |
 | `.hess` | Text | Hessian matrix (vibrational analysis) | ⏳ Pending |
 | `.property.txt` | Text | Computed properties | ⏳ Pending |
 | `.engrad` | Text | Energy and gradient | ⏳ Pending |
@@ -73,7 +73,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 ### Phase 1: Core Parsers (Current)
 - [x] **1.1** Parse `.xyz` files → Extract atoms & coordinates
 - [ ] **1.2** Parse `.inp` files → Extract calculation settings
-- [ ] **1.3** Parse `.out` files → Extract energies, SCF convergence
+- [x] **1.3** Parse `.out` files → Extract energies, SCF convergence
 - [ ] **1.4** Parse `.hess` files → Extract frequencies, normal modes
 - [ ] **1.5** Parse `.property.txt` → Extract computed properties
 - [ ] **1.6** Parse `.engrad` files → Extract gradients

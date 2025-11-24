@@ -27,8 +27,7 @@ page = st.sidebar.radio(
     "Select viewer:",
     [
         "XYZ - Molecular Geometry",
-        # Future parsers will be added here
-        # "OUT - Main Output",
+        "OUT - Main Output",
         # "HESS - Frequencies",
         # "SPECTRUM - Spectra",
     ]
@@ -37,12 +36,16 @@ page = st.sidebar.radio(
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Status")
 st.sidebar.markdown("✅ XYZ Parser")
+st.sidebar.markdown("✅ OUT Parser")
 st.sidebar.markdown("⏳ More parsers coming...")
 
 # Main content
 if page == "XYZ - Molecular Geometry":
     from previews.xyz_preview import xyz_preview_page
     xyz_preview_page()
+elif page == "OUT - Main Output":
+    from previews.out_preview import out_preview_page
+    out_preview_page()
 
 # Footer
 st.markdown("---")
