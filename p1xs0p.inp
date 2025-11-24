@@ -1,0 +1,27 @@
+# Frequency, IR, Raman, Orbitals, Gibbs + NMR
+
+! B3LYP D3BJ 6-311++G(d,p) def2/J pcSseg-3 NMR RIJCOSX VeryTightSCF DefGrid3 CPCM(Water) PAL16
+% maxcore 1430 #4096
+! MORead
+% moinp "p1xs0.gbw"
+* xyzfile 0 1 p1xs0.xyz
+% EPRNMR
+  NUCLEI = ALL H {SHIFT, SSALL}     # H shieldings + J-couplings
+  NUCLEI = ALL C {SHIFT}            # C shieldings
+  tau Dobson
+END
+
+$ new_job
+
+! LibXC(B3LYP) D3BJ 6-311++G(d,p) def2/J FREQ RIJCOSX VeryTightSCF DefGrid3 CPCM(Water) PAL16 LARGEPRINT
+% maxcore 1430 #4096
+! MORead
+% moinp "p1xs0.gbw"
+% ELPROP
+   POLAR 1
+END
+%output
+  Print[P_Basis]2
+  Print[P_MOs]1
+end
+* xyzfile 0 1 p1xs0.xyz
