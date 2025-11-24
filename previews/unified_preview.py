@@ -29,6 +29,8 @@ def detect_file_type(filename: str) -> str:
         return 'property'
     elif name.endswith('.inp'):
         return 'inp'
+    elif name.endswith('.cpcm_corr'):
+        return 'cpcm_corr'
     elif name.endswith('.cpcm'):
         return 'cpcm'
     elif name.endswith('.bibtex') or name.endswith('.bib'):
@@ -44,11 +46,11 @@ def unified_preview_page():
 
     uploaded_file = st.file_uploader(
         "Upload ORCA file",
-        type=['xyz', 'out', 'hess', 'spectrum', 'engrad', 'txt', 'inp', 'cpcm', 'bibtex', 'bib']
+        type=['xyz', 'out', 'hess', 'spectrum', 'engrad', 'txt', 'inp', 'cpcm', 'cpcm_corr', 'bibtex', 'bib']
     )
 
     if not uploaded_file:
-        st.info("Supported formats: .xyz, .out, .hess, .spectrum, .engrad, .property.txt, .inp, .cpcm, .bibtex")
+        st.info("Supported formats: .xyz, .out, .hess, .spectrum, .engrad, .property.txt, .inp, .cpcm, .cpcm_corr, .bibtex")
         return
 
     file_type = detect_file_type(uploaded_file.name)
@@ -139,6 +141,16 @@ def unified_preview_page():
         with col2:
             st.metric("Basis Set", data.basis_set or "N/A")
         st.write(f"**Charge:** {data.charge}, **Multiplicity:** {data.multiplicity}")
+
+    elif file_type == 'cpcm_corr':
+        from parsers.cpcm_corr_parser import parse_cpcm_corr_content
+        data = parse_cpcm_corr_content(content)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Corrected Energy (Eh)", f"{data.corrected_energy:.6f}")
+        with col2:
+            st.metric("Surface Charges", len(data.corrected_charges))
 
     elif file_type == 'cpcm':
         from parsers.cpcm_parser import parse_cpcm_content
