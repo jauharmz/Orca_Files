@@ -26,6 +26,7 @@ st.sidebar.title("File Types")
 page = st.sidebar.radio(
     "Select viewer:",
     [
+        "AUTO - Upload Any File",
         "XYZ - Molecular Geometry",
         "OUT - Main Output",
         "SPECTRUM - Spectra",
@@ -33,15 +34,21 @@ page = st.sidebar.radio(
         "INP - Input File",
         "ENGRAD - Energy & Gradient",
         "PROPERTY - Charges",
+        "CPCM - Solvation",
+        "BIBTEX - Citations",
     ]
 )
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Status")
-st.sidebar.markdown("✅ All 7 parsers complete")
+st.sidebar.markdown("✅ All 9 parsers complete")
+st.sidebar.markdown("✅ Auto file detection")
 
 # Main content
-if page == "XYZ - Molecular Geometry":
+if page == "AUTO - Upload Any File":
+    from previews.unified_preview import unified_preview_page
+    unified_preview_page()
+elif page == "XYZ - Molecular Geometry":
     from previews.xyz_preview import xyz_preview_page
     xyz_preview_page()
 elif page == "OUT - Main Output":
@@ -62,7 +69,13 @@ elif page == "ENGRAD - Energy & Gradient":
 elif page == "PROPERTY - Charges":
     from previews.property_preview import property_preview_page
     property_preview_page()
+elif page == "CPCM - Solvation":
+    from previews.cpcm_preview import cpcm_preview_page
+    cpcm_preview_page()
+elif page == "BIBTEX - Citations":
+    from previews.bibtex_preview import bibtex_preview_page
+    bibtex_preview_page()
 
 # Footer
 st.markdown("---")
-st.markdown("*ORCA Output Parser & Viewer - Work in Progress*")
+st.markdown("*ORCA Output Parser & Viewer v1.0*")
