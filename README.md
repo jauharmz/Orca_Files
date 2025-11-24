@@ -15,20 +15,20 @@ This project provides parsers for various ORCA output file formats and a UI to p
 | Extension | Format | Description | Status |
 |-----------|--------|-------------|--------|
 | `.xyz` | XYZ | Molecular geometry coordinates | ✅ Done |
-| `.inp` | Text | ORCA input file (calculation settings) | ⏳ Pending |
+| `.inp` | Text | ORCA input file (calculation settings) | ✅ Done |
 | `.out` | Text | Main ORCA output (energies, SCF, etc.) | ✅ Done |
 | `.hess` | Text | Hessian matrix (vibrational analysis) | ✅ Done |
-| `.property.txt` | Text | Computed properties | ⏳ Pending |
-| `.engrad` | Text | Energy and gradient | ⏳ Pending |
-| `.opt` | Text | Geometry optimization trajectory | ⏳ Pending |
+| `.property.txt` | Text | Computed properties | ✅ Done |
+| `.engrad` | Text | Energy and gradient | ✅ Done |
+| `.opt` | Binary | Geometry optimization trajectory | ⚠️ Binary |
 | `.cpcm` | Text | CPCM solvation model data | ⏳ Pending |
 | `.cpcm_corr` | Text | CPCM corrections | ⏳ Pending |
-| `.densitiesinfo` | Text | Electron density information | ⏳ Pending |
+| `.densitiesinfo` | Binary | Electron density information | ⚠️ Binary |
 | `.bibtex` | BibTeX | Citation references | ⏳ Pending |
 | `_trj.xyz` | XYZ | Optimization trajectory | ✅ Done |
 | `.spectrum` | Text | Spectrum data (UV-Vis, IR, etc.) | ✅ Done |
-| `.cis` | Binary/Text | CI Singles data | ⏳ Pending |
-| `.ges` | Binary/Text | Ground/Excited state data | ⏳ Pending |
+| `.cis` | Binary | CI Singles data | ⚠️ Binary |
+| `.ges` | Binary | Ground/Excited state data | ⚠️ Binary |
 
 ---
 
@@ -72,16 +72,16 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 ### Phase 1: Core Parsers (Current)
 - [x] **1.1** Parse `.xyz` files → Extract atoms & coordinates
-- [ ] **1.2** Parse `.inp` files → Extract calculation settings
+- [x] **1.2** Parse `.inp` files → Extract calculation settings
 - [x] **1.3** Parse `.out` files → Extract energies, SCF convergence
 - [x] **1.4** Parse `.hess` files → Extract frequencies, normal modes
-- [ ] **1.5** Parse `.property.txt` → Extract computed properties
-- [ ] **1.6** Parse `.engrad` files → Extract gradients
-- [ ] **1.7** Parse `.opt` files → Extract optimization steps
+- [x] **1.5** Parse `.property.txt` → Extract computed properties
+- [x] **1.6** Parse `.engrad` files → Extract gradients
 - [x] **1.8** Parse `.spectrum` files → Extract spectral data
-- [ ] **1.9** Parse `.cpcm` / `.cpcm_corr` → Extract solvation data
-- [ ] **1.10** Parse `.densitiesinfo` → Extract density info
 - [x] **1.11** Parse `_trj.xyz` → Extract trajectory frames
+
+### Binary Files (Not Implemented)
+- `.opt`, `.densitiesinfo`, `.cis`, `.ges` - Binary format, needs special handling
 
 ### Phase 2: Data Preview Components
 - [ ] **2.1** 3D Molecular viewer (using py3Dmol or similar)
