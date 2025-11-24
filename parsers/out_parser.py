@@ -92,6 +92,25 @@ class IRMode:
 
 
 @dataclass
+class RamanMode:
+    """Raman spectrum mode."""
+    index: int
+    frequency: float  # cm^-1
+    activity: float
+    depolarization: float
+
+
+@dataclass
+class DispersionCorrection:
+    """DFT dispersion correction data."""
+    method: str = ""  # e.g., "DFTD3"
+    total_correction: float = 0.0  # Eh
+    total_correction_kcal: float = 0.0  # kcal/mol
+    e6_kcal: float = 0.0
+    e8_kcal: float = 0.0
+
+
+@dataclass
 class Thermochemistry:
     """Thermochemistry data."""
     temperature: float = 298.15
@@ -120,6 +139,8 @@ class OrcaOutput:
     orbital_energies: list[OrbitalEnergy] = field(default_factory=list)
     frequencies: list[float] = field(default_factory=list)
     ir_spectrum: list[IRMode] = field(default_factory=list)
+    raman_spectrum: list[RamanMode] = field(default_factory=list)
+    dispersion_correction: Optional[DispersionCorrection] = None
     mulliken_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     loewdin_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     mayer_bond_orders: list[tuple[int, int, float]] = field(default_factory=list)
@@ -162,6 +183,17 @@ class OrcaOutput:
                 {'index': m.index, 'frequency': m.frequency, 'intensity': m.intensity}
                 for m in self.ir_spectrum
             ],
+            'raman_spectrum': [
+                {'index': m.index, 'frequency': m.frequency, 'activity': m.activity, 'depolarization': m.depolarization}
+                for m in self.raman_spectrum
+            ],
+            'dispersion_correction': {
+                'method': self.dispersion_correction.method,
+                'total_correction': self.dispersion_correction.total_correction,
+                'total_correction_kcal': self.dispersion_correction.total_correction_kcal,
+                'e6_kcal': self.dispersion_correction.e6_kcal,
+                'e8_kcal': self.dispersion_correction.e8_kcal
+            } if self.dispersion_correction else None,
             'mulliken_charges': {
                 str(k): {'element': v[0], 'charge': v[1]}
                 for k, v in self.mulliken_charges.items()
@@ -220,6 +252,8 @@ def parse_out_content(content: str) -> OrcaOutput:
     orbitals = parse_orbital_energies(content)
     frequencies = parse_frequencies(content)
     ir_spectrum = parse_ir_spectrum(content)
+    raman_spectrum = parse_raman_spectrum(content)
+    dispersion = parse_dispersion_correction(content)
     mulliken = parse_mulliken_charges(content)
     loewdin = parse_loewdin_charges(content)
     bond_orders = parse_mayer_bond_orders(content)
@@ -236,6 +270,8 @@ def parse_out_content(content: str) -> OrcaOutput:
         orbital_energies=orbitals,
         frequencies=frequencies,
         ir_spectrum=ir_spectrum,
+        raman_spectrum=raman_spectrum,
+        dispersion_correction=dispersion,
         mulliken_charges=mulliken,
         loewdin_charges=loewdin,
         mayer_bond_orders=bond_orders,
@@ -624,6 +660,59 @@ def parse_nmr_data(content: str) -> Optional[NMRData]:
     return None
 
 
+def parse_raman_spectrum(content: str) -> list[RamanMode]:
+    """Extract Raman spectrum data."""
+    modes = []
+
+    # Find the Raman section and extract all mode data
+    raman_section = re.search(
+        r'RAMAN SPECTRUM.*?-{50,}\s*(.*?)(?:\n\s*\n|\Z)',
+        content, re.DOTALL
+    )
+
+    if raman_section:
+        # Match: Mode, freq (cm^-1), Activity, Depolarization
+        matches = re.findall(
+            r'^\s*(\d+):\s+(-?\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)',
+            raman_section.group(1), re.MULTILINE
+        )
+        for match in matches:
+            freq = float(match[1])
+            if freq > 0:
+                modes.append(RamanMode(
+                    index=int(match[0]),
+                    frequency=freq,
+                    activity=float(match[2]),
+                    depolarization=float(match[3])
+                ))
+
+    return modes
+
+
+def parse_dispersion_correction(content: str) -> Optional[DispersionCorrection]:
+    """Extract DFT dispersion correction data."""
+    disp = DispersionCorrection()
+
+    # Look for DFTD3 section with format: Edisp/kcal,au: value1 value2
+    disp_section = re.search(
+        r'DFT DISPERSION CORRECTION.*?DFTD(\d+).*?'
+        r'Edisp/kcal,au:\s*(-?\d+\.?\d*)\s+(-?\d+\.?\d*).*?'
+        r'E6\s+/kcal\s+:\s*(-?\d+\.?\d*).*?'
+        r'E8\s+/kcal\s+:\s*(-?\d+\.?\d*)',
+        content, re.DOTALL | re.IGNORECASE
+    )
+
+    if disp_section:
+        disp.method = f"DFTD{disp_section.group(1)}"
+        disp.total_correction_kcal = float(disp_section.group(2))
+        disp.total_correction = float(disp_section.group(3))
+        disp.e6_kcal = float(disp_section.group(4))
+        disp.e8_kcal = float(disp_section.group(5))
+        return disp
+
+    return None
+
+
 if __name__ == '__main__':
     import sys
     import json
@@ -670,3 +759,12 @@ if __name__ == '__main__':
         if result.nmr_data:
             print(f"NMR Shifts: {len(result.nmr_data.chemical_shifts)} nuclei")
             print(f"J-Couplings: {len(result.nmr_data.j_couplings)} pairs")
+
+        if result.raman_spectrum:
+            strongest = max(result.raman_spectrum, key=lambda x: x.activity)
+            print(f"Raman Spectrum: {len(result.raman_spectrum)} modes")
+            print(f"  Strongest: {strongest.frequency:.1f} cm^-1 (activity: {strongest.activity:.1f})")
+
+        if result.dispersion_correction:
+            print(f"Dispersion: {result.dispersion_correction.method}")
+            print(f"  Energy: {result.dispersion_correction.total_correction_kcal:.2f} kcal/mol")
