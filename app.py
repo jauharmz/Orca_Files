@@ -33,12 +33,14 @@ page = st.sidebar.radio(
         "INP - Input File",
         "ENGRAD - Energy & Gradient",
         "PROPERTY - Charges",
+        "CPCM - Solvation",
+        "BIBTEX - Citations",
     ]
 )
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Status")
-st.sidebar.markdown("✅ All 7 parsers complete")
+st.sidebar.markdown("✅ All 9 parsers complete")
 
 # Main content
 if page == "XYZ - Molecular Geometry":
@@ -62,6 +64,12 @@ elif page == "ENGRAD - Energy & Gradient":
 elif page == "PROPERTY - Charges":
     from previews.property_preview import property_preview_page
     property_preview_page()
+elif page == "CPCM - Solvation":
+    from previews.cpcm_preview import cpcm_preview_page
+    cpcm_preview_page()
+elif page == "BIBTEX - Citations":
+    from previews.bibtex_preview import bibtex_preview_page
+    bibtex_preview_page()
 
 # Footer
 st.markdown("---")

@@ -21,10 +21,10 @@ This project provides parsers for various ORCA output file formats and a UI to p
 | `.property.txt` | Text | Computed properties | ✅ Done |
 | `.engrad` | Text | Energy and gradient | ✅ Done |
 | `.opt` | Binary | Geometry optimization trajectory | ⚠️ Binary |
-| `.cpcm` | Text | CPCM solvation model data | ⏳ Pending |
-| `.cpcm_corr` | Text | CPCM corrections | ⏳ Pending |
+| `.cpcm` | Text | CPCM solvation model data | ✅ Done |
+| `.cpcm_corr` | Text | CPCM corrections | ✅ Done |
 | `.densitiesinfo` | Binary | Electron density information | ⚠️ Binary |
-| `.bibtex` | BibTeX | Citation references | ⏳ Pending |
+| `.bibtex` | BibTeX | Citation references | ✅ Done |
 | `_trj.xyz` | XYZ | Optimization trajectory | ✅ Done |
 | `.spectrum` | Text | Spectrum data (UV-Vis, IR, etc.) | ✅ Done |
 | `.cis` | Binary | CI Singles data | ⚠️ Binary |
