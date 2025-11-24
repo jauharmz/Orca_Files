@@ -170,6 +170,15 @@ class DFTGridInfo:
 
 
 @dataclass
+class BasisSetInfo:
+    """Basis set information."""
+    name: str = ""
+    num_basis_functions: int = 0
+    num_primitive_gaussians: int = 0
+    element_basis: dict[str, str] = field(default_factory=dict)  # element -> basis description
+
+
+@dataclass
 class OrcaOutput:
     """Complete parsed ORCA output."""
     job_info: JobInfo
@@ -187,6 +196,7 @@ class OrcaOutput:
     dispersion_correction: Optional[DispersionCorrection] = None
     timing_data: Optional[TimingData] = None
     dft_grid_info: Optional[DFTGridInfo] = None
+    basis_set_info: Optional[BasisSetInfo] = None
     mulliken_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     loewdin_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     mayer_bond_orders: list[tuple[int, int, float]] = field(default_factory=list)
@@ -262,6 +272,12 @@ class OrcaOutput:
                 'total_grid_points': self.dft_grid_info.total_grid_points,
                 'avg_points_per_atom': self.dft_grid_info.avg_points_per_atom
             } if self.dft_grid_info else None,
+            'basis_set_info': {
+                'name': self.basis_set_info.name,
+                'num_basis_functions': self.basis_set_info.num_basis_functions,
+                'num_primitive_gaussians': self.basis_set_info.num_primitive_gaussians,
+                'element_basis': self.basis_set_info.element_basis
+            } if self.basis_set_info else None,
             'mulliken_charges': {
                 str(k): {'element': v[0], 'charge': v[1]}
                 for k, v in self.mulliken_charges.items()
@@ -330,6 +346,7 @@ def parse_out_content(content: str) -> OrcaOutput:
     scf_iterations = parse_scf_iterations(content)
     timing = parse_timing_data(content)
     dft_grid = parse_dft_grid_info(content)
+    basis_set = parse_basis_set_info(content)
 
     # Get number of atoms for normal modes parsing
     num_atoms = len(mulliken) if mulliken else 0
@@ -351,6 +368,7 @@ def parse_out_content(content: str) -> OrcaOutput:
         dispersion_correction=dispersion,
         timing_data=timing,
         dft_grid_info=dft_grid,
+        basis_set_info=basis_set,
         mulliken_charges=mulliken,
         loewdin_charges=loewdin,
         mayer_bond_orders=bond_orders,
@@ -970,6 +988,43 @@ def parse_dft_grid_info(content: str) -> Optional[DFTGridInfo]:
     return None
 
 
+def parse_basis_set_info(content: str) -> Optional[BasisSetInfo]:
+    """Extract basis set information."""
+    basis = BasisSetInfo()
+
+    # Parse basis set name
+    basis_match = re.search(r'Your calculation utilizes the basis:\s*(\S+)', content)
+    if basis_match:
+        basis.name = basis_match.group(1)
+
+    # Parse number of basis functions
+    nbf_match = re.search(r'Number of basis functions\s+\.+\s+(\d+)', content, re.IGNORECASE)
+    if nbf_match:
+        basis.num_basis_functions = int(nbf_match.group(1))
+
+    # Parse number of primitive gaussians
+    nprim_match = re.search(r'Number of primitive gaussian shells\s+\.+\s+(\d+)', content, re.IGNORECASE)
+    if nprim_match:
+        basis.num_primitive_gaussians = int(nprim_match.group(1))
+
+    # Parse basis set groups per element
+    basis_section = re.search(
+        r'BASIS SET INFORMATION\s*-+\s*There are \d+ groups of distinct atoms\s*(.*?)(?:\n\n|Atom\s+\d+)',
+        content, re.DOTALL
+    )
+
+    if basis_section:
+        group_text = basis_section.group(1)
+        # Match: Group   1 Type C   : description
+        groups = re.findall(r'Group\s+\d+\s+Type\s+(\w+)\s*:\s*(.+)', group_text)
+        for element, description in groups:
+            basis.element_basis[element] = description.strip()
+
+    if basis.num_basis_functions > 0:
+        return basis
+    return None
+
+
 def parse_timing_data(content: str) -> Optional[TimingData]:
     """Extract computational timing breakdown."""
     timing = TimingData()
@@ -1093,3 +1148,9 @@ if __name__ == '__main__':
         if result.dft_grid_info:
             print(f"DFT Grid: {result.dft_grid_info.total_grid_points:,} points")
             print(f"  {result.dft_grid_info.angular_grid}, {result.dft_grid_info.avg_points_per_atom} pts/atom")
+
+        if result.basis_set_info:
+            print(f"Basis Set: {result.basis_set_info.name}")
+            print(f"  {result.basis_set_info.num_basis_functions} functions, {result.basis_set_info.num_primitive_gaussians} primitives")
+            if result.basis_set_info.element_basis:
+                print(f"  Elements: {', '.join(result.basis_set_info.element_basis.keys())}")
