@@ -26,6 +26,7 @@ st.sidebar.title("File Types")
 page = st.sidebar.radio(
     "Select viewer:",
     [
+        "AUTO - Upload Any File",
         "XYZ - Molecular Geometry",
         "OUT - Main Output",
         "SPECTRUM - Spectra",
@@ -41,9 +42,13 @@ page = st.sidebar.radio(
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Status")
 st.sidebar.markdown("✅ All 9 parsers complete")
+st.sidebar.markdown("✅ Auto file detection")
 
 # Main content
-if page == "XYZ - Molecular Geometry":
+if page == "AUTO - Upload Any File":
+    from previews.unified_preview import unified_preview_page
+    unified_preview_page()
+elif page == "XYZ - Molecular Geometry":
     from previews.xyz_preview import xyz_preview_page
     xyz_preview_page()
 elif page == "OUT - Main Output":
@@ -73,4 +78,4 @@ elif page == "BIBTEX - Citations":
 
 # Footer
 st.markdown("---")
-st.markdown("*ORCA Output Parser & Viewer - Work in Progress*")
+st.markdown("*ORCA Output Parser & Viewer v1.0*")

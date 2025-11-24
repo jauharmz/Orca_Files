@@ -84,17 +84,16 @@ This project provides parsers for various ORCA output file formats and a UI to p
 - `.opt`, `.densitiesinfo`, `.cis`, `.ges` - Binary format, needs special handling
 
 ### Phase 2: Data Preview Components
-- [ ] **2.1** 3D Molecular viewer (using py3Dmol or similar)
-- [ ] **2.2** Energy plot viewer
-- [ ] **2.3** Spectrum plot viewer (UV-Vis, IR)
-- [ ] **2.4** Table viewer for properties
-- [ ] **2.5** Optimization trajectory animation
+- [x] **2.1** 3D Molecular viewer (using py3Dmol)
+- [x] **2.2** Energy plot viewer
+- [x] **2.3** Spectrum plot viewer (UV-Vis, IR)
+- [x] **2.4** Table viewer for properties
 
 ### Phase 3: Web UI Integration
-- [ ] **3.1** File upload interface
-- [ ] **3.2** Automatic file type detection
-- [ ] **3.3** Unified dashboard for all previews
-- [ ] **3.4** Export parsed data (JSON, CSV)
+- [x] **3.1** File upload interface
+- [x] **3.2** Automatic file type detection
+- [x] **3.3** Unified dashboard for all previews
+- [x] **3.4** Export parsed data (JSON)
 
 ---
 
