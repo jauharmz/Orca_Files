@@ -128,6 +128,25 @@ class Thermochemistry:
 
 
 @dataclass
+class NormalMode:
+    """Vibrational normal mode with displacement vectors."""
+    mode_index: int
+    frequency: float  # cm^-1
+    displacements: list[tuple[float, float, float]] = field(default_factory=list)  # (dx, dy, dz) per atom
+
+
+@dataclass
+class SCFIteration:
+    """Single SCF iteration data."""
+    iteration: int
+    energy: float  # Eh
+    delta_e: float  # Eh
+    rmsdp: float  # RMS density change
+    maxdp: float  # Max density change
+    diis_error: Optional[float] = None
+
+
+@dataclass
 class OrcaOutput:
     """Complete parsed ORCA output."""
     job_info: JobInfo
@@ -140,6 +159,8 @@ class OrcaOutput:
     frequencies: list[float] = field(default_factory=list)
     ir_spectrum: list[IRMode] = field(default_factory=list)
     raman_spectrum: list[RamanMode] = field(default_factory=list)
+    normal_modes: list[NormalMode] = field(default_factory=list)
+    scf_iterations: list[SCFIteration] = field(default_factory=list)
     dispersion_correction: Optional[DispersionCorrection] = None
     mulliken_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     loewdin_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
@@ -186,6 +207,15 @@ class OrcaOutput:
             'raman_spectrum': [
                 {'index': m.index, 'frequency': m.frequency, 'activity': m.activity, 'depolarization': m.depolarization}
                 for m in self.raman_spectrum
+            ],
+            'normal_modes': [
+                {'mode_index': nm.mode_index, 'frequency': nm.frequency, 'num_atoms': len(nm.displacements)}
+                for nm in self.normal_modes
+            ],
+            'scf_iterations': [
+                {'iteration': it.iteration, 'energy': it.energy, 'delta_e': it.delta_e,
+                 'rmsdp': it.rmsdp, 'maxdp': it.maxdp, 'diis_error': it.diis_error}
+                for it in self.scf_iterations
             ],
             'dispersion_correction': {
                 'method': self.dispersion_correction.method,
@@ -259,6 +289,11 @@ def parse_out_content(content: str) -> OrcaOutput:
     bond_orders = parse_mayer_bond_orders(content)
     thermo = parse_thermochemistry(content)
     nmr = parse_nmr_data(content)
+    scf_iterations = parse_scf_iterations(content)
+
+    # Get number of atoms for normal modes parsing
+    num_atoms = len(mulliken) if mulliken else 0
+    normal_modes = parse_normal_modes(content, num_atoms) if num_atoms > 0 else []
 
     return OrcaOutput(
         job_info=job_info,
@@ -271,6 +306,8 @@ def parse_out_content(content: str) -> OrcaOutput:
         frequencies=frequencies,
         ir_spectrum=ir_spectrum,
         raman_spectrum=raman_spectrum,
+        normal_modes=normal_modes,
+        scf_iterations=scf_iterations,
         dispersion_correction=dispersion,
         mulliken_charges=mulliken,
         loewdin_charges=loewdin,
@@ -713,6 +750,128 @@ def parse_dispersion_correction(content: str) -> Optional[DispersionCorrection]:
     return None
 
 
+def parse_normal_modes(content: str, num_atoms: int) -> list[NormalMode]:
+    """Extract normal mode displacement vectors."""
+    modes = []
+
+    # Find NORMAL MODES section
+    normal_section = re.search(
+        r'NORMAL MODES.*?weighted by.*?\n\s*(.*?)(?:\n\s*\n|\Z)',
+        content, re.DOTALL | re.IGNORECASE
+    )
+
+    if not normal_section:
+        return modes
+
+    section_text = normal_section.group(1)
+    lines = section_text.strip().split('\n')
+
+    # Parse mode indices from header line
+    if not lines:
+        return modes
+
+    # First line should have mode indices
+    header_match = re.findall(r'\d+', lines[0])
+    if not header_match:
+        return modes
+
+    mode_indices = [int(x) for x in header_match]
+    num_modes = len(mode_indices)
+
+    # Initialize modes
+    mode_data = {idx: [] for idx in mode_indices}
+
+    # Parse displacement data (3 lines per atom: X, Y, Z)
+    line_idx = 1
+    for atom_idx in range(num_atoms):
+        if line_idx + 2 >= len(lines):
+            break
+
+        for coord_idx in range(3):  # X, Y, Z
+            if line_idx >= len(lines):
+                break
+
+            parts = lines[line_idx].split()
+            if len(parts) >= num_modes + 1:
+                for mode_offset, mode_id in enumerate(mode_indices):
+                    try:
+                        value = float(parts[mode_offset + 1])
+                        if coord_idx == 0:  # First coordinate for this atom
+                            if len(mode_data[mode_id]) <= atom_idx:
+                                mode_data[mode_id].append([value, 0.0, 0.0])
+                            else:
+                                mode_data[mode_id][atom_idx][0] = value
+                        elif coord_idx == 1:  # Y
+                            mode_data[mode_id][atom_idx][1] = value
+                        else:  # Z
+                            mode_data[mode_id][atom_idx][2] = value
+                    except (ValueError, IndexError):
+                        pass
+
+            line_idx += 1
+
+    # Convert to NormalMode objects
+    # Need to get frequencies for each mode
+    freq_match = re.search(r'VIBRATIONAL FREQUENCIES.*?\n-+\s*(.*?)(?:\n\s*\n|\Z)', content, re.DOTALL)
+    frequencies = {}
+    if freq_match:
+        freq_lines = freq_match.group(1).strip().split('\n')
+        for line in freq_lines:
+            parts = line.split(':')
+            if len(parts) == 2:
+                try:
+                    mode_num = int(parts[0].strip())
+                    freq_str = parts[1].strip().split()[0]
+                    frequencies[mode_num] = float(freq_str)
+                except (ValueError, IndexError):
+                    pass
+
+    for mode_id in mode_indices:
+        if mode_id in mode_data:
+            modes.append(NormalMode(
+                mode_index=mode_id,
+                frequency=frequencies.get(mode_id, 0.0),
+                displacements=[tuple(disp) for disp in mode_data[mode_id]]
+            ))
+
+    return modes
+
+
+def parse_scf_iterations(content: str) -> list[SCFIteration]:
+    """Extract SCF convergence data."""
+    iterations = []
+
+    # Find all SCF iteration tables
+    scf_sections = re.finditer(
+        r'Iteration\s+Energy.*?Delta-E.*?RMSDP.*?MaxDP.*?DIISErr.*?\n(.*?)(?:\n\*+|Total SCF|SCF CONVERGED|\Z)',
+        content, re.DOTALL | re.IGNORECASE
+    )
+
+    for section in scf_sections:
+        section_text = section.group(1)
+        # Match iteration lines: number, energy, delta-E, RMSDP, MaxDP, DIISErr
+        matches = re.findall(
+            r'^\s*(\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.\d+[eE][-+]?\d+)\s+'
+            r'(\d+\.\d+[eE][-+]?\d+)\s+(\d+\.\d+[eE][-+]?\d+)\s+(\d+\.\d+[eE][-+]?\d+)',
+            section_text, re.MULTILINE
+        )
+
+        for match in matches:
+            try:
+                iterations.append(SCFIteration(
+                    iteration=int(match[0]),
+                    energy=float(match[1]),
+                    delta_e=float(match[2]),
+                    rmsdp=float(match[3]),
+                    maxdp=float(match[4]),
+                    diis_error=float(match[5])
+                ))
+            except ValueError:
+                pass
+
+    return iterations
+
+
 if __name__ == '__main__':
     import sys
     import json
@@ -768,3 +927,14 @@ if __name__ == '__main__':
         if result.dispersion_correction:
             print(f"Dispersion: {result.dispersion_correction.method}")
             print(f"  Energy: {result.dispersion_correction.total_correction_kcal:.2f} kcal/mol")
+
+        if result.normal_modes:
+            print(f"Normal Modes: {len(result.normal_modes)} modes with displacement vectors")
+            if result.normal_modes:
+                print(f"  First mode: {result.normal_modes[0].frequency:.1f} cm^-1 ({len(result.normal_modes[0].displacements)} atoms)")
+
+        if result.scf_iterations:
+            print(f"SCF Iterations: {len(result.scf_iterations)} iterations")
+            if result.scf_iterations:
+                final = result.scf_iterations[-1]
+                print(f"  Final: ΔE={final.delta_e:.2e}, RMSDP={final.rmsdp:.2e}")
