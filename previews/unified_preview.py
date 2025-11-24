@@ -80,17 +80,61 @@ def unified_preview_page():
 
     elif file_type == 'out':
         from parsers.out_parser import parse_out_content
+        import plotly.graph_objects as go
         result = parse_out_content(content)
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Final Energy (Eh)", f"{result.final_energy:.6f}" if result.final_energy else "N/A")
         with col2:
             if result.dipole_moment:
                 st.metric("Dipole (Debye)", f"{result.dipole_moment.magnitude_debye:.3f}")
+        with col3:
+            if result.frequencies:
+                st.metric("Vibrational Modes", len(result.frequencies))
 
-        if result.frequencies:
-            st.metric("Vibrational Modes", len(result.frequencies))
+        # Dispersion correction
+        if result.dispersion_correction:
+            st.info(f"**{result.dispersion_correction.method}** Dispersion: "
+                   f"{result.dispersion_correction.total_correction_kcal:.2f} kcal/mol")
+
+        # IR Spectrum
+        if result.ir_spectrum:
+            st.subheader("IR Spectrum")
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=[mode.frequency for mode in result.ir_spectrum],
+                y=[mode.intensity for mode in result.ir_spectrum],
+                mode='lines',
+                name='IR Intensity',
+                line=dict(color='blue')
+            ))
+            fig.update_layout(
+                xaxis_title="Wavenumber (cm⁻¹)",
+                yaxis_title="Intensity (km/mol)",
+                height=300,
+                margin=dict(l=0, r=0, t=20, b=0)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        # Raman Spectrum
+        if result.raman_spectrum:
+            st.subheader("Raman Spectrum")
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=[mode.frequency for mode in result.raman_spectrum],
+                y=[mode.activity for mode in result.raman_spectrum],
+                mode='lines',
+                name='Raman Activity',
+                line=dict(color='red')
+            ))
+            fig.update_layout(
+                xaxis_title="Wavenumber (cm⁻¹)",
+                yaxis_title="Raman Activity",
+                height=300,
+                margin=dict(l=0, r=0, t=20, b=0)
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
     elif file_type == 'hess':
         from parsers.hess_parser import parse_hess_content, find_strongest_peaks
