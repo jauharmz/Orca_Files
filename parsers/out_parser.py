@@ -179,6 +179,21 @@ class BasisSetInfo:
 
 
 @dataclass
+class EnergyComponents:
+    """Detailed energy breakdown."""
+    nuclear_repulsion: float = 0.0  # Eh
+    electronic_energy: float = 0.0  # Eh
+    one_electron_energy: float = 0.0  # Eh
+    two_electron_energy: float = 0.0  # Eh
+    kinetic_energy: float = 0.0  # Eh
+    potential_energy: float = 0.0  # Eh
+    virial_ratio: float = 0.0
+    exchange_energy: float = 0.0  # Eh (DFT)
+    correlation_energy: float = 0.0  # Eh (DFT)
+    xc_energy: float = 0.0  # Eh (DFT)
+
+
+@dataclass
 class OrcaOutput:
     """Complete parsed ORCA output."""
     job_info: JobInfo
@@ -197,6 +212,7 @@ class OrcaOutput:
     timing_data: Optional[TimingData] = None
     dft_grid_info: Optional[DFTGridInfo] = None
     basis_set_info: Optional[BasisSetInfo] = None
+    energy_components: Optional[EnergyComponents] = None
     mulliken_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     loewdin_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     mayer_bond_orders: list[tuple[int, int, float]] = field(default_factory=list)
@@ -278,6 +294,18 @@ class OrcaOutput:
                 'num_primitive_gaussians': self.basis_set_info.num_primitive_gaussians,
                 'element_basis': self.basis_set_info.element_basis
             } if self.basis_set_info else None,
+            'energy_components': {
+                'nuclear_repulsion': self.energy_components.nuclear_repulsion,
+                'electronic_energy': self.energy_components.electronic_energy,
+                'one_electron_energy': self.energy_components.one_electron_energy,
+                'two_electron_energy': self.energy_components.two_electron_energy,
+                'kinetic_energy': self.energy_components.kinetic_energy,
+                'potential_energy': self.energy_components.potential_energy,
+                'virial_ratio': self.energy_components.virial_ratio,
+                'exchange_energy': self.energy_components.exchange_energy,
+                'correlation_energy': self.energy_components.correlation_energy,
+                'xc_energy': self.energy_components.xc_energy
+            } if self.energy_components else None,
             'mulliken_charges': {
                 str(k): {'element': v[0], 'charge': v[1]}
                 for k, v in self.mulliken_charges.items()
@@ -347,6 +375,7 @@ def parse_out_content(content: str) -> OrcaOutput:
     timing = parse_timing_data(content)
     dft_grid = parse_dft_grid_info(content)
     basis_set = parse_basis_set_info(content)
+    energy_comp = parse_energy_components(content)
 
     # Get number of atoms for normal modes parsing
     num_atoms = len(mulliken) if mulliken else 0
@@ -369,6 +398,7 @@ def parse_out_content(content: str) -> OrcaOutput:
         timing_data=timing,
         dft_grid_info=dft_grid,
         basis_set_info=basis_set,
+        energy_components=energy_comp,
         mulliken_charges=mulliken,
         loewdin_charges=loewdin,
         mayer_bond_orders=bond_orders,
@@ -1025,6 +1055,57 @@ def parse_basis_set_info(content: str) -> Optional[BasisSetInfo]:
     return None
 
 
+def parse_energy_components(content: str) -> Optional[EnergyComponents]:
+    """Extract detailed energy breakdown."""
+    energy = EnergyComponents()
+
+    # Find energy components section
+    energy_section = re.search(
+        r'Nuclear Repulsion\s*:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'Electronic Energy\s*:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'One Electron Energy:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'Two Electron Energy:\s*(-?\d+\.?\d+)\s*Eh',
+        content, re.DOTALL
+    )
+
+    if energy_section:
+        energy.nuclear_repulsion = float(energy_section.group(1))
+        energy.electronic_energy = float(energy_section.group(2))
+        energy.one_electron_energy = float(energy_section.group(3))
+        energy.two_electron_energy = float(energy_section.group(4))
+
+    # Parse virial components
+    virial_section = re.search(
+        r'Potential Energy\s*:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'Kinetic Energy\s*:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'Virial Ratio\s*:\s*(-?\d+\.?\d+)',
+        content, re.DOTALL
+    )
+
+    if virial_section:
+        energy.potential_energy = float(virial_section.group(1))
+        energy.kinetic_energy = float(virial_section.group(2))
+        energy.virial_ratio = float(virial_section.group(3))
+
+    # Parse DFT components
+    xc_section = re.search(
+        r'E\(X\)\s*:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'E\(C\)\s*:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'E\(XC\)\s*:\s*(-?\d+\.?\d+)\s*Eh',
+        content, re.DOTALL
+    )
+
+    if xc_section:
+        energy.exchange_energy = float(xc_section.group(1))
+        energy.correlation_energy = float(xc_section.group(2))
+        energy.xc_energy = float(xc_section.group(3))
+
+    # Return if we found at least some data
+    if energy.nuclear_repulsion != 0.0 or energy.electronic_energy != 0.0:
+        return energy
+    return None
+
+
 def parse_timing_data(content: str) -> Optional[TimingData]:
     """Extract computational timing breakdown."""
     timing = TimingData()
@@ -1154,3 +1235,15 @@ if __name__ == '__main__':
             print(f"  {result.basis_set_info.num_basis_functions} functions, {result.basis_set_info.num_primitive_gaussians} primitives")
             if result.basis_set_info.element_basis:
                 print(f"  Elements: {', '.join(result.basis_set_info.element_basis.keys())}")
+
+        if result.energy_components:
+            ec = result.energy_components
+            print(f"Energy Components:")
+            print(f"  Nuclear Repulsion: {ec.nuclear_repulsion:.6f} Eh")
+            print(f"  Electronic Energy: {ec.electronic_energy:.6f} Eh")
+            if ec.kinetic_energy != 0.0:
+                print(f"  Kinetic Energy: {ec.kinetic_energy:.6f} Eh")
+                print(f"  Potential Energy: {ec.potential_energy:.6f} Eh")
+                print(f"  Virial Ratio: {ec.virial_ratio:.8f}")
+            if ec.xc_energy != 0.0:
+                print(f"  XC Energy: {ec.xc_energy:.6f} Eh (X: {ec.exchange_energy:.6f}, C: {ec.correlation_energy:.6f})")
