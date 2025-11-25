@@ -242,6 +242,17 @@ class InternalCoordinate:
 
 
 @dataclass
+class MOCharge:
+    """Molecular orbital charge entry."""
+    mo_index: int
+    atom_index: int
+    element: str
+    orbital: str  # e.g., '1s', '2px', '3dz2'
+    charge: float
+    uncorrected_charge: Optional[float] = None  # Only for Mulliken
+
+
+@dataclass
 class OrcaOutput:
     """Complete parsed ORCA output."""
     job_info: JobInfo
@@ -269,7 +280,9 @@ class OrcaOutput:
     scf_convergence: Optional[SCFConvergence] = None
     mulliken_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     mulliken_orbital_populations: list[OrbitalPopulation] = field(default_factory=list)
+    mulliken_orbital_charges: list[MOCharge] = field(default_factory=list)  # Per-MO charges
     loewdin_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
+    loewdin_orbital_charges: list[MOCharge] = field(default_factory=list)  # Per-MO charges
     mayer_bond_orders: list[tuple[int, int, float]] = field(default_factory=list)
     loewdin_bond_orders: list[tuple[int, int, float]] = field(default_factory=list)
     mulliken_overlap_charges: list[tuple[int, int, float]] = field(default_factory=list)  # (atom1, atom2, overlap_charge)
@@ -430,10 +443,31 @@ class OrcaOutput:
                 }
                 for pop in self.mulliken_orbital_populations
             ],
+            'mulliken_orbital_charges': [
+                {
+                    'mo_index': charge.mo_index,
+                    'atom_index': charge.atom_index,
+                    'element': charge.element,
+                    'orbital': charge.orbital,
+                    'charge': charge.charge,
+                    'uncorrected_charge': charge.uncorrected_charge
+                }
+                for charge in self.mulliken_orbital_charges
+            ],
             'loewdin_charges': {
                 str(k): {'element': v[0], 'charge': v[1]}
                 for k, v in self.loewdin_charges.items()
             },
+            'loewdin_orbital_charges': [
+                {
+                    'mo_index': charge.mo_index,
+                    'atom_index': charge.atom_index,
+                    'element': charge.element,
+                    'orbital': charge.orbital,
+                    'charge': charge.charge
+                }
+                for charge in self.loewdin_orbital_charges
+            ],
             'mayer_bond_orders': [
                 {'atom1': b[0], 'atom2': b[1], 'order': b[2]}
                 for b in self.mayer_bond_orders
@@ -513,6 +547,8 @@ def parse_out_content(content: str) -> OrcaOutput:
     cpcm_solv = parse_cpcm_solvation(content)
     scf_conv = parse_scf_convergence(content)
     mulliken_orb_pop = parse_mulliken_orbital_populations(content)
+    mulliken_orb_charges = parse_mulliken_orbital_charges(content)
+    loewdin_orb_charges = parse_loewdin_orbital_charges(content)
 
     # Get number of atoms for normal modes parsing
     num_atoms = len(mulliken) if mulliken else 0
@@ -544,7 +580,9 @@ def parse_out_content(content: str) -> OrcaOutput:
         scf_convergence=scf_conv,
         mulliken_charges=mulliken,
         mulliken_orbital_populations=mulliken_orb_pop,
+        mulliken_orbital_charges=mulliken_orb_charges,
         loewdin_charges=loewdin,
+        loewdin_orbital_charges=loewdin_orb_charges,
         mayer_bond_orders=bond_orders,
         loewdin_bond_orders=loewdin_bond_orders,
         mulliken_overlap_charges=mulliken_overlap,
@@ -971,6 +1009,72 @@ def parse_mulliken_overlap_charges(content: str) -> list[tuple[int, int, float]]
         overlap_charges.append((atom1, atom2, overlap))
 
     return overlap_charges
+
+
+def parse_mulliken_orbital_charges(content: str) -> list[MOCharge]:
+    """Extract Mulliken orbital charges (per-MO charge distribution)."""
+    charges = []
+
+    # Find MULLIKEN ORBITAL CHARGES section
+    section = re.search(
+        r'MULLIKEN ORBITAL CHARGES\s*-+\s*.*?\n(.*?)(?:\n\n|LOEWDIN)',
+        content, re.DOTALL
+    )
+
+    if not section:
+        return charges
+
+    # Parse format: "   0:   0C   1s           1.103241 (  0.658373)"
+    # MO_index: atom_index+element orbital charge (uncorrected_charge)
+    matches = re.findall(
+        r'^\s*(\d+):\s+(\d+)([A-Z][a-z]?)\s+(\S+)\s+(-?\d+\.?\d+)\s+\(\s*(-?\d+\.?\d+)\)',
+        section.group(1), re.MULTILINE
+    )
+
+    for mo_idx, atom_idx, element, orbital, charge, uncorrected in matches:
+        charges.append(MOCharge(
+            mo_index=int(mo_idx),
+            atom_index=int(atom_idx),
+            element=element,
+            orbital=orbital,
+            charge=float(charge),
+            uncorrected_charge=float(uncorrected)
+        ))
+
+    return charges
+
+
+def parse_loewdin_orbital_charges(content: str) -> list[MOCharge]:
+    """Extract Loewdin orbital charges (per-MO charge distribution)."""
+    charges = []
+
+    # Find LOEWDIN ORBITAL CHARGES section
+    section = re.search(
+        r'LOEWDIN ORBITAL CHARGES\s*-+\s*(.*?)(?:\n\n|$)',
+        content, re.DOTALL
+    )
+
+    if not section:
+        return charges
+
+    # Parse format: "   0:   0C   1s           1.046092"
+    # MO_index: atom_index+element orbital charge
+    matches = re.findall(
+        r'^\s*(\d+):\s+(\d+)([A-Z][a-z]?)\s+(\S+)\s+(-?\d+\.?\d+)',
+        section.group(1), re.MULTILINE
+    )
+
+    for mo_idx, atom_idx, element, orbital, charge in matches:
+        charges.append(MOCharge(
+            mo_index=int(mo_idx),
+            atom_index=int(atom_idx),
+            element=element,
+            orbital=orbital,
+            charge=float(charge),
+            uncorrected_charge=None  # Loewdin doesn't have uncorrected charges
+        ))
+
+    return charges
 
 
 def parse_thermochemistry(content: str) -> Optional[Thermochemistry]:
@@ -1665,6 +1769,22 @@ if __name__ == '__main__':
                 print(f"  {pop.atom_index} {pop.element}: {orb_str}")
             if len(result.mulliken_orbital_populations) > 3:
                 print(f"  ... and {len(result.mulliken_orbital_populations) - 3} more")
+
+        if result.mulliken_orbital_charges:
+            print(f"Mulliken Orbital Charges: {len(result.mulliken_orbital_charges)} MO entries")
+            # Show first few entries
+            for charge in result.mulliken_orbital_charges[:3]:
+                print(f"  MO {charge.mo_index}: {charge.atom_index}{charge.element} {charge.orbital} = {charge.charge:.6f} ({charge.uncorrected_charge:.6f})")
+            if len(result.mulliken_orbital_charges) > 3:
+                print(f"  ... and {len(result.mulliken_orbital_charges) - 3} more")
+
+        if result.loewdin_orbital_charges:
+            print(f"Loewdin Orbital Charges: {len(result.loewdin_orbital_charges)} MO entries")
+            # Show first few entries
+            for charge in result.loewdin_orbital_charges[:3]:
+                print(f"  MO {charge.mo_index}: {charge.atom_index}{charge.element} {charge.orbital} = {charge.charge:.6f}")
+            if len(result.loewdin_orbital_charges) > 3:
+                print(f"  ... and {len(result.loewdin_orbital_charges) - 3} more")
 
         if result.thermochemistry:
             print(f"Gibbs Free Energy: {result.thermochemistry.gibbs_free_energy:.6f} Eh")
