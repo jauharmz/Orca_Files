@@ -313,6 +313,602 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 **Total Estimated Effort:** 30-42 hours for all remaining high/medium priority sections (reduced from 37-49 after completing 4 sections)
 
+---
+
+## Quick Continuation Guide
+
+**When context runs out, use this guide to continue development:**
+
+### Current State (Session Checkpoint)
+- **Branch:** `claude/parse-orca-output-014tZra7WsNVQwk3ZtzDJnCk`
+- **Coverage:** 32/57 sections (56%)
+- **Test File:** `p1xs0p.out` (113,234 lines, 23 atoms)
+- **Last Commit:** 005e8b0 - "Add 4 new ORCA output parsers (32/57 sections, 56% coverage)"
+
+### Recent Additions (Latest Session)
+1. ✅ Cartesian coordinates (a.u.) - line 347, with atomic numbers/masses
+2. ✅ Internal coordinates - lines 375, 402 (Z-matrix format)
+3. ✅ Mulliken overlap charges - line 75366 (105 atom pairs)
+4. ✅ Total run time - line 113339 (days/hours/min/sec/msec)
+
+### Development Pattern (Follow This)
+```bash
+# 1. Start from designated branch
+git checkout claude/parse-orca-output-014tZra7WsNVQwk3ZtzDJnCk
+
+# 2. Read the parser file first
+Read: /home/user/Orca_Files/parsers/out_parser.py
+
+# 3. Find section in test file
+grep -n "SECTION NAME" p1xs0p.out
+sed -n 'LINE_START,LINE_END p' p1xs0p.out
+
+# 4. Implement parser
+# - Add @dataclass for complex data
+# - Add parse_SECTION() function
+# - Call in parse_out_content()
+# - Update OrcaOutput dataclass
+# - Update to_dict() for JSON
+# - Update __main__ display
+
+# 5. Test parser
+python parsers/out_parser.py p1xs0p.out | grep "SECTION"
+
+# 6. Commit and push
+git add -A
+git commit -m "Add [section name] parsing"
+git push -u origin claude/parse-orca-output-014tZra7WsNVQwk3ZtzDJnCk
+```
+
+### Next Priority Sections (Recommended Order)
+**Quick Wins (1-2 hours each):**
+1. Chemical Shielding Summary (line 3079) - 18 nuclei with isotropic values
+2. Mulliken Orbital Charges (line 74800) - per-orbital charge distribution
+3. Loewdin Orbital Charges (line 75015) - alternative charges
+
+**High Value (4-6 hours each):**
+4. J-Coupling Tensor Components (lines 107219-109419) - DSO/PSO/FC/SD tensors
+5. Chemical Shielding Tensors (lines 88583-103469) - full anisotropic NMR
+
+**Important Implementation Notes:**
+- All parsers return `Optional[T]` or `list[T]`
+- Use `re.search()` with `re.DOTALL` for section extraction
+- Use `re.findall()` with `re.MULTILINE` for line-by-line parsing
+- Test with actual data before committing
+- Update README coverage stats after each commit
+
+### File Locations
+- **Main Parser:** `/home/user/Orca_Files/parsers/out_parser.py` (1600+ lines)
+- **Test File:** `/home/user/Orca_Files/p1xs0p.out`
+- **README:** `/home/user/Orca_Files/README.md`
+- **Preview:** `/home/user/Orca_Files/previews/unified_preview.py`
+
+### Key Code Patterns
+```python
+# Pattern 1: Simple extraction
+@dataclass
+class SectionData:
+    field1: float = 0.0
+    field2: str = ""
+
+def parse_section(content: str) -> Optional[SectionData]:
+    section = re.search(r'SECTION NAME.*?-+\s*(.*?)(?:\n\n|$)', content, re.DOTALL)
+    if section:
+        # Parse data
+        return SectionData(...)
+    return None
+
+# Pattern 2: List extraction
+def parse_section_list(content: str) -> list[tuple]:
+    data = []
+    section = re.search(r'SECTION.*?-+\s*(.*?)(?:\n\n|$)', content, re.DOTALL)
+    if section:
+        matches = re.findall(r'PATTERN', section.group(1), re.MULTILINE)
+        for match in matches:
+            data.append((match[0], float(match[1])))
+    return data
+
+# Pattern 3: Line-by-line parsing (for complex formats)
+def parse_complex_section(content: str) -> list[DataClass]:
+    items = []
+    section_match = re.search(r'SECTION.*?\n(.*?)(?:\n\n)', content, re.DOTALL)
+    if section_match:
+        lines = section_match.group(1).split('\n')
+        for line in lines:
+            # Parse each line
+            items.append(DataClass(...))
+    return items
+```
+
+---
+
+## Test Plan
+
+### Test Strategy Overview
+**Goal:** Ensure all 32 parsed sections extract correct data with proper error handling.
+
+### 1. Unit Tests (Per Parser Function)
+
+**Location:** Create `/home/user/Orca_Files/tests/test_out_parser.py`
+
+**Test Categories:**
+
+#### A. Data Extraction Tests
+```python
+def test_parse_coordinates():
+    """Test Cartesian coordinate parsing."""
+    # Test normal case
+    result = parse_out_file('p1xs0p.out')
+    assert len(result.coordinates) == 23
+    assert result.coordinates[0][0] == 'C'  # Element
+    assert isinstance(result.coordinates[0][1], float)  # X
+
+def test_parse_coordinates_au():
+    """Test atomic unit coordinates with mass."""
+    result = parse_out_file('p1xs0p.out')
+    assert len(result.coordinates_au) == 23
+    assert result.coordinates_au[0][4] == 6.0  # Atomic number
+    assert result.coordinates_au[0][5] == 12.011  # Mass
+
+def test_parse_internal_coordinates():
+    """Test Z-matrix internal coordinates."""
+    result = parse_out_file('p1xs0p.out')
+    assert len(result.internal_coords) == 23
+    # Second atom should have bond to atom 1
+    assert result.internal_coords[1].bond_to == 1
+    assert result.internal_coords[1].bond_length > 0
+```
+
+#### B. Edge Case Tests
+```python
+def test_missing_section():
+    """Test graceful handling of missing sections."""
+    # Create test file without certain section
+    result = parse_out_content("MINIMAL CONTENT")
+    assert result.mulliken_overlap_charges == []
+    assert result.internal_coords == []
+
+def test_empty_output():
+    """Test with minimal ORCA output."""
+    result = parse_out_content("")
+    assert result.final_energy is None
+    assert result.coordinates == []
+```
+
+#### C. Data Integrity Tests
+```python
+def test_energy_consistency():
+    """Verify final energy matches last SCF energy."""
+    result = parse_out_file('p1xs0p.out')
+    assert result.final_energy is not None
+    if result.scf_energies:
+        # Within numerical precision
+        assert abs(result.final_energy - result.scf_energies[-1]) < 1e-6
+
+def test_coordinate_consistency():
+    """Verify coordinate count consistency."""
+    result = parse_out_file('p1xs0p.out')
+    # All coordinate formats should have same atom count
+    assert len(result.coordinates) == len(result.coordinates_au)
+    assert len(result.coordinates) == len(result.internal_coords)
+    if result.mulliken_charges:
+        assert len(result.coordinates) == len(result.mulliken_charges)
+```
+
+#### D. Performance Tests
+```python
+def test_parsing_speed():
+    """Ensure parsing completes within time limit."""
+    import time
+    start = time.time()
+    result = parse_out_file('p1xs0p.out')  # 113k lines
+    elapsed = time.time() - start
+    assert elapsed < 10.0  # Should complete in <10 seconds
+
+def test_memory_efficiency():
+    """Monitor memory usage during parsing."""
+    import tracemalloc
+    tracemalloc.start()
+    result = parse_out_file('p1xs0p.out')
+    current, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert peak < 500 * 1024 * 1024  # <500 MB peak memory
+```
+
+### 2. Integration Tests
+
+#### A. JSON Export Test
+```python
+def test_json_serialization():
+    """Test complete JSON export."""
+    result = parse_out_file('p1xs0p.out')
+    data = result.to_dict()
+
+    # Verify all sections present
+    assert 'job_info' in data
+    assert 'coordinates' in data
+    assert 'coordinates_au' in data
+    assert 'internal_coords' in data
+    assert 'mulliken_overlap_charges' in data
+
+    # Test JSON serialization
+    import json
+    json_str = json.dumps(data, indent=2)
+    assert len(json_str) > 0
+
+    # Test deserialization
+    parsed = json.loads(json_str)
+    assert parsed['final_energy'] == data['final_energy']
+```
+
+#### B. Cross-Format Consistency
+```python
+def test_xyz_vs_out_coordinates():
+    """Compare coordinates from .xyz and .out files."""
+    xyz_result = parse_xyz_file('p1xs0p.xyz')
+    out_result = parse_out_file('p1xs0p.out')
+
+    assert len(xyz_result.atoms) == len(out_result.coordinates)
+    # Coordinates should match within tolerance
+    for i, (xyz_atom, out_coord) in enumerate(zip(xyz_result.atoms, out_result.coordinates)):
+        assert xyz_atom.element == out_coord[0]
+        assert abs(xyz_atom.x - out_coord[1]) < 0.001
+```
+
+### 3. Regression Tests
+
+**Track Changes Across Versions:**
+```python
+def test_backward_compatibility():
+    """Ensure new parsers don't break old functionality."""
+    result = parse_out_file('p1xs0p.out')
+
+    # Original sections should still work
+    assert result.final_energy is not None
+    assert len(result.frequencies) == 63
+    assert len(result.mayer_bond_orders) == 66
+
+    # New sections should work
+    assert len(result.coordinates_au) == 23
+    assert len(result.mulliken_overlap_charges) == 105
+```
+
+### 4. Manual Verification Checklist
+
+**For Each New Parser:**
+- [ ] View raw section format in test file
+- [ ] Verify regex pattern matches all lines
+- [ ] Check first/last entries are captured
+- [ ] Test with minimal section (if available)
+- [ ] Verify data types are correct
+- [ ] Check for off-by-one errors in atom indexing
+- [ ] Confirm units are documented
+- [ ] Validate against known reference values
+
+### 5. Test Execution
+
+**Run All Tests:**
+```bash
+# Run unit tests
+python -m pytest tests/test_out_parser.py -v
+
+# Run with coverage
+python -m pytest tests/test_out_parser.py --cov=parsers --cov-report=html
+
+# Run specific test
+python -m pytest tests/test_out_parser.py::test_parse_coordinates -v
+
+# Run performance tests
+python -m pytest tests/test_out_parser.py -k "performance" -v
+```
+
+**Quick Manual Test:**
+```bash
+# Test parser output
+python parsers/out_parser.py p1xs0p.out
+
+# Test JSON export
+python parsers/out_parser.py p1xs0p.out > output.json
+
+# Verify section counts
+python parsers/out_parser.py p1xs0p.out | grep -E "(Coordinates|Bond Orders|Overlap)"
+```
+
+### 6. Test Data Requirements
+
+**Test Files Needed:**
+1. **p1xs0p.out** (primary, 113k lines) - B3LYP/NMR/freq calculation
+2. **minimal.out** (create) - Minimal SCF calculation
+3. **optimization.out** (optional) - Geometry optimization
+4. **tddft.out** (optional) - TD-DFT calculation
+
+**Create Minimal Test File:**
+```bash
+# Extract essential sections for quick testing
+head -n 500 p1xs0p.out > tests/fixtures/minimal.out
+```
+
+---
+
+## UI Master Plan: Unified ORCA File Reader
+
+### Vision
+**Single-window application with tabbed interface to view all ORCA output files in one place.**
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ORCA Quantum Chemistry File Viewer                         │
+│  File: p1xs0p.out                                   [×]     │
+├─────────────────────────────────────────────────────────────┤
+│  📁 File  🔧 Tools  📊 Export  ❓ Help                      │
+├──────────┬──────────────────────────────────────────────────┤
+│          │  Tab Bar                                         │
+│  File    │  [Summary] [Geometry] [Energy] [Spectrum]       │
+│  Tree    │  [Orbitals] [NMR] [Population] [Advanced]       │
+│          │                                                  │
+│  📄 Info │──────────────────────────────────────────────────│
+│  ├─ Geo  │                                                  │
+│  ├─ SCF  │         Main Content Area                       │
+│  ├─ Opt  │      (Dynamic based on selected tab)            │
+│  ├─ Freq │                                                  │
+│  ├─ NMR  │                                                  │
+│  └─ Orb  │                                                  │
+│          │                                                  │
+└──────────┴──────────────────────────────────────────────────┘
+```
+
+### Technology Stack
+
+**Option A: Web-Based (Recommended)**
+- **Frontend:** React + TypeScript
+- **UI Framework:** Material-UI or Chakra UI
+- **3D Viewer:** 3Dmol.js
+- **Plots:** Plotly.js or Recharts
+- **Backend:** FastAPI (Python)
+- **Deployment:** Electron wrapper for desktop, or pure web
+
+**Option B: Native Python**
+- **Framework:** PyQt6 or tkinter
+- **3D Viewer:** PyMOL or py3Dmol
+- **Plots:** Matplotlib embedded
+- **Advantage:** Single codebase, no web dependency
+
+### Tab Structure
+
+#### Tab 1: Summary 📊
+**Quick overview of calculation**
+```
+┌────────────────────────────────────────────────┐
+│  Calculation Summary                           │
+│  ────────────────────────────────────────────  │
+│  Method: B3LYP         Basis: pcSseg-3        │
+│  Charge: 0             Multiplicity: 1        │
+│  Atoms: 23             Electrons: 102         │
+│                                                │
+│  Final Energy: -662.998375 Eh                 │
+│  Gibbs Free Energy: -662.858808 Eh            │
+│                                                │
+│  Status: ✅ SCF Converged (16 iterations)     │
+│          ✅ Geometry Optimized                │
+│          ✅ Frequencies Computed (63 modes)   │
+│          ✅ NMR Calculated (18 shifts)        │
+│                                                │
+│  Runtime: 1h 3min 0s                          │
+│  Files: 15 output files                       │
+└────────────────────────────────────────────────┘
+```
+
+#### Tab 2: Geometry 🧬
+**3D structure + coordinates**
+```
+┌────────────────┬───────────────────────────────┐
+│  3D Viewer     │  Coordinate Table             │
+│                │  ───────────────────────────  │
+│   [Rotate]     │  Atom  Element  X    Y    Z  │
+│   [Zoom]       │  ────────────────────────────│
+│   [Reset]      │  0     C        0.98  4.01   │
+│                │  1     H        0.94  6.07   │
+│  [Structure]   │  2     C        2.37  2.72   │
+│                │  ...                          │
+│  Cartoon  ○    │                               │
+│  Ball+Stick ●  │  Format: [Angstrom ▼]        │
+│  Surface  ○    │  [Export XYZ] [Copy]         │
+│                │                               │
+│  Show: ☑ Labels│  Internal Coordinates         │
+│        ☑ Bonds │  ───────────────────────────  │
+│        ☐ Axes  │  Bond: H(1)-C(0) = 1.083 Å  │
+└────────────────┴───────────────────────────────┘
+```
+
+#### Tab 3: Energy ⚡
+**SCF, optimization, components**
+```
+┌──────────────────────────────────────────────────┐
+│  SCF Convergence Plot                            │
+│  ──────────────────────────────────────────────  │
+│  [Line chart: Energy vs Iteration]               │
+│                                                   │
+│  Energy Components                                │
+│  ──────────────────────────────────────────────  │
+│  Nuclear Repulsion:      839.662 Eh              │
+│  Electronic Energy:   -1502.722 Eh              │
+│  Kinetic Energy:        660.289 Eh              │
+│  XC Energy:             -72.671 Eh              │
+│  Virial Ratio:            2.0042                 │
+│                                                   │
+│  Solvation (CPCM)                                │
+│  ──────────────────────────────────────────────  │
+│  Dielectric Energy:      -0.020 Eh              │
+│  Surface Charge:         -0.032                  │
+└──────────────────────────────────────────────────┘
+```
+
+#### Tab 4: Spectrum 📈
+**IR, Raman, UV-Vis**
+```
+┌───────────────────────────────────────────────┐
+│  Spectrum Type: [IR ▼]                        │
+│  ────────────────────────────────────────────  │
+│  [Interactive plot with hover]                │
+│                                                │
+│  Peak List                                     │
+│  Mode  Frequency  Intensity  Assignment       │
+│  ────────────────────────────────────────────  │
+│  7     44.9       1.2        C-C-C bend       │
+│  8     95.3       0.5        O-C-O bend       │
+│  ...                                           │
+│                                                │
+│  [Export CSV] [Export Image]                  │
+└───────────────────────────────────────────────┘
+```
+
+#### Tab 5: Orbitals 🔬
+**MO energies, densities**
+```
+┌────────────────────┬──────────────────────────┐
+│  MO Energy Diagram │  Orbital Details         │
+│  ────────────────  │  ──────────────────────  │
+│  [Energy level     │  Orbital: HOMO           │
+│   diagram with     │  Index: 393              │
+│   HOMO-LUMO gap]   │  Energy: -0.000 eV      │
+│                    │  Occupation: 2.000       │
+│  LUMO: -0.814 eV  │                          │
+│  ═══════════════   │  Contributions:          │
+│  Gap: 0.814 eV    │  C(0): 34.2%            │
+│  ───────────────   │  C(2): 28.1%            │
+│  HOMO:  0.000 eV  │  N(10): 15.6%           │
+│                    │                          │
+│  [Show MO ▼]      │  [View Density]          │
+└────────────────────┴──────────────────────────┘
+```
+
+#### Tab 6: NMR 🧲
+**Chemical shifts, J-couplings**
+```
+┌──────────────────────────────────────────────┐
+│  Chemical Shifts                             │
+│  ──────────────────────────────────────────  │
+│  Atom  Element  Isotropic  Anisotropy       │
+│  ──────────────────────────────────────────  │
+│  0     C        50.2       45.8             │
+│  1     H        3.1        12.4             │
+│  ...                                         │
+│                                              │
+│  J-Coupling Constants                        │
+│  ──────────────────────────────────────────  │
+│  [Matrix visualization: Atom pairs]          │
+│                                              │
+│  [Export to SpinWorks] [Export CSV]         │
+└──────────────────────────────────────────────┘
+```
+
+#### Tab 7: Population 👥
+**Mulliken, Loewdin, charges**
+```
+┌────────────────────┬─────────────────────────┐
+│  Charge Analysis   │  Visualization          │
+│  ────────────────  │  ─────────────────────  │
+│  Type: [Mulliken▼]│  [3D structure colored  │
+│                    │   by partial charge]    │
+│  Atom  Charge  Pop │                         │
+│  ────────────────  │  Red: δ+ (positive)    │
+│  0 C   -0.145 6.14 │  Blue: δ- (negative)   │
+│  1 H    0.215 0.78 │                         │
+│  ...               │  [Export PNG]           │
+│                    │                         │
+│  Bond Orders       │  Overlap Charges        │
+│  ────────────────  │  ─────────────────────  │
+│  C(0)-H(1): 0.945 │  C(0)-H(1): 1.174      │
+│  C(0)-C(2): 1.324 │  C(6)-C(8): -24.514    │
+└────────────────────┴─────────────────────────┘
+```
+
+#### Tab 8: Advanced 🔧
+**Raw data, logs, citations**
+```
+┌──────────────────────────────────────────────┐
+│  Advanced Data                               │
+│  ──────────────────────────────────────────  │
+│  📋 Timing Data                              │
+│     Total: 443.7 sec | Fock: 395.9 sec      │
+│                                              │
+│  ⚙️  DFT Grid Info                           │
+│     291,858 points | Lebedev-590            │
+│                                              │
+│  📚 Basis Set                                │
+│     1305 functions | 0 primitives           │
+│                                              │
+│  📄 Full Output Log                          │
+│     [Scrollable text viewer]                │
+│                                              │
+│  📖 Citations                                │
+│     [BibTeX entries]                         │
+└──────────────────────────────────────────────┘
+```
+
+### Implementation Phases
+
+#### Phase 1: Backend API (2-3 days)
+```python
+# /home/user/Orca_Files/api/main.py
+from fastapi import FastAPI, UploadFile
+from parsers.out_parser import parse_out_file
+
+app = FastAPI()
+
+@app.post("/parse/out")
+async def parse_out(file: UploadFile):
+    content = await file.read()
+    result = parse_out_content(content.decode())
+    return result.to_dict()
+
+@app.get("/formats")
+def get_supported_formats():
+    return {"formats": [".out", ".xyz", ".hess", ...]}
+```
+
+#### Phase 2: Frontend Shell (2-3 days)
+```typescript
+// src/App.tsx
+import { Tabs, Tab } from '@mui/material';
+import SummaryTab from './tabs/SummaryTab';
+import GeometryTab from './tabs/GeometryTab';
+// ...
+
+function App() {
+  const [activeTab, setActiveTab] = useState(0);
+  const [orcaData, setOrcaData] = useState(null);
+
+  return (
+    <div>
+      <FileUploader onParse={setOrcaData} />
+      <Tabs value={activeTab} onChange={setActiveTab}>
+        <Tab label="Summary" />
+        <Tab label="Geometry" />
+        {/* ... */}
+      </Tabs>
+      {activeTab === 0 && <SummaryTab data={orcaData} />}
+      {/* ... */}
+    </div>
+  );
+}
+```
+
+#### Phase 3: Individual Tabs (1-2 days each)
+- Implement each tab component
+- Add visualizations
+- Add export functionality
+
+#### Phase 4: Polish & Deploy (2-3 days)
+- Error handling
+- Loading states
+- Responsive design
+- Electron packaging
+
+**Total Estimated Time: 15-20 days**
+
 ### Storage Considerations
 
 - **Current parsing:** ~500 KB JSON
