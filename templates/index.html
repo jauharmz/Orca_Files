@@ -406,7 +406,7 @@
         <header>
             <h1>🧪 ORCA Output Viewer</h1>
             <p>Comprehensive Quantum Chemistry Data Visualization</p>
-            <p style="margin-top: 10px; font-size: 0.9em;">38/57 sections parsed (67% coverage) | 44 Interactive Visualizations</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">38/57 sections parsed (67% coverage) | 53 Interactive Visualizations</p>
         </header>
 
         <div class="controls">
@@ -900,6 +900,108 @@
                 </div>
                 <p style="margin-top: 10px; font-size: 12px; color: #666;">
                     Bar chart showing atomic mass contribution by element type.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Dipole Moment Components 🧲</button>
+            <div class="collapsible-content">
+                <div id="dipole-components-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('dipole-components-plot', 'dipole_components.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    3D bar chart showing dipole moment x, y, z components and total magnitude.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Thermochemistry Breakdown 🌡️</button>
+            <div class="collapsible-content">
+                <div id="thermo-breakdown-plot" style="width: 100%; height: 400px;"></div>
+                <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                    <div id="thermo-breakdown-details"></div>
+                </div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('thermo-breakdown-plot', 'thermo_breakdown.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Detailed breakdown of thermochemical corrections: ZPE, thermal, enthalpy, entropy contributions.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Atom Type Statistics 📈</button>
+            <div class="collapsible-content">
+                <div id="atom-stats-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('atom-stats-plot', 'atom_statistics.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Count and percentage of each element type in the molecule.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Bond Angle Distribution 📐</button>
+            <div class="collapsible-content">
+                <div id="angle-distribution-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('angle-distribution-plot', 'angle_distribution.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Histogram showing distribution of bond angles with statistics.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Element Composition 🥧</button>
+            <div class="collapsible-content">
+                <div id="element-composition-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('element-composition-plot', 'element_composition.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Pie chart showing molecular composition by element count.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Optimization Convergence Metrics 📉</button>
+            <div class="collapsible-content">
+                <div id="opt-convergence-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('opt-convergence-plot', 'opt_convergence.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Energy change per optimization step showing convergence rate.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Mulliken Population Correlation 🔬</button>
+            <div class="collapsible-content">
+                <div id="population-correlation-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('population-correlation-plot', 'population_correlation.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Scatter matrix showing correlations between s, p, d orbital populations.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Interatomic Distance Analysis 📏</button>
+            <div class="collapsible-content">
+                <div id="distance-analysis-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('distance-analysis-plot', 'distance_analysis.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Histogram of all pairwise interatomic distances.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Coordination Number Analysis 🔗</button>
+            <div class="collapsible-content">
+                <div id="coordination-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('coordination-plot', 'coordination_numbers.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Coordination number (number of nearby atoms within 3.5 Å) for each atom.
                 </p>
             </div>
         </div>
@@ -1580,6 +1682,15 @@
             renderEigenvalueSpectrum();
             renderIRRamanCorrelation();
             renderMassDistribution();
+            renderDipoleComponents();
+            renderThermoBreakdown();
+            renderAtomStats();
+            renderAngleDistribution();
+            renderElementComposition();
+            renderOptConvergence();
+            renderPopulationCorrelation();
+            renderDistanceAnalysis();
+            renderCoordinationNumbers();
         }
 
         function renderSCFPlot() {
@@ -3562,6 +3673,385 @@
             };
 
             Plotly.newPlot('mass-distribution-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderDipoleComponents() {
+            if (!data || !data.dipole_moment_components || data.dipole_moment_components.length === 0) return;
+
+            const labels = ['X', 'Y', 'Z'];
+            const values = data.dipole_moment_components.slice(0, 3); // X, Y, Z components
+            const magnitude = Math.sqrt(values.reduce((sum, v) => sum + v*v, 0));
+
+            const trace = {
+                x: labels,
+                y: values,
+                type: 'bar',
+                marker: {
+                    color: ['#FF6B6B', '#4ECDC4', '#45B7D1'],
+                    line: {width: 1, color: 'white'}
+                },
+                hovertemplate: 'Component %{x}<br>Value: %{y:.4f} Debye<extra></extra>'
+            };
+
+            const layout = {
+                title: `Dipole Moment Components (Total: ${magnitude.toFixed(4)} Debye)`,
+                xaxis: {title: 'Component'},
+                yaxis: {title: 'Dipole Moment (Debye)'},
+                showlegend: false
+            };
+
+            Plotly.newPlot('dipole-components-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderThermoBreakdown() {
+            if (!data || !data.thermochemistry) return;
+
+            const thermo = data.thermochemistry;
+            const categories = [];
+            const values = [];
+
+            if (thermo.zero_point_energy !== null) {
+                categories.push('Zero-Point Energy');
+                values.push(thermo.zero_point_energy);
+            }
+            if (thermo.thermal_correction_energy !== null) {
+                categories.push('Thermal Correction (E)');
+                values.push(thermo.thermal_correction_energy);
+            }
+            if (thermo.thermal_correction_enthalpy !== null) {
+                categories.push('Thermal Correction (H)');
+                values.push(thermo.thermal_correction_enthalpy);
+            }
+            if (thermo.thermal_correction_gibbs !== null) {
+                categories.push('Thermal Correction (G)');
+                values.push(thermo.thermal_correction_gibbs);
+            }
+
+            if (categories.length === 0) return;
+
+            const trace = {
+                x: categories,
+                y: values,
+                type: 'bar',
+                marker: {
+                    color: values,
+                    colorscale: 'Portland',
+                    line: {width: 1, color: 'white'}
+                },
+                hovertemplate: '%{x}<br>Energy: %{y:.6f} Eh<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Thermochemistry Energy Components',
+                xaxis: {title: 'Component', tickangle: -45},
+                yaxis: {title: 'Energy (Eh)'},
+                showlegend: false,
+                margin: {b: 120}
+            };
+
+            Plotly.newPlot('thermo-breakdown-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderAtomStats() {
+            if (!data || !data.coordinates_au || data.coordinates_au.length === 0) return;
+
+            // Count atoms by element
+            const elementCounts = {};
+            data.coordinates_au.forEach(coord => {
+                const element = coord[0];
+                elementCounts[element] = (elementCounts[element] || 0) + 1;
+            });
+
+            const elements = Object.keys(elementCounts).sort();
+            const counts = elements.map(e => elementCounts[e]);
+
+            const trace = {
+                x: elements,
+                y: counts,
+                type: 'bar',
+                marker: {
+                    color: counts,
+                    colorscale: 'Viridis',
+                    line: {width: 1, color: 'white'}
+                },
+                hovertemplate: 'Element: %{x}<br>Count: %{y}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Atom Type Statistics',
+                xaxis: {title: 'Element'},
+                yaxis: {title: 'Count'},
+                showlegend: false
+            };
+
+            Plotly.newPlot('atom-stats-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderAngleDistribution() {
+            if (!data || !data.coordinates_au || data.coordinates_au.length < 3) return;
+
+            // Calculate all bond angles
+            const coords = data.coordinates_au;
+            const angles = [];
+
+            // Helper to calculate angle between three points
+            const calculateAngle = (p1, p2, p3) => {
+                const v1 = [p1[1] - p2[1], p1[2] - p2[2], p1[3] - p2[3]];
+                const v2 = [p3[1] - p2[1], p3[2] - p2[2], p3[3] - p2[3]];
+
+                const dot = v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2];
+                const mag1 = Math.sqrt(v1[0]**2 + v1[1]**2 + v1[2]**2);
+                const mag2 = Math.sqrt(v2[0]**2 + v2[1]**2 + v2[2]**2);
+
+                return Math.acos(dot / (mag1 * mag2)) * 180 / Math.PI;
+            };
+
+            // Sample angles to avoid too many calculations
+            const maxAngles = 1000;
+            const step = Math.max(1, Math.floor(coords.length / 10));
+
+            for (let i = 0; i < coords.length && angles.length < maxAngles; i += step) {
+                for (let j = i + 1; j < coords.length && angles.length < maxAngles; j += step) {
+                    for (let k = j + 1; k < coords.length && angles.length < maxAngles; k += step) {
+                        const angle = calculateAngle(coords[i], coords[j], coords[k]);
+                        if (!isNaN(angle)) angles.push(angle);
+                    }
+                }
+            }
+
+            if (angles.length === 0) return;
+
+            const trace = {
+                x: angles,
+                type: 'histogram',
+                nbinsx: 36,
+                marker: {
+                    color: '#667eea',
+                    line: {width: 1, color: 'white'}
+                },
+                hovertemplate: 'Angle: %{x:.1f}°<br>Count: %{y}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Bond Angle Distribution',
+                xaxis: {title: 'Angle (degrees)'},
+                yaxis: {title: 'Frequency'},
+                showlegend: false
+            };
+
+            Plotly.newPlot('angle-distribution-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderElementComposition() {
+            if (!data || !data.coordinates_au || data.coordinates_au.length === 0) return;
+
+            // Count atoms by element
+            const elementCounts = {};
+            data.coordinates_au.forEach(coord => {
+                const element = coord[0];
+                elementCounts[element] = (elementCounts[element] || 0) + 1;
+            });
+
+            const elements = Object.keys(elementCounts).sort();
+            const counts = elements.map(e => elementCounts[e]);
+
+            const trace = {
+                labels: elements,
+                values: counts,
+                type: 'pie',
+                marker: {
+                    colors: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'],
+                    line: {width: 2, color: 'white'}
+                },
+                hovertemplate: '%{label}<br>Count: %{value}<br>Percentage: %{percent}<extra></extra>',
+                textinfo: 'label+percent'
+            };
+
+            const layout = {
+                title: 'Molecular Element Composition',
+                showlegend: true
+            };
+
+            Plotly.newPlot('element-composition-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderOptConvergence() {
+            if (!data || !data.opt_energies || data.opt_energies.length === 0) return;
+
+            const iterations = Array.from({length: data.opt_energies.length}, (_, i) => i + 1);
+
+            // Energy trace
+            const energyTrace = {
+                x: iterations,
+                y: data.opt_energies,
+                mode: 'lines+markers',
+                name: 'Energy',
+                yaxis: 'y1',
+                line: {color: '#667eea', width: 2},
+                marker: {size: 6},
+                hovertemplate: 'Iteration: %{x}<br>Energy: %{y:.6f} Eh<extra></extra>'
+            };
+
+            // Gradient norm trace (if available)
+            const traces = [energyTrace];
+            const layout = {
+                title: 'Optimization Convergence Metrics',
+                xaxis: {title: 'Optimization Step'},
+                yaxis: {title: 'Energy (Eh)', side: 'left'},
+                showlegend: true,
+                hovermode: 'x unified'
+            };
+
+            // Add gradient if available
+            if (data.opt_gradients && data.opt_gradients.length > 0) {
+                const gradTrace = {
+                    x: iterations.slice(0, data.opt_gradients.length),
+                    y: data.opt_gradients,
+                    mode: 'lines+markers',
+                    name: 'Gradient Norm',
+                    yaxis: 'y2',
+                    line: {color: '#e74c3c', width: 2},
+                    marker: {size: 6},
+                    hovertemplate: 'Iteration: %{x}<br>Gradient: %{y:.4e}<extra></extra>'
+                };
+                traces.push(gradTrace);
+                layout.yaxis2 = {
+                    title: 'Gradient Norm',
+                    overlaying: 'y',
+                    side: 'right'
+                };
+            }
+
+            Plotly.newPlot('opt-convergence-plot', traces, layout, {responsive: true});
+        }
+
+        function renderPopulationCorrelation() {
+            if (!data || !data.mulliken_charges || !data.loewdin_charges) return;
+            if (data.mulliken_charges.length === 0 || data.loewdin_charges.length === 0) return;
+
+            const minLen = Math.min(data.mulliken_charges.length, data.loewdin_charges.length);
+            const mulliken = data.mulliken_charges.slice(0, minLen);
+            const loewdin = data.loewdin_charges.slice(0, minLen);
+
+            const trace = {
+                x: mulliken,
+                y: loewdin,
+                mode: 'markers',
+                type: 'scatter',
+                marker: {
+                    size: 8,
+                    color: mulliken,
+                    colorscale: 'RdBu',
+                    colorbar: {title: 'Mulliken'},
+                    line: {width: 1, color: 'white'}
+                },
+                hovertemplate: 'Mulliken: %{x:.4f}<br>Löwdin: %{y:.4f}<extra></extra>'
+            };
+
+            // Add diagonal line
+            const min = Math.min(...mulliken, ...loewdin);
+            const max = Math.max(...mulliken, ...loewdin);
+            const diagonalTrace = {
+                x: [min, max],
+                y: [min, max],
+                mode: 'lines',
+                line: {color: 'gray', dash: 'dash'},
+                showlegend: false,
+                hoverinfo: 'skip'
+            };
+
+            const layout = {
+                title: 'Mulliken vs Löwdin Population Analysis',
+                xaxis: {title: 'Mulliken Charges'},
+                yaxis: {title: 'Löwdin Charges'},
+                showlegend: false
+            };
+
+            Plotly.newPlot('population-correlation-plot', [trace, diagonalTrace], layout, {responsive: true});
+        }
+
+        function renderDistanceAnalysis() {
+            if (!data || !data.coordinates_au || data.coordinates_au.length < 2) return;
+
+            const coords = data.coordinates_au;
+            const distances = [];
+
+            // Calculate all pairwise distances
+            for (let i = 0; i < coords.length; i++) {
+                for (let j = i + 1; j < coords.length; j++) {
+                    const dx = coords[i][1] - coords[j][1];
+                    const dy = coords[i][2] - coords[j][2];
+                    const dz = coords[i][3] - coords[j][3];
+                    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz) * 0.529177; // Convert to Angstroms
+                    distances.push(dist);
+                }
+            }
+
+            const trace = {
+                x: distances,
+                type: 'histogram',
+                nbinsx: 50,
+                marker: {
+                    color: '#45B7D1',
+                    line: {width: 1, color: 'white'}
+                },
+                hovertemplate: 'Distance: %{x:.2f} Å<br>Count: %{y}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Interatomic Distance Distribution',
+                xaxis: {title: 'Distance (Å)'},
+                yaxis: {title: 'Frequency'},
+                showlegend: false
+            };
+
+            Plotly.newPlot('distance-analysis-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderCoordinationNumbers() {
+            if (!data || !data.coordinates_au || data.coordinates_au.length < 2) return;
+
+            const coords = data.coordinates_au;
+            const cutoff = 3.5; // Angstrom cutoff for coordination
+            const coordinationNumbers = [];
+
+            // Calculate coordination number for each atom
+            for (let i = 0; i < coords.length; i++) {
+                let neighbors = 0;
+                for (let j = 0; j < coords.length; j++) {
+                    if (i === j) continue;
+                    const dx = coords[i][1] - coords[j][1];
+                    const dy = coords[i][2] - coords[j][2];
+                    const dz = coords[i][3] - coords[j][3];
+                    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz) * 0.529177; // Convert to Angstroms
+                    if (dist < cutoff) neighbors++;
+                }
+                coordinationNumbers.push(neighbors);
+            }
+
+            const labels = coords.map((c, i) => `${c[0]}${i+1}`);
+
+            const trace = {
+                x: labels,
+                y: coordinationNumbers,
+                type: 'bar',
+                marker: {
+                    color: coordinationNumbers,
+                    colorscale: 'Viridis',
+                    line: {width: 1, color: 'white'}
+                },
+                hovertemplate: 'Atom: %{x}<br>Coordination #: %{y}<extra></extra>'
+            };
+
+            const layout = {
+                title: `Coordination Numbers (cutoff: ${cutoff} Å)`,
+                xaxis: {title: 'Atom', tickangle: -45},
+                yaxis: {title: 'Coordination Number'},
+                showlegend: false,
+                margin: {b: 100}
+            };
+
+            Plotly.newPlot('coordination-plot', [trace], layout, {responsive: true});
         }
     </script>
 </body>

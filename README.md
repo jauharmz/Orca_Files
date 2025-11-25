@@ -1242,6 +1242,68 @@ function App() {
   - ✓ Sorted elements
   - Data: `coordinates_au`
 
+### Phase 3I: Molecular Structure & Property Details (NEW!)
+**Molecular Properties:**
+- [x] **3I.1** Dipole moment components - **DONE** ✓
+  - ✓ Bar chart showing X, Y, Z components
+  - ✓ Color-coded directional components
+  - ✓ Total magnitude displayed in title
+  - ✓ Values in Debye units
+  - Data: `dipole_moment_components`
+- [x] **3I.2** Thermochemistry breakdown - **DONE** ✓
+  - ✓ Bar chart of all thermochemistry components
+  - ✓ Zero-point energy, thermal corrections (E/H/G)
+  - ✓ Portland colorscale
+  - ✓ 6-decimal precision
+  - Data: `thermochemistry`
+
+**Structural Analysis:**
+- [x] **3I.3** Atom type statistics - **DONE** ✓
+  - ✓ Bar chart counting atoms by element
+  - ✓ Viridis colorscale
+  - ✓ Sorted alphabetically
+  - Data: `coordinates_au`
+- [x] **3I.4** Bond angle distribution - **DONE** ✓
+  - ✓ Histogram of all bond angles
+  - ✓ 36 bins (10° intervals)
+  - ✓ Sampled calculation for performance
+  - ✓ Angle in degrees
+  - Data: `coordinates_au`
+- [x] **3I.5** Element composition pie - **DONE** ✓
+  - ✓ Pie chart with element percentages
+  - ✓ 8-color palette
+  - ✓ Label + percentage display
+  - ✓ Interactive legend
+  - Data: `coordinates_au`
+
+**Optimization & Correlation:**
+- [x] **3I.6** Optimization convergence metrics - **DONE** ✓
+  - ✓ Dual y-axis plot: Energy + Gradient norm
+  - ✓ Line + markers for both traces
+  - ✓ Energy in Eh (left), Gradient in scientific notation (right)
+  - ✓ Unified hover mode
+  - Data: `opt_energies`, `opt_gradients`
+- [x] **3I.7** Mulliken-Löwdin population correlation - **DONE** ✓
+  - ✓ Scatter plot comparing two methods
+  - ✓ Diagonal reference line
+  - ✓ Color by Mulliken charge (RdBu scale)
+  - ✓ 4-decimal precision tooltips
+  - Data: `mulliken_charges`, `loewdin_charges`
+
+**Distance & Coordination:**
+- [x] **3I.8** Interatomic distance analysis - **DONE** ✓
+  - ✓ Histogram of all pairwise distances
+  - ✓ 50 bins
+  - ✓ Distances in Angstroms
+  - ✓ Automatic conversion from a.u.
+  - Data: `coordinates_au`
+- [x] **3I.9** Coordination number analysis - **DONE** ✓
+  - ✓ Bar chart of coordination numbers
+  - ✓ 3.5 Å cutoff distance
+  - ✓ Per-atom analysis with labels
+  - ✓ Viridis colorscale
+  - Data: `coordinates_au`
+
 ### Phase 4: Advanced Features
 - [ ] **4.1** Multi-file comparison
   - Side-by-side structure viewer
@@ -1351,9 +1413,9 @@ streamlit run app.py
 
 ## Current Progress
 
-**Status:** Phase 3 visualizations - **44/45 features implemented** 🎉 (98% complete!)
+**Status:** Phase 3 visualizations - **53/54 features implemented** 🎉 (98% complete!)
 
-**Latest Session (2025-11-25):** Added **25 new advanced visualizations** across multiple phases!
+**Latest Session (2025-11-25):** Added **34 new advanced visualizations** across multiple phases!
 
 **First Wave (7 visualizations) - Advanced Chemistry:**
 - ✅ Geometry optimization trajectory with animation controls
@@ -1387,6 +1449,17 @@ streamlit run app.py
 - ✅ IR vs Raman correlation (log-log)
 - ✅ Atomic mass distribution by element
 
+**Fifth Wave (9 visualizations) - Molecular Structure & Properties:**
+- ✅ Dipole moment components (X/Y/Z breakdown)
+- ✅ Thermochemistry energy breakdown
+- ✅ Atom type statistics
+- ✅ Bond angle distribution histogram
+- ✅ Element composition pie chart
+- ✅ Optimization convergence metrics (Energy + Gradient)
+- ✅ Mulliken-Löwdin population correlation
+- ✅ Interatomic distance analysis
+- ✅ Coordination number analysis
+
 **Completion Status:**
 - **Phase 3A:** 10/10 features (100% DONE) ✓
 - **Phase 3B:** 5/5 features (100% DONE) ✓
@@ -1395,9 +1468,10 @@ streamlit run app.py
 - **Phase 3E:** 2/2 features (100% DONE) ✓
 - **Phase 3F:** 3/4 features (75% DONE)
 - **Phase 3G:** 7/7 features (100% DONE) ✓
-- **Phase 3H:** 8/8 features (100% DONE) ✓ **NEW!**
+- **Phase 3H:** 8/8 features (100% DONE) ✓
+- **Phase 3I:** 9/9 features (100% DONE) ✓ **NEW!**
 
-**Total: 44 Interactive Visualizations | 38/57 sections parsed (67%)**
+**Total: 53 Interactive Visualizations | 38/57 sections parsed (67%)**
 
 **Next steps:**
 - Phase 3F.4: Memory usage tracking (final Phase 3F feature)
