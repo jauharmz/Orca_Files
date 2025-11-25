@@ -63,7 +63,7 @@ def main():
     
     # Step 3: Install localtunnel
     run_command(
-        "sudo npm install -g localtunnel",
+        "npm install -g localtunnel",
         "Installing localtunnel"
     )
     
