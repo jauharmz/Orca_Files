@@ -179,12 +179,62 @@ class BasisSetInfo:
 
 
 @dataclass
+class EnergyComponents:
+    """Detailed energy breakdown."""
+    nuclear_repulsion: float = 0.0  # Eh
+    electronic_energy: float = 0.0  # Eh
+    one_electron_energy: float = 0.0  # Eh
+    two_electron_energy: float = 0.0  # Eh
+    kinetic_energy: float = 0.0  # Eh
+    potential_energy: float = 0.0  # Eh
+    virial_ratio: float = 0.0
+    exchange_energy: float = 0.0  # Eh (DFT)
+    correlation_energy: float = 0.0  # Eh (DFT)
+    xc_energy: float = 0.0  # Eh (DFT)
+
+
+@dataclass
+class CPCMSolvation:
+    """CPCM solvation model properties."""
+    surface_charge: float = 0.0
+    corrected_charge: float = 0.0
+    outlying_charge_correction: float = 0.0  # Eh
+    outlying_charge_correction_ev: float = 0.0  # eV
+    dielectric_energy: float = 0.0  # Eh (CPCM Dielectric term)
+
+
+@dataclass
+class SCFConvergence:
+    """SCF convergence criteria values."""
+    energy_change: float = 0.0
+    max_density_change: float = 0.0
+    rms_density_change: float = 0.0
+    diis_error: float = 0.0
+    orbital_gradient: float = 0.0
+    orbital_rotation: float = 0.0
+
+
+@dataclass
+class OrbitalPopulation:
+    """Orbital population breakdown for an atom."""
+    atom_index: int
+    element: str
+    s_total: float = 0.0
+    p_total: float = 0.0
+    d_total: float = 0.0
+    f_total: float = 0.0
+    g_total: float = 0.0
+    orbital_details: dict[str, float] = field(default_factory=dict)  # e.g., {'px': 0.885, 'py': 1.012, ...}
+
+
+@dataclass
 class OrcaOutput:
     """Complete parsed ORCA output."""
     job_info: JobInfo
     final_energy: Optional[float] = None
     scf_energies: list[float] = field(default_factory=list)
     optimization_energies: list[float] = field(default_factory=list)
+    coordinates: list[tuple[str, float, float, float]] = field(default_factory=list)  # (element, x, y, z) in Angstrom
     dipole_moment: Optional[DipoleMoment] = None
     polarizability: Optional[Polarizability] = None
     orbital_energies: list[OrbitalEnergy] = field(default_factory=list)
@@ -197,7 +247,11 @@ class OrcaOutput:
     timing_data: Optional[TimingData] = None
     dft_grid_info: Optional[DFTGridInfo] = None
     basis_set_info: Optional[BasisSetInfo] = None
+    energy_components: Optional[EnergyComponents] = None
+    cpcm_solvation: Optional[CPCMSolvation] = None
+    scf_convergence: Optional[SCFConvergence] = None
     mulliken_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
+    mulliken_orbital_populations: list[OrbitalPopulation] = field(default_factory=list)
     loewdin_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     mayer_bond_orders: list[tuple[int, int, float]] = field(default_factory=list)
     thermochemistry: Optional[Thermochemistry] = None
@@ -217,6 +271,10 @@ class OrcaOutput:
             'final_energy': self.final_energy,
             'scf_energies': self.scf_energies,
             'optimization_energies': self.optimization_energies,
+            'coordinates': [
+                {'element': c[0], 'x': c[1], 'y': c[2], 'z': c[3]}
+                for c in self.coordinates
+            ],
             'dipole_moment': {
                 'x': self.dipole_moment.x,
                 'y': self.dipole_moment.y,
@@ -278,10 +336,50 @@ class OrcaOutput:
                 'num_primitive_gaussians': self.basis_set_info.num_primitive_gaussians,
                 'element_basis': self.basis_set_info.element_basis
             } if self.basis_set_info else None,
+            'energy_components': {
+                'nuclear_repulsion': self.energy_components.nuclear_repulsion,
+                'electronic_energy': self.energy_components.electronic_energy,
+                'one_electron_energy': self.energy_components.one_electron_energy,
+                'two_electron_energy': self.energy_components.two_electron_energy,
+                'kinetic_energy': self.energy_components.kinetic_energy,
+                'potential_energy': self.energy_components.potential_energy,
+                'virial_ratio': self.energy_components.virial_ratio,
+                'exchange_energy': self.energy_components.exchange_energy,
+                'correlation_energy': self.energy_components.correlation_energy,
+                'xc_energy': self.energy_components.xc_energy
+            } if self.energy_components else None,
+            'cpcm_solvation': {
+                'surface_charge': self.cpcm_solvation.surface_charge,
+                'corrected_charge': self.cpcm_solvation.corrected_charge,
+                'outlying_charge_correction': self.cpcm_solvation.outlying_charge_correction,
+                'outlying_charge_correction_ev': self.cpcm_solvation.outlying_charge_correction_ev,
+                'dielectric_energy': self.cpcm_solvation.dielectric_energy
+            } if self.cpcm_solvation else None,
+            'scf_convergence': {
+                'energy_change': self.scf_convergence.energy_change,
+                'max_density_change': self.scf_convergence.max_density_change,
+                'rms_density_change': self.scf_convergence.rms_density_change,
+                'diis_error': self.scf_convergence.diis_error,
+                'orbital_gradient': self.scf_convergence.orbital_gradient,
+                'orbital_rotation': self.scf_convergence.orbital_rotation
+            } if self.scf_convergence else None,
             'mulliken_charges': {
                 str(k): {'element': v[0], 'charge': v[1]}
                 for k, v in self.mulliken_charges.items()
             },
+            'mulliken_orbital_populations': [
+                {
+                    'atom_index': pop.atom_index,
+                    'element': pop.element,
+                    's': pop.s_total,
+                    'p': pop.p_total,
+                    'd': pop.d_total,
+                    'f': pop.f_total,
+                    'g': pop.g_total,
+                    'orbital_details': pop.orbital_details
+                }
+                for pop in self.mulliken_orbital_populations
+            ],
             'loewdin_charges': {
                 str(k): {'element': v[0], 'charge': v[1]}
                 for k, v in self.loewdin_charges.items()
@@ -331,6 +429,7 @@ def parse_out_content(content: str) -> OrcaOutput:
     final_energy = parse_final_energy(content)
     scf_energies = parse_scf_energies(content)
     opt_energies = parse_optimization_energies(content)
+    coordinates = parse_coordinates(content)
     dipole = parse_dipole_moment(content)
     polarizability = parse_polarizability(content)
     orbitals = parse_orbital_energies(content)
@@ -347,6 +446,10 @@ def parse_out_content(content: str) -> OrcaOutput:
     timing = parse_timing_data(content)
     dft_grid = parse_dft_grid_info(content)
     basis_set = parse_basis_set_info(content)
+    energy_comp = parse_energy_components(content)
+    cpcm_solv = parse_cpcm_solvation(content)
+    scf_conv = parse_scf_convergence(content)
+    mulliken_orb_pop = parse_mulliken_orbital_populations(content)
 
     # Get number of atoms for normal modes parsing
     num_atoms = len(mulliken) if mulliken else 0
@@ -357,6 +460,7 @@ def parse_out_content(content: str) -> OrcaOutput:
         final_energy=final_energy,
         scf_energies=scf_energies,
         optimization_energies=opt_energies,
+        coordinates=coordinates,
         dipole_moment=dipole,
         polarizability=polarizability,
         orbital_energies=orbitals,
@@ -369,12 +473,43 @@ def parse_out_content(content: str) -> OrcaOutput:
         timing_data=timing,
         dft_grid_info=dft_grid,
         basis_set_info=basis_set,
+        energy_components=energy_comp,
+        cpcm_solvation=cpcm_solv,
+        scf_convergence=scf_conv,
         mulliken_charges=mulliken,
+        mulliken_orbital_populations=mulliken_orb_pop,
         loewdin_charges=loewdin,
         mayer_bond_orders=bond_orders,
         thermochemistry=thermo,
         nmr_data=nmr
     )
+
+
+def parse_coordinates(content: str) -> list[tuple[str, float, float, float]]:
+    """Extract Cartesian coordinates in Angstrom."""
+    coordinates = []
+
+    # Find the first CARTESIAN COORDINATES (ANGSTROEM) section
+    coord_section = re.search(
+        r'CARTESIAN COORDINATES \(ANGSTROEM\)\s*-+\s*(.*?)(?:\n\n|$)',
+        content, re.DOTALL
+    )
+
+    if not coord_section:
+        return coordinates
+
+    section_text = coord_section.group(1)
+
+    # Parse each coordinate line: "  C      0.976427    4.012579   -0.068330"
+    coord_lines = re.findall(
+        r'^\s*([A-Z][a-z]?)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)',
+        section_text, re.MULTILINE
+    )
+
+    for element, x, y, z in coord_lines:
+        coordinates.append((element, float(x), float(y), float(z)))
+
+    return coordinates
 
 
 def parse_job_info(content: str) -> JobInfo:
@@ -1025,6 +1160,188 @@ def parse_basis_set_info(content: str) -> Optional[BasisSetInfo]:
     return None
 
 
+def parse_energy_components(content: str) -> Optional[EnergyComponents]:
+    """Extract detailed energy breakdown."""
+    energy = EnergyComponents()
+
+    # Find energy components section
+    energy_section = re.search(
+        r'Nuclear Repulsion\s*:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'Electronic Energy\s*:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'One Electron Energy:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'Two Electron Energy:\s*(-?\d+\.?\d+)\s*Eh',
+        content, re.DOTALL
+    )
+
+    if energy_section:
+        energy.nuclear_repulsion = float(energy_section.group(1))
+        energy.electronic_energy = float(energy_section.group(2))
+        energy.one_electron_energy = float(energy_section.group(3))
+        energy.two_electron_energy = float(energy_section.group(4))
+
+    # Parse virial components
+    virial_section = re.search(
+        r'Potential Energy\s*:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'Kinetic Energy\s*:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'Virial Ratio\s*:\s*(-?\d+\.?\d+)',
+        content, re.DOTALL
+    )
+
+    if virial_section:
+        energy.potential_energy = float(virial_section.group(1))
+        energy.kinetic_energy = float(virial_section.group(2))
+        energy.virial_ratio = float(virial_section.group(3))
+
+    # Parse DFT components
+    xc_section = re.search(
+        r'E\(X\)\s*:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'E\(C\)\s*:\s*(-?\d+\.?\d+)\s*Eh.*?'
+        r'E\(XC\)\s*:\s*(-?\d+\.?\d+)\s*Eh',
+        content, re.DOTALL
+    )
+
+    if xc_section:
+        energy.exchange_energy = float(xc_section.group(1))
+        energy.correlation_energy = float(xc_section.group(2))
+        energy.xc_energy = float(xc_section.group(3))
+
+    # Return if we found at least some data
+    if energy.nuclear_repulsion != 0.0 or energy.electronic_energy != 0.0:
+        return energy
+    return None
+
+
+def parse_cpcm_solvation(content: str) -> Optional[CPCMSolvation]:
+    """Extract CPCM solvation model properties."""
+    cpcm = CPCMSolvation()
+
+    # Find CPCM Solvation Model Properties section
+    cpcm_section = re.search(
+        r'CPCM Solvation Model Properties:\s*'
+        r'Surface-charge\s*:\s*(-?\d+\.?\d*)\s*'
+        r'Corrected charge\s*:\s*(-?\d+\.?\d*)\s*'
+        r'Outlying charge corr\.\s*:\s*(-?\d+\.?\d+)\s*Eh\s*(-?\d+\.?\d+)\s*eV',
+        content, re.DOTALL
+    )
+
+    if cpcm_section:
+        cpcm.surface_charge = float(cpcm_section.group(1))
+        cpcm.corrected_charge = float(cpcm_section.group(2))
+        cpcm.outlying_charge_correction = float(cpcm_section.group(3))
+        cpcm.outlying_charge_correction_ev = float(cpcm_section.group(4))
+
+    # Also extract CPCM Dielectric energy from components section
+    dielectric_match = re.search(r'CPCM Dielectric\s*:\s*(-?\d+\.?\d+)\s*Eh', content)
+    if dielectric_match:
+        cpcm.dielectric_energy = float(dielectric_match.group(1))
+
+    # Return if we found at least some data
+    if cpcm.surface_charge != 0.0 or cpcm.dielectric_energy != 0.0:
+        return cpcm
+    return None
+
+
+def parse_scf_convergence(content: str) -> Optional[SCFConvergence]:
+    """Extract SCF convergence criteria values."""
+    conv = SCFConvergence()
+
+    # Find SCF CONVERGENCE section
+    conv_section = re.search(
+        r'SCF CONVERGENCE\s*-+\s*'
+        r'Last Energy change\s*\.\.\.\s*(-?\d+\.?\d+e[+-]?\d+).*?'
+        r'Last MAX-Density change\s*\.\.\.\s*(-?\d+\.?\d+e[+-]?\d+).*?'
+        r'Last RMS-Density change\s*\.\.\.\s*(-?\d+\.?\d+e[+-]?\d+).*?'
+        r'Last DIIS Error\s*\.\.\.\s*(-?\d+\.?\d+e[+-]?\d+).*?'
+        r'Last Orbital Gradient\s*\.\.\.\s*(-?\d+\.?\d+e[+-]?\d+).*?'
+        r'Last Orbital Rotation\s*\.\.\.\s*(-?\d+\.?\d+e[+-]?\d+)',
+        content, re.DOTALL
+    )
+
+    if conv_section:
+        conv.energy_change = float(conv_section.group(1))
+        conv.max_density_change = float(conv_section.group(2))
+        conv.rms_density_change = float(conv_section.group(3))
+        conv.diis_error = float(conv_section.group(4))
+        conv.orbital_gradient = float(conv_section.group(5))
+        conv.orbital_rotation = float(conv_section.group(6))
+        return conv
+
+    return None
+
+
+def parse_mulliken_orbital_populations(content: str) -> list[OrbitalPopulation]:
+    """Extract Mulliken reduced orbital charges (orbital population analysis)."""
+    populations = []
+
+    # Find the MULLIKEN REDUCED ORBITAL CHARGES section
+    section_match = re.search(
+        r'MULLIKEN REDUCED ORBITAL CHARGES\s*-+\s*(.*?)(?:\n\n\n)',
+        content, re.DOTALL
+    )
+
+    if not section_match:
+        return populations
+
+    section_text = section_match.group(1)
+    lines = section_text.strip().split('\n')
+
+    current_pop = None
+
+    for line in lines:
+        # Check if this line starts a new atom: "  0 C s       :     3.171400  s :     3.171400"
+        atom_match = re.match(r'^\s*(\d+)\s+(\w+)\s+', line)
+        if atom_match:
+            # Save previous atom if any
+            if current_pop:
+                populations.append(current_pop)
+
+            # Start new atom
+            atom_idx = int(atom_match.group(1))
+            element = atom_match.group(2)
+            current_pop = OrbitalPopulation(atom_index=atom_idx, element=element)
+
+            # Also process the rest of this line (contains first orbital data)
+            # Extract totals from the same line
+            for orbital_type in ['s', 'p', 'd', 'f', 'g']:
+                match = re.search(rf'{orbital_type}\s*:\s*(\d+\.?\d+)', line)
+                if match:
+                    setattr(current_pop, f'{orbital_type}_total', float(match.group(1)))
+
+        elif current_pop:
+            # This is a continuation line for the current atom
+            # Extract orbital details and totals
+            # Format: "      pz      :     0.990710  p :     2.888037"
+            # or just: "      px      :     0.885174"
+
+            # Check if line has both individual orbital and total
+            # Pattern: "orbital_name : value  orbital_type : total"
+            combined_match = re.match(r'([a-z][a-z0-9+\-]*)\s*:\s*(\d+\.?\d+)\s+([a-z])\s*:\s*(\d+\.?\d+)', line.strip())
+            if combined_match:
+                # Has both individual orbital and total
+                orb_name = combined_match.group(1)
+                orb_value = float(combined_match.group(2))
+                orb_type = combined_match.group(3)
+                orb_total = float(combined_match.group(4))
+
+                if orb_name not in ['s', 'p', 'd', 'f', 'g']:
+                    current_pop.orbital_details[orb_name] = orb_value
+                setattr(current_pop, f'{orb_type}_total', orb_total)
+            else:
+                # Just has individual orbital
+                orb_match = re.match(r'([a-z][a-z0-9+\-]*)\s*:\s*(\d+\.?\d+)', line.strip())
+                if orb_match:
+                    orb_name = orb_match.group(1)
+                    orb_value = float(orb_match.group(2))
+                    if orb_name not in ['s', 'p', 'd', 'f', 'g']:
+                        current_pop.orbital_details[orb_name] = orb_value
+
+    # Don't forget the last atom
+    if current_pop:
+        populations.append(current_pop)
+
+    return populations
+
+
 def parse_timing_data(content: str) -> Optional[TimingData]:
     """Extract computational timing breakdown."""
     timing = TimingData()
@@ -1081,6 +1398,9 @@ if __name__ == '__main__':
         print(f"Charge: {result.job_info.charge}, Mult: {result.job_info.multiplicity}")
         print(f"Final Energy: {result.final_energy:.6f} Eh")
 
+        if result.coordinates:
+            print(f"Coordinates: {len(result.coordinates)} atoms")
+
         if result.dipole_moment:
             print(f"Dipole: {result.dipole_moment.magnitude_debye:.3f} Debye")
 
@@ -1112,6 +1432,19 @@ if __name__ == '__main__':
 
         if result.mayer_bond_orders:
             print(f"Bond Orders: {len(result.mayer_bond_orders)} bonds")
+
+        if result.mulliken_orbital_populations:
+            print(f"Mulliken Orbital Populations: {len(result.mulliken_orbital_populations)} atoms")
+            # Show first few atoms as example
+            for pop in result.mulliken_orbital_populations[:3]:
+                orb_str = f"s={pop.s_total:.2f}, p={pop.p_total:.2f}"
+                if pop.d_total > 0.01:
+                    orb_str += f", d={pop.d_total:.2f}"
+                if pop.f_total > 0.001:
+                    orb_str += f", f={pop.f_total:.3f}"
+                print(f"  {pop.atom_index} {pop.element}: {orb_str}")
+            if len(result.mulliken_orbital_populations) > 3:
+                print(f"  ... and {len(result.mulliken_orbital_populations) - 3} more")
 
         if result.thermochemistry:
             print(f"Gibbs Free Energy: {result.thermochemistry.gibbs_free_energy:.6f} Eh")
@@ -1154,3 +1487,34 @@ if __name__ == '__main__':
             print(f"  {result.basis_set_info.num_basis_functions} functions, {result.basis_set_info.num_primitive_gaussians} primitives")
             if result.basis_set_info.element_basis:
                 print(f"  Elements: {', '.join(result.basis_set_info.element_basis.keys())}")
+
+        if result.energy_components:
+            ec = result.energy_components
+            print(f"Energy Components:")
+            print(f"  Nuclear Repulsion: {ec.nuclear_repulsion:.6f} Eh")
+            print(f"  Electronic Energy: {ec.electronic_energy:.6f} Eh")
+            if ec.kinetic_energy != 0.0:
+                print(f"  Kinetic Energy: {ec.kinetic_energy:.6f} Eh")
+                print(f"  Potential Energy: {ec.potential_energy:.6f} Eh")
+                print(f"  Virial Ratio: {ec.virial_ratio:.8f}")
+            if ec.xc_energy != 0.0:
+                print(f"  XC Energy: {ec.xc_energy:.6f} Eh (X: {ec.exchange_energy:.6f}, C: {ec.correlation_energy:.6f})")
+
+        if result.cpcm_solvation:
+            cpcm = result.cpcm_solvation
+            print(f"CPCM Solvation:")
+            print(f"  Surface Charge: {cpcm.surface_charge:.8f}")
+            print(f"  Corrected Charge: {cpcm.corrected_charge:.8f}")
+            print(f"  Outlying Charge Correction: {cpcm.outlying_charge_correction:.8f} Eh ({cpcm.outlying_charge_correction_ev:.5f} eV)")
+            if cpcm.dielectric_energy != 0.0:
+                print(f"  Dielectric Energy: {cpcm.dielectric_energy:.8f} Eh")
+
+        if result.scf_convergence:
+            conv = result.scf_convergence
+            print(f"SCF Convergence:")
+            print(f"  Energy Change: {conv.energy_change:.2e}")
+            print(f"  MAX-Density Change: {conv.max_density_change:.2e}")
+            print(f"  RMS-Density Change: {conv.rms_density_change:.2e}")
+            print(f"  DIIS Error: {conv.diis_error:.2e}")
+            print(f"  Orbital Gradient: {conv.orbital_gradient:.2e}")
+            print(f"  Orbital Rotation: {conv.orbital_rotation:.2e}")
