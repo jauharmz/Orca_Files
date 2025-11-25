@@ -30,7 +30,7 @@ TEST_FILE = Path(__file__).parent.parent / "p1xs0p.out"
 
 
 class TestAllParsers:
-    """Comprehensive tests for all 34 parsers."""
+    """Comprehensive tests for all 38 parsers."""
 
     @classmethod
     def setup_class(cls):
@@ -273,6 +273,41 @@ class TestAllParsers:
         assert self.result.timing_data is not None
         assert self.result.timing_data.total_run_time > 0
         print(f"✓ Timing Data: {self.result.timing_data.total_run_time:.1f} seconds total")
+
+    # ========== Section 35-38: New Advanced Features ==========
+
+    def test_35_chemical_shielding_tensors(self):
+        """Test full chemical shielding tensors."""
+        assert len(self.result.chemical_shielding_tensors) == 18
+        # Check first tensor has all components
+        t = self.result.chemical_shielding_tensors[0]
+        assert len(t.diamagnetic_tensor) == 9
+        assert len(t.paramagnetic_tensor) == 9
+        assert len(t.total_tensor) == 9
+        assert len(t.sdso_components) == 3
+        assert t.total_iso > 0
+        print(f"✓ Chemical Shielding Tensors: {len(self.result.chemical_shielding_tensors)} nuclei with full 3x3 matrices")
+
+    def test_36_geometric_perturbations(self):
+        """Test geometric perturbations data."""
+        assert self.result.geometric_perturbations is not None
+        assert self.result.geometric_perturbations.num_perturbations == 69
+        assert self.result.geometric_perturbations.total_time > 0
+        print(f"✓ Geometric Perturbations: {self.result.geometric_perturbations.num_perturbations} perturbations, {self.result.geometric_perturbations.total_time:.1f}s")
+
+    def test_37_shark_integrals(self):
+        """Test SHARK integral package configuration."""
+        assert self.result.shark_integrals is not None
+        assert self.result.shark_integrals.num_basis_functions == 1305
+        assert self.result.shark_integrals.num_shells == 379
+        print(f"✓ SHARK Integrals: {self.result.shark_integrals.num_basis_functions} functions, {self.result.shark_integrals.num_shells} shells")
+
+    def test_38_cosx_grids(self):
+        """Test COSX grid generation data."""
+        assert len(self.result.cosx_grids) == 6
+        total_points = sum(g.total_grid_points for g in self.result.cosx_grids)
+        assert total_points > 500000
+        print(f"✓ COSX Grids: {len(self.result.cosx_grids)} grids, {total_points:,} total points")
 
     # ========== Additional Tests ==========
 
