@@ -406,7 +406,7 @@
         <header>
             <h1>🧪 ORCA Output Viewer</h1>
             <p>Comprehensive Quantum Chemistry Data Visualization</p>
-            <p style="margin-top: 10px; font-size: 0.9em;">38/57 sections parsed (67% coverage) | 28 Interactive Visualizations</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">38/57 sections parsed (67% coverage) | 35 Interactive Visualizations</p>
         </header>
 
         <div class="controls">
@@ -726,6 +726,89 @@
                 </div>
                 <p style="margin-top: 10px; font-size: 12px; color: #666;">
                     Static polarizability tensor components and eigenvalues. Bar chart shows anisotropy.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Bond Order Comparison ⚖️</button>
+            <div class="collapsible-content">
+                <div id="bond-order-comparison-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('bond-order-comparison-plot', 'bond_order_comparison.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Side-by-side comparison of Mayer and Loewdin bond orders. Shows correlation between methods.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Charge Analysis Comparison 📊</button>
+            <div class="collapsible-content">
+                <div id="charge-comparison-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('charge-comparison-plot', 'charge_comparison.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Mulliken vs Loewdin atomic charges scatter plot. Points on diagonal indicate agreement.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Energy Components Breakdown ⚡</button>
+            <div class="collapsible-content">
+                <div id="energy-components-plot" style="width: 100%; height: 400px;"></div>
+                <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                    <div id="energy-components-details"></div>
+                </div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('energy-components-plot', 'energy_components.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Breakdown of total energy into nuclear, electronic, kinetic, and exchange-correlation components.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Dispersion Correction (DFTD3) 🌊</button>
+            <div class="collapsible-content">
+                <div id="dispersion-plot" style="width: 100%; height: 300px;"></div>
+                <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                    <div id="dispersion-details"></div>
+                </div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('dispersion-plot', 'dispersion.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    DFTD3 dispersion correction showing E6 and E8 contributions.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Orbital Population by Element 🧪</button>
+            <div class="collapsible-content">
+                <div id="orbital-population-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('orbital-population-plot', 'orbital_population.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Mulliken orbital population (s, p, d, f, g) breakdown by atom. Stacked bars show orbital character.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Internal Coordinates Distribution 📐</button>
+            <div class="collapsible-content">
+                <div id="internal-coords-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('internal-coords-plot', 'internal_coordinates.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Distribution of bond lengths and angles in the molecular structure.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">SCF Iteration Efficiency 📉</button>
+            <div class="collapsible-content">
+                <div id="scf-efficiency-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('scf-efficiency-plot', 'scf_efficiency.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Energy reduction per SCF iteration. Shows convergence rate and efficiency.
                 </p>
             </div>
         </div>
@@ -1391,6 +1474,13 @@
             renderDensityOfStates();
             renderMullikenOverlapNetwork();
             renderPolarizabilityVisualization();
+            renderBondOrderComparison();
+            renderChargeComparison();
+            renderEnergyComponents();
+            renderDispersionCorrection();
+            renderOrbitalPopulation();
+            renderInternalCoordinates();
+            renderSCFEfficiency();
         }
 
         function renderSCFPlot() {
@@ -2650,6 +2740,369 @@
 
                 Plotly.newPlot('polarizability-plot', [trace, avgLine], layout, {responsive: true});
             }
+        }
+
+        // 10. BOND ORDER COMPARISON
+        function renderBondOrderComparison() {
+            if (!data || !data.mayer_bond_orders || data.mayer_bond_orders.length === 0) return;
+
+            const mayerOrders = data.mayer_bond_orders;
+            const loewdinOrders = data.loewdin_bond_orders || [];
+
+            // Match bonds between both methods
+            const bondLabels = [];
+            const mayerValues = [];
+            const loewdinValues = [];
+
+            mayerOrders.forEach(mayer => {
+                const loewdin = loewdinOrders.find(l =>
+                    (l.atom1_index === mayer.atom1_index && l.atom2_index === mayer.atom2_index) ||
+                    (l.atom1_index === mayer.atom2_index && l.atom2_index === mayer.atom1_index)
+                );
+
+                if (mayer.bond_order > 0.1) { // Filter weak bonds
+                    const coord1 = data.coordinates[mayer.atom1_index];
+                    const coord2 = data.coordinates[mayer.atom2_index];
+                    const label = coord1 && coord2 ?
+                        `${coord1[0]}${mayer.atom1_index}-${coord2[0]}${mayer.atom2_index}` :
+                        `${mayer.atom1_index}-${mayer.atom2_index}`;
+
+                    bondLabels.push(label);
+                    mayerValues.push(mayer.bond_order);
+                    loewdinValues.push(loewdin ? loewdin.bond_order : 0);
+                }
+            });
+
+            const trace1 = {
+                x: bondLabels,
+                y: mayerValues,
+                name: 'Mayer',
+                type: 'bar',
+                marker: {color: '#667eea'},
+                hovertemplate: 'Bond: %{x}<br>Mayer: %{y:.3f}<extra></extra>'
+            };
+
+            const trace2 = {
+                x: bondLabels,
+                y: loewdinValues,
+                name: 'Loewdin',
+                type: 'bar',
+                marker: {color: '#764ba2'},
+                hovertemplate: 'Bond: %{x}<br>Loewdin: %{y:.3f}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Bond Order Comparison: Mayer vs Loewdin',
+                xaxis: {title: 'Bond', tickangle: -45},
+                yaxis: {title: 'Bond Order'},
+                barmode: 'group',
+                hovermode: 'closest',
+                showlegend: true
+            };
+
+            Plotly.newPlot('bond-order-comparison-plot', [trace1, trace2], layout, {responsive: true});
+        }
+
+        // 11. CHARGE COMPARISON
+        function renderChargeComparison() {
+            if (!data || !data.mulliken_charges || Object.keys(data.mulliken_charges).length === 0) return;
+            if (!data.loewdin_charges || Object.keys(data.loewdin_charges).length === 0) return;
+
+            const mullikenCharges = [];
+            const loewdinCharges = [];
+            const labels = [];
+
+            Object.keys(data.mulliken_charges).forEach(atomIdx => {
+                const mulliken = data.mulliken_charges[atomIdx][1];
+                const loewdin = data.loewdin_charges[atomIdx] ? data.loewdin_charges[atomIdx][1] : null;
+
+                if (loewdin !== null) {
+                    mullikenCharges.push(mulliken);
+                    loewdinCharges.push(loewdin);
+                    labels.push(`${data.mulliken_charges[atomIdx][0]}${atomIdx}`);
+                }
+            });
+
+            const trace = {
+                x: mullikenCharges,
+                y: loewdinCharges,
+                mode: 'markers+text',
+                marker: {
+                    size: 10,
+                    color: mullikenCharges,
+                    colorscale: 'RdBu',
+                    reversescale: true,
+                    colorbar: {title: 'Charge'},
+                    line: {width: 1, color: 'white'}
+                },
+                text: labels,
+                textposition: 'top center',
+                hovertemplate: 'Atom: %{text}<br>Mulliken: %{x:.3f}<br>Loewdin: %{y:.3f}<extra></extra>'
+            };
+
+            // Diagonal line (perfect agreement)
+            const minCharge = Math.min(...mullikenCharges, ...loewdinCharges);
+            const maxCharge = Math.max(...mullikenCharges, ...loewdinCharges);
+            const diagonalTrace = {
+                x: [minCharge, maxCharge],
+                y: [minCharge, maxCharge],
+                mode: 'lines',
+                name: 'Perfect Agreement',
+                line: {color: '#dc3545', width: 2, dash: 'dash'},
+                hoverinfo: 'skip',
+                showlegend: true
+            };
+
+            const layout = {
+                title: 'Mulliken vs Loewdin Atomic Charges',
+                xaxis: {title: 'Mulliken Charge'},
+                yaxis: {title: 'Loewdin Charge'},
+                hovermode: 'closest',
+                showlegend: true
+            };
+
+            Plotly.newPlot('charge-comparison-plot', [trace, diagonalTrace], layout, {responsive: true});
+        }
+
+        // 12. ENERGY COMPONENTS
+        function renderEnergyComponents() {
+            if (!data || !data.energy_components) return;
+
+            const ec = data.energy_components;
+
+            const components = [];
+            const values = [];
+            const colors = [];
+
+            if (ec.nuclear_repulsion !== undefined && ec.nuclear_repulsion !== 0) {
+                components.push('Nuclear Repulsion');
+                values.push(Math.abs(ec.nuclear_repulsion));
+                colors.push('#ff6b6b');
+            }
+            if (ec.electronic_energy !== undefined && ec.electronic_energy !== 0) {
+                components.push('Electronic Energy');
+                values.push(Math.abs(ec.electronic_energy));
+                colors.push('#4ecdc4');
+            }
+            if (ec.one_electron !== undefined && ec.one_electron !== 0) {
+                components.push('One-Electron');
+                values.push(Math.abs(ec.one_electron));
+                colors.push('#667eea');
+            }
+            if (ec.two_electron !== undefined && ec.two_electron !== 0) {
+                components.push('Two-Electron');
+                values.push(Math.abs(ec.two_electron));
+                colors.push('#764ba2');
+            }
+            if (ec.exchange_correlation !== undefined && ec.exchange_correlation !== 0) {
+                components.push('Exchange-Correlation');
+                values.push(Math.abs(ec.exchange_correlation));
+                colors.push('#28a745');
+            }
+
+            if (components.length === 0) return;
+
+            const trace = {
+                labels: components,
+                values: values,
+                type: 'pie',
+                marker: {colors: colors},
+                hovertemplate: '%{label}<br>|Energy|: %{value:.4f} Eh<br>%{percent}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Energy Components Breakdown (Absolute Values)',
+                showlegend: true,
+                height: 400
+            };
+
+            Plotly.newPlot('energy-components-plot', [trace], layout, {responsive: true});
+
+            // Display details
+            let detailsHTML = '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">';
+            if (ec.nuclear_repulsion !== undefined) detailsHTML += `<div><strong>Nuclear Repulsion:</strong> ${ec.nuclear_repulsion.toFixed(6)} Eh</div>`;
+            if (ec.electronic_energy !== undefined) detailsHTML += `<div><strong>Electronic Energy:</strong> ${ec.electronic_energy.toFixed(6)} Eh</div>`;
+            if (ec.one_electron !== undefined) detailsHTML += `<div><strong>One-Electron:</strong> ${ec.one_electron.toFixed(6)} Eh</div>`;
+            if (ec.two_electron !== undefined) detailsHTML += `<div><strong>Two-Electron:</strong> ${ec.two_electron.toFixed(6)} Eh</div>`;
+            if (ec.exchange_correlation !== undefined) detailsHTML += `<div><strong>Exchange-Correlation:</strong> ${ec.exchange_correlation.toFixed(6)} Eh</div>`;
+            detailsHTML += '</div>';
+            document.getElementById('energy-components-details').innerHTML = detailsHTML;
+        }
+
+        // 13. DISPERSION CORRECTION
+        function renderDispersionCorrection() {
+            if (!data || !data.dispersion_correction) return;
+
+            const disp = data.dispersion_correction;
+
+            const trace = {
+                x: ['E6 (C6)', 'E8 (C8)', 'Total'],
+                y: [disp.e6 || 0, disp.e8 || 0, disp.total || 0],
+                type: 'bar',
+                marker: {
+                    color: ['#667eea', '#764ba2', '#28a745']
+                },
+                hovertemplate: '%{x}<br>Energy: %{y:.6f} Eh<extra></extra>'
+            };
+
+            const layout = {
+                title: 'DFTD3 Dispersion Correction',
+                xaxis: {title: 'Component'},
+                yaxis: {title: 'Energy (Eh)'},
+                showlegend: false
+            };
+
+            Plotly.newPlot('dispersion-plot', [trace], layout, {responsive: true});
+
+            // Display details
+            let detailsHTML = `
+                <h4 style="margin-top: 0;">Dispersion Parameters</h4>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                    <div><strong>E6 (C6):</strong> ${(disp.e6 || 0).toFixed(8)} Eh</div>
+                    <div><strong>E8 (C8):</strong> ${(disp.e8 || 0).toFixed(8)} Eh</div>
+                    <div><strong>Total:</strong> ${(disp.total || 0).toFixed(8)} Eh</div>
+            `;
+            if (disp.s6) detailsHTML += `<div><strong>s6 parameter:</strong> ${disp.s6.toFixed(4)}</div>`;
+            if (disp.s8) detailsHTML += `<div><strong>s8 parameter:</strong> ${disp.s8.toFixed(4)}</div>`;
+            detailsHTML += '</div>';
+            document.getElementById('dispersion-details').innerHTML = detailsHTML;
+        }
+
+        // 14. ORBITAL POPULATION BY ELEMENT
+        function renderOrbitalPopulation() {
+            if (!data || !data.mulliken_orbital_populations || data.mulliken_orbital_populations.length === 0) return;
+
+            const populations = data.mulliken_orbital_populations;
+
+            // Group by atom
+            const atomLabels = [];
+            const sData = [];
+            const pData = [];
+            const dData = [];
+            const fData = [];
+            const gData = [];
+
+            populations.forEach(pop => {
+                const coord = data.coordinates[pop.atom_index];
+                const label = coord ? `${coord[0]}${pop.atom_index}` : `Atom${pop.atom_index}`;
+                atomLabels.push(label);
+
+                sData.push(pop.s || 0);
+                pData.push(pop.p || 0);
+                dData.push(pop.d || 0);
+                fData.push(pop.f || 0);
+                gData.push(pop.g || 0);
+            });
+
+            const traces = [
+                {x: atomLabels, y: sData, name: 's', type: 'bar', marker: {color: '#667eea'}},
+                {x: atomLabels, y: pData, name: 'p', type: 'bar', marker: {color: '#764ba2'}},
+                {x: atomLabels, y: dData, name: 'd', type: 'bar', marker: {color: '#28a745'}},
+                {x: atomLabels, y: fData, name: 'f', type: 'bar', marker: {color: '#ffc107'}},
+                {x: atomLabels, y: gData, name: 'g', type: 'bar', marker: {color: '#dc3545'}}
+            ];
+
+            // Only include traces with non-zero data
+            const filteredTraces = traces.filter(t => t.y.some(val => val > 0));
+
+            const layout = {
+                title: 'Mulliken Orbital Population by Atom',
+                xaxis: {title: 'Atom', tickangle: -45},
+                yaxis: {title: 'Population'},
+                barmode: 'stack',
+                hovermode: 'closest',
+                showlegend: true
+            };
+
+            if (filteredTraces.length > 0) {
+                Plotly.newPlot('orbital-population-plot', filteredTraces, layout, {responsive: true});
+            }
+        }
+
+        // 15. INTERNAL COORDINATES
+        function renderInternalCoordinates() {
+            if (!data || !data.internal_coords || data.internal_coords.length === 0) return;
+
+            const coords = data.internal_coords;
+
+            const bondLengths = coords.filter(c => c.bond_length !== undefined && c.bond_length > 0).map(c => c.bond_length);
+            const bondAngles = coords.filter(c => c.bond_angle !== undefined && c.bond_angle > 0).map(c => c.bond_angle);
+            const dihedrals = coords.filter(c => c.dihedral_angle !== undefined).map(c => c.dihedral_angle);
+
+            const traces = [];
+
+            if (bondLengths.length > 0) {
+                traces.push({
+                    x: bondLengths,
+                    type: 'histogram',
+                    name: 'Bond Lengths',
+                    marker: {color: '#667eea'},
+                    xaxis: 'x',
+                    yaxis: 'y',
+                    hovertemplate: 'Length: %{x:.3f} Å<br>Count: %{y}<extra></extra>'
+                });
+            }
+
+            if (bondAngles.length > 0) {
+                traces.push({
+                    x: bondAngles,
+                    type: 'histogram',
+                    name: 'Bond Angles',
+                    marker: {color: '#28a745'},
+                    xaxis: 'x2',
+                    yaxis: 'y2',
+                    hovertemplate: 'Angle: %{x:.2f}°<br>Count: %{y}<extra></extra>'
+                });
+            }
+
+            const layout = {
+                title: 'Internal Coordinates Distribution',
+                grid: {rows: 1, columns: 2, pattern: 'independent'},
+                xaxis: {title: 'Bond Length (Å)'},
+                yaxis: {title: 'Count'},
+                xaxis2: {title: 'Bond Angle (°)'},
+                yaxis2: {title: 'Count'},
+                showlegend: true
+            };
+
+            if (traces.length > 0) {
+                Plotly.newPlot('internal-coords-plot', traces, layout, {responsive: true});
+            }
+        }
+
+        // 16. SCF ITERATION EFFICIENCY
+        function renderSCFEfficiency() {
+            if (!data || !data.scf_iterations || data.scf_iterations.length < 2) return;
+
+            const iterations = data.scf_iterations;
+            const energyReductions = [];
+            const iterationNumbers = [];
+
+            for (let i = 1; i < iterations.length; i++) {
+                const reduction = iterations[i-1].energy - iterations[i].energy;
+                energyReductions.push(reduction);
+                iterationNumbers.push(i);
+            }
+
+            const trace = {
+                x: iterationNumbers,
+                y: energyReductions,
+                mode: 'lines+markers',
+                name: 'Energy Reduction',
+                line: {color: '#667eea', width: 3},
+                marker: {size: 8, color: '#764ba2'},
+                hovertemplate: 'Iteration %{x}<br>ΔE: %{y:.6e} Eh<extra></extra>'
+            };
+
+            const layout = {
+                title: 'SCF Iteration Efficiency (Energy Reduction per Step)',
+                xaxis: {title: 'Iteration'},
+                yaxis: {title: 'Energy Reduction (Eh)', type: 'log'},
+                hovermode: 'closest',
+                showlegend: false
+            };
+
+            Plotly.newPlot('scf-efficiency-plot', [trace], layout, {responsive: true});
         }
     </script>
 </body>
