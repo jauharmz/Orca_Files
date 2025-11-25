@@ -151,16 +151,16 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 **Last Updated:** 2025-11-25
 **Test File:** p1xs0p.out (113,234 lines)
-**Current Coverage:** 34/57 sections parsed (60%)
+**Current Coverage:** 35/57 sections parsed (61%)
 
 ### Status Summary
 
 | Category | Parsed | Remaining | Total |
 |----------|--------|-----------|-------|
-| **HIGH Priority** | 9 | 7 | 16 |
+| **HIGH Priority** | 10 | 6 | 16 |
 | **MEDIUM Priority** | 17 | 10 | 27 |
 | **LOW Priority** | 8 | 6 | 14 |
-| **TOTAL** | **34** | **23** | **57** |
+| **TOTAL** | **35** | **22** | **57** |
 
 ### High Priority Unparsed Sections (7)
 
@@ -206,13 +206,12 @@ This project provides parsers for various ORCA output file formats and a UI to p
 - **Use Case:** Advanced NMR analysis, mechanism studies
 - **Estimated Effort:** 4-6 hours
 
-**36. CHEMICAL SHIELDING TENSORS** 🌟 TOP PRIORITY
+**36. CHEMICAL SHIELDING TENSORS** ✅ DONE
 - **Location:** Line 2491
-- **Current:** Only parse isotropic shielding
-- **Missing:** Full anisotropic tensor + principal components
-- **Size:** 18 nuclei × 9 tensor elements = 162 values
-- **Use Case:** Anisotropic NMR, solid-state NMR
-- **Estimated Effort:** 3-4 hours
+- **Data:** Full 3x3 tensors (diamagnetic, paramagnetic, total)
+- **Size:** 18 nuclei with complete tensor data
+- **Includes:** Diagonalized components, isotropic values, orientation eigenvectors
+- **Status:** Implemented - extracts all tensor components
 
 **37. CHEMICAL SHIELDING SUMMARY**
 - **Location:** Line 3079
@@ -320,7 +319,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 ### Current State (Session Checkpoint)
 - **Branch:** `claude/parse-orca-output-014tZra7WsNVQwk3ZtzDJnCk`
-- **Coverage:** 34/57 sections (60%)
+- **Coverage:** 35/57 sections (61%)
 - **Test File:** `p1xs0p.out` (113,234 lines, 23 atoms)
 - **Last Commit:** 005e8b0 - "Add 4 new ORCA output parsers (32/57 sections, 56% coverage)"
 
@@ -331,6 +330,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 4. ✅ Total run time - line 113339 (days/hours/min/sec/msec)
 5. ✅ Mulliken orbital charges - line 74800 (371 MO entries, per-orbital distribution)
 6. ✅ Loewdin orbital charges - line 90021 (371 MO entries, per-orbital distribution)
+7. ✅ Chemical shielding tensors - line 2491 (18 nuclei, full 3x3 tensors with eigenvectors)
 
 ### Development Pattern (Follow This)
 ```bash
