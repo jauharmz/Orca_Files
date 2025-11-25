@@ -151,31 +151,30 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 **Last Updated:** 2025-11-25
 **Test File:** p1xs0p.out (113,234 lines)
-**Current Coverage:** 32/57 sections parsed (56%)
+**Current Coverage:** 34/57 sections parsed (60%)
 
 ### Status Summary
 
 | Category | Parsed | Remaining | Total |
 |----------|--------|-----------|-------|
-| **HIGH Priority** | 7 | 9 | 16 |
+| **HIGH Priority** | 9 | 7 | 16 |
 | **MEDIUM Priority** | 17 | 10 | 27 |
 | **LOW Priority** | 8 | 6 | 14 |
-| **TOTAL** | **32** | **25** | **57** |
+| **TOTAL** | **34** | **23** | **57** |
 
-### High Priority Unparsed Sections (9)
+### High Priority Unparsed Sections (7)
 
-#### Electronic Structure - Charge Analysis (3 sections)
+#### Electronic Structure - Charge Analysis (1 section)
 
-**29. MULLIKEN ORBITAL CHARGES**
+**29. MULLIKEN ORBITAL CHARGES** ✅ DONE
 - **Location:** Line 74800
-- **Data:** Per-orbital charge distribution
-- **Size:** ~23 atoms × ~10 orbital shells
-- **Estimated Effort:** 2-3 hours
+- **Data:** Per-MO charge distribution (371 MO entries)
+- **Status:** Implemented with uncorrected charges
 
-**30. LOEWDIN ORBITAL CHARGES**
+**30. LOEWDIN ORBITAL CHARGES** ✅ DONE
 - **Location:** Line 90021
-- **Data:** Loewdin version of orbital charges
-- **Estimated Effort:** 2-3 hours
+- **Data:** Loewdin per-MO charge distribution (371 MO entries)
+- **Status:** Implemented
 
 **31. LOEWDIN BOND ORDERS** ⭐⭐
 - **Location:** Line 90585
@@ -321,7 +320,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 ### Current State (Session Checkpoint)
 - **Branch:** `claude/parse-orca-output-014tZra7WsNVQwk3ZtzDJnCk`
-- **Coverage:** 32/57 sections (56%)
+- **Coverage:** 34/57 sections (60%)
 - **Test File:** `p1xs0p.out` (113,234 lines, 23 atoms)
 - **Last Commit:** 005e8b0 - "Add 4 new ORCA output parsers (32/57 sections, 56% coverage)"
 
@@ -330,6 +329,8 @@ This project provides parsers for various ORCA output file formats and a UI to p
 2. ✅ Internal coordinates - lines 375, 402 (Z-matrix format)
 3. ✅ Mulliken overlap charges - line 75366 (105 atom pairs)
 4. ✅ Total run time - line 113339 (days/hours/min/sec/msec)
+5. ✅ Mulliken orbital charges - line 74800 (371 MO entries, per-orbital distribution)
+6. ✅ Loewdin orbital charges - line 90021 (371 MO entries, per-orbital distribution)
 
 ### Development Pattern (Follow This)
 ```bash
