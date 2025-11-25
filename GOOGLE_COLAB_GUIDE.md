@@ -17,13 +17,24 @@ Complete guide to run ORCA parser tests and web UI in Google Colab with public a
 !python colab_setup.py
 ```
 
-### Step 3: Launch with Tunnel
+### Step 3: Launch with Tunnel (Choose One)
+
+#### Option A: ngrok (Recommended - No IP confirmation needed)
 ```python
-# Run this in second cell
+# Get free auth token from https://ngrok.com/
+!pip install pyngrok -q
+!ngrok authtoken YOUR_AUTH_TOKEN
+!python run_with_ngrok.py
+```
+✅ **Direct access** - No landing page, no IP confirmation
+
+#### Option B: localtunnel (Free, but requires IP confirmation)
+```python
 !python run_with_tunnel.py
 ```
+⚠️ **Note:** When you open the URL, click "Click to Continue" on the landing page to confirm your IP address (one-time per session)
 
-**That's it!** You'll get a public URL like `https://xxxxx.loca.lt`
+**That's it!** You'll get a public URL to access the UI from anywhere
 
 ---
 
@@ -245,6 +256,29 @@ Once you have the public URL (e.g., `https://xxxxx.loca.lt`):
 # Verify installation
 !which lt
 ```
+
+### Issue: Localtunnel asks for IP address as password
+
+This is **normal behavior** for localtunnel's security feature.
+
+**Solution 1:** Click "Click to Continue" button on the landing page
+- When you open the tunnel URL, you'll see a confirmation page
+- Click the button to confirm your IP address
+- You'll only need to do this once per session
+- After confirmation, you'll access the UI directly
+
+**Solution 2:** Switch to ngrok (no IP confirmation needed)
+```python
+# Install ngrok
+!pip install pyngrok -q
+
+# Get free auth token from https://ngrok.com/
+!ngrok authtoken YOUR_AUTH_TOKEN
+
+# Run with ngrok
+!python run_with_ngrok.py
+```
+✅ ngrok provides direct access without any landing page
 
 ### Issue: "Test file not found"
 
