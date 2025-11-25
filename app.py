@@ -10,18 +10,31 @@ Usage:
 
 from flask import Flask, render_template, jsonify, request, send_from_directory
 from pathlib import Path
+from werkzeug.utils import secure_filename
 import json
 import sys
+import os
+import tempfile
 
 # Add parsers to path
 sys.path.insert(0, str(Path(__file__).parent))
 from parsers.out_parser import parse_out_file
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
+app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
 
-# Global variable to store parsed data
+# Allowed file extensions
+ALLOWED_EXTENSIONS = {'out', 'txt'}
+
+# Global variables
 parsed_data = None
+current_filename = None
 test_file = Path(__file__).parent / "p1xs0p.out"
+
+def allowed_file(filename):
+    """Check if file extension is allowed."""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 @app.route('/')
@@ -30,20 +43,77 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/api/parse', methods=['POST'])
-def parse_file():
-    """Parse ORCA output file and return JSON data."""
-    global parsed_data
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    """Upload and parse ORCA output file."""
+    global parsed_data, current_filename
+
+    # Check if file was uploaded
+    if 'file' not in request.files:
+        return jsonify({
+            'success': False,
+            'message': 'No file uploaded'
+        }), 400
+
+    file = request.files['file']
+
+    # Check if filename is empty
+    if file.filename == '':
+        return jsonify({
+            'success': False,
+            'message': 'No file selected'
+        }), 400
+
+    # Check if file type is allowed
+    if not allowed_file(file.filename):
+        return jsonify({
+            'success': False,
+            'message': f'File type not allowed. Allowed types: {", ".join(ALLOWED_EXTENSIONS)}'
+        }), 400
 
     try:
-        # For now, parse the test file
-        # In future, could upload custom files
+        # Save file temporarily
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+
+        # Parse the file
+        print(f"\n📄 Parsing uploaded file: {filename}")
+        result = parse_out_file(filepath)
+        parsed_data = result.to_dict()
+        current_filename = filename
+
+        # Clean up temp file
+        os.remove(filepath)
+
+        return jsonify({
+            'success': True,
+            'message': f'Successfully parsed {filename}',
+            'filename': filename,
+            'data': parsed_data
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error parsing file: {str(e)}'
+        }), 500
+
+
+@app.route('/api/parse', methods=['POST'])
+def parse_default_file():
+    """Parse the default test file."""
+    global parsed_data, current_filename
+
+    try:
         result = parse_out_file(str(test_file))
         parsed_data = result.to_dict()
+        current_filename = test_file.name
 
         return jsonify({
             'success': True,
             'message': f'Parsed {test_file.name} successfully',
+            'filename': test_file.name,
             'data': parsed_data
         })
 
@@ -108,6 +178,22 @@ def get_summary():
         'success': True,
         'summary': summary
     })
+
+
+@app.route('/api/export/json')
+def export_json():
+    """Export parsed data as JSON file."""
+    if parsed_data is None:
+        return jsonify({'success': False, 'message': 'No data loaded'}), 404
+
+    from flask import Response
+    filename = current_filename.replace('.out', '_parsed.json') if current_filename else 'orca_data.json'
+
+    return Response(
+        json.dumps(parsed_data, indent=2),
+        mimetype='application/json',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
 
 
 if __name__ == '__main__':
