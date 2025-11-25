@@ -406,7 +406,7 @@
         <header>
             <h1>🧪 ORCA Output Viewer</h1>
             <p>Comprehensive Quantum Chemistry Data Visualization</p>
-            <p style="margin-top: 10px; font-size: 0.9em;">38/57 sections parsed (67% coverage) | 26 Interactive Visualizations</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">38/57 sections parsed (67% coverage) | 28 Interactive Visualizations</p>
         </header>
 
         <div class="controls">
@@ -684,6 +684,48 @@
                 </div>
                 <p style="margin-top: 10px; font-size: 12px; color: #666;">
                     Density of states with Gaussian broadening. Blue = occupied, Red = virtual.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Mulliken Overlap Network 🕸️</button>
+            <div class="collapsible-content">
+                <div id="overlap-network-plot" style="width: 100%; height: 600px;"></div>
+                <div style="display: flex; gap: 10px; margin: 15px 0;">
+                    <label style="display: flex; align-items: center; gap: 5px;">
+                        <strong>Layout:</strong>
+                        <select id="overlap-layout" onchange="updateOverlapLayout(this.value)">
+                            <option value="circular">Circular</option>
+                            <option value="3d">3D Molecular</option>
+                        </select>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 5px;">
+                        <strong>Min Overlap:</strong>
+                        <input type="range" id="overlap-threshold" min="0" max="5" step="0.5" value="1.0" style="width: 100px;" oninput="updateOverlapThreshold(this.value)">
+                        <span id="overlap-threshold-label">1.0</span>
+                    </label>
+                </div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('overlap-network-plot', 'overlap_network.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Network showing Mulliken overlap charges between atom pairs. Edge thickness = |overlap charge|.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Polarizability Visualization 🎯</button>
+            <div class="collapsible-content">
+                <div id="polarizability-plot" style="width: 100%; height: 400px;"></div>
+                <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                    <h4 style="margin-top: 0;">Polarizability Tensor</h4>
+                    <div id="polarizability-tensor-display"></div>
+                    <h4 style="margin-top: 15px;">Eigenvalues (Principal Components)</h4>
+                    <div id="polarizability-eigenvalues"></div>
+                </div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('polarizability-plot', 'polarizability.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Static polarizability tensor components and eigenvalues. Bar chart shows anisotropy.
                 </p>
             </div>
         </div>
@@ -1347,6 +1389,8 @@
             renderChemicalShieldingTable();
             renderHOMOLUMOGapTracker();
             renderDensityOfStates();
+            renderMullikenOverlapNetwork();
+            renderPolarizabilityVisualization();
         }
 
         function renderSCFPlot() {
@@ -2401,6 +2445,211 @@
             };
 
             Plotly.newPlot('dos-plot', [trace1, trace2], layout, {responsive: true});
+        }
+
+        // 8. MULLIKEN OVERLAP NETWORK
+        let currentOverlapLayout = 'circular';
+        let currentOverlapThreshold = 1.0;
+
+        function renderMullikenOverlapNetwork() {
+            if (!data || !data.mulliken_overlap_charges || data.mulliken_overlap_charges.length === 0) return;
+
+            updateOverlapNetwork();
+        }
+
+        function updateOverlapNetwork() {
+            if (!data || !data.mulliken_overlap_charges) return;
+
+            const overlaps = data.mulliken_overlap_charges;
+
+            // Filter by threshold
+            const filteredOverlaps = overlaps.filter(o => Math.abs(o.overlap_charge) >= currentOverlapThreshold);
+
+            if (filteredOverlaps.length === 0) {
+                document.getElementById('overlap-network-plot').innerHTML = '<p style="text-align: center; padding: 40px;">No overlaps above threshold. Reduce minimum overlap value.</p>';
+                return;
+            }
+
+            // Create nodes (unique atoms)
+            const nodeIndices = new Set();
+            filteredOverlaps.forEach(o => {
+                nodeIndices.add(o.atom1_index);
+                nodeIndices.add(o.atom2_index);
+            });
+
+            const nodes = Array.from(nodeIndices).map(idx => {
+                const coord = data.coordinates[idx];
+                return {
+                    index: idx,
+                    element: coord ? coord[0] : 'X',
+                    x: coord ? coord[1] : 0,
+                    y: coord ? coord[2] : 0,
+                    z: coord ? coord[3] : 0
+                };
+            });
+
+            let nodeX, nodeY, nodeZ;
+
+            if (currentOverlapLayout === 'circular') {
+                // Circular layout
+                const n = nodes.length;
+                nodeX = nodes.map((node, i) => 10 * Math.cos(2 * Math.PI * i / n));
+                nodeY = nodes.map((node, i) => 10 * Math.sin(2 * Math.PI * i / n));
+                nodeZ = nodes.map(() => 0);
+            } else {
+                // 3D molecular coordinates
+                nodeX = nodes.map(n => n.x);
+                nodeY = nodes.map(n => n.y);
+                nodeZ = nodes.map(n => n.z);
+            }
+
+            // Edge traces
+            const edgeTraces = [];
+            filteredOverlaps.forEach(overlap => {
+                const fromIdx = nodes.findIndex(n => n.index === overlap.atom1_index);
+                const toIdx = nodes.findIndex(n => n.index === overlap.atom2_index);
+                if (fromIdx >= 0 && toIdx >= 0) {
+                    const absCharge = Math.abs(overlap.overlap_charge);
+                    const edgeTrace = {
+                        x: [nodeX[fromIdx], nodeX[toIdx], null],
+                        y: [nodeY[fromIdx], nodeY[toIdx], null],
+                        z: currentOverlapLayout === '3d' ? [nodeZ[fromIdx], nodeZ[toIdx], null] : undefined,
+                        mode: 'lines',
+                        line: {
+                            width: Math.min(10, Math.max(1, absCharge / 2)),
+                            color: overlap.overlap_charge > 0 ? '#28a745' : '#dc3545'
+                        },
+                        hovertemplate: `${nodes[fromIdx].element}${overlap.atom1_index} - ${nodes[toIdx].element}${overlap.atom2_index}<br>Overlap: ${overlap.overlap_charge.toFixed(3)}<extra></extra>`,
+                        showlegend: false,
+                        type: currentOverlapLayout === '3d' ? 'scatter3d' : 'scatter'
+                    };
+                    edgeTraces.push(edgeTrace);
+                }
+            });
+
+            // Node trace
+            const nodeTrace = {
+                x: nodeX,
+                y: nodeY,
+                z: currentOverlapLayout === '3d' ? nodeZ : undefined,
+                mode: 'markers+text',
+                marker: {
+                    size: 12,
+                    color: nodes.map((_, i) => i),
+                    colorscale: 'Viridis',
+                    line: {width: 2, color: 'white'}
+                },
+                text: nodes.map(n => `${n.element}${n.index}`),
+                textposition: 'top center',
+                hovertemplate: 'Atom: %{text}<br>Index: %{customdata}<extra></extra>',
+                customdata: nodes.map(n => n.index),
+                type: currentOverlapLayout === '3d' ? 'scatter3d' : 'scatter'
+            };
+
+            const traces = [...edgeTraces, nodeTrace];
+
+            const layout = {
+                title: 'Mulliken Overlap Charges Network',
+                showlegend: false,
+                hovermode: 'closest',
+                height: 600
+            };
+
+            if (currentOverlapLayout === 'circular') {
+                layout.xaxis = {showgrid: false, zeroline: false, showticklabels: false};
+                layout.yaxis = {showgrid: false, zeroline: false, showticklabels: false};
+            } else {
+                layout.scene = {
+                    xaxis: {title: 'X (Å)'},
+                    yaxis: {title: 'Y (Å)'},
+                    zaxis: {title: 'Z (Å)'}
+                };
+            }
+
+            Plotly.newPlot('overlap-network-plot', traces, layout, {responsive: true});
+        }
+
+        function updateOverlapLayout(layout) {
+            currentOverlapLayout = layout;
+            updateOverlapNetwork();
+        }
+
+        function updateOverlapThreshold(value) {
+            currentOverlapThreshold = parseFloat(value);
+            document.getElementById('overlap-threshold-label').textContent = value;
+            updateOverlapNetwork();
+        }
+
+        // 9. POLARIZABILITY VISUALIZATION
+        function renderPolarizabilityVisualization() {
+            if (!data || !data.polarizability) return;
+
+            const pol = data.polarizability;
+
+            // Display tensor
+            if (pol.tensor && pol.tensor.length === 3) {
+                let tensorHTML = '<table style="margin: 10px auto; border-collapse: collapse; text-align: center;">';
+                tensorHTML += '<tr><th style="padding: 8px; background: #667eea; color: white;">X</th><th style="padding: 8px; background: #667eea; color: white;">Y</th><th style="padding: 8px; background: #667eea; color: white;">Z</th></tr>';
+                pol.tensor.forEach(row => {
+                    tensorHTML += '<tr>';
+                    row.forEach(val => {
+                        tensorHTML += `<td style="padding: 8px; border: 1px solid #ddd;">${val.toFixed(4)}</td>`;
+                    });
+                    tensorHTML += '</tr>';
+                });
+                tensorHTML += '</table>';
+                tensorHTML += `<p style="text-align: center; margin-top: 10px;"><strong>Isotropic:</strong> ${pol.isotropic.toFixed(4)} a.u.</p>`;
+                document.getElementById('polarizability-tensor-display').innerHTML = tensorHTML;
+            }
+
+            // Display eigenvalues
+            if (pol.eigenvalues && pol.eigenvalues.length === 3) {
+                const eigenHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center;">
+                        <div style="padding: 10px; background: white; border-radius: 4px;">
+                            <strong>α₁:</strong> ${pol.eigenvalues[0].toFixed(4)} a.u.
+                        </div>
+                        <div style="padding: 10px; background: white; border-radius: 4px;">
+                            <strong>α₂:</strong> ${pol.eigenvalues[1].toFixed(4)} a.u.
+                        </div>
+                        <div style="padding: 10px; background: white; border-radius: 4px;">
+                            <strong>α₃:</strong> ${pol.eigenvalues[2].toFixed(4)} a.u.
+                        </div>
+                    </div>
+                `;
+                document.getElementById('polarizability-eigenvalues').innerHTML = eigenHTML;
+
+                // Create bar chart showing anisotropy
+                const trace = {
+                    x: ['α₁', 'α₂', 'α₃'],
+                    y: pol.eigenvalues,
+                    type: 'bar',
+                    marker: {
+                        color: ['#667eea', '#764ba2', '#28a745']
+                    },
+                    hovertemplate: 'Component: %{x}<br>Value: %{y:.4f} a.u.<extra></extra>'
+                };
+
+                const avgValue = pol.isotropic;
+                const avgLine = {
+                    x: ['α₁', 'α₂', 'α₃'],
+                    y: [avgValue, avgValue, avgValue],
+                    mode: 'lines',
+                    name: 'Isotropic',
+                    line: {color: '#dc3545', width: 2, dash: 'dash'},
+                    hovertemplate: 'Isotropic: %{y:.4f} a.u.<extra></extra>'
+                };
+
+                const layout = {
+                    title: 'Polarizability Principal Components',
+                    xaxis: {title: 'Principal Component'},
+                    yaxis: {title: 'Polarizability (a.u.)'},
+                    showlegend: true,
+                    hovermode: 'closest'
+                };
+
+                Plotly.newPlot('polarizability-plot', [trace, avgLine], layout, {responsive: true});
+            }
         }
     </script>
 </body>
