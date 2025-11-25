@@ -72,7 +72,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 **Format:** ORCA text output with multiple sections
 
-**Currently Parsed (27 sections):**
+**Currently Parsed (28 sections):**
 1. **Job Info:** Method, basis set, charge, multiplicity
 2. **Final Energy:** Total SCF energy
 3. **SCF Energies:** Energy at each SCF iteration
@@ -88,29 +88,29 @@ This project provides parsers for various ORCA output file formats and a UI to p
 13. **Mulliken Charges:** Atomic partial charges
 14. **Loewdin Charges:** Alternative charge analysis
 15. **Mayer Bond Orders:** Covalent bond strengths
-16. **Thermochemistry:**
+16. **Loewdin Bond Orders:** Alternative bond order analysis
+17. **Thermochemistry:**
     - Zero-point energy (ZPE)
     - Thermal corrections
     - Enthalpy, Entropy (electronic/vibrational/rotational/translational)
     - Gibbs free energy
-17. **NMR Chemical Shifts:** Isotropic shielding (ppm)
-18. **NMR J-Couplings:** Isotropic coupling constants (Hz)
-19. **Normal Modes:** Vibrational displacement vectors (partial)
-20. **SCF Iterations:** Detailed convergence data per iteration
-21. **Timing Data:** Computational timing breakdown
-22. **DFT Grid Info:** Integration grid parameters
-23. **Basis Set Info:** Basis set name, functions, primitives
-24. **Energy Components:** Nuclear/electronic/kinetic/potential/virial/XC
-25. **CPCM Solvation:** Surface charge, dielectric energy
-26. **SCF Convergence:** Final convergence metrics
-27. **Mulliken Orbital Populations:** s,p,d,f,g breakdown per atom
+18. **NMR Chemical Shifts:** Isotropic shielding (ppm)
+19. **NMR J-Couplings:** Isotropic coupling constants (Hz)
+20. **Normal Modes:** Vibrational displacement vectors (partial)
+21. **SCF Iterations:** Detailed convergence data per iteration
+22. **Timing Data:** Computational timing breakdown
+23. **DFT Grid Info:** Integration grid parameters
+24. **Basis Set Info:** Basis set name, functions, primitives
+25. **Energy Components:** Nuclear/electronic/kinetic/potential/virial/XC
+26. **CPCM Solvation:** Surface charge, dielectric energy
+27. **SCF Convergence:** Final convergence metrics
+28. **Mulliken Orbital Populations:** s,p,d,f,g breakdown per atom
 
-**Unparsed Sections Available (30 more):**
+**Unparsed Sections Available (29 more):**
 
-**HIGH PRIORITY (11 sections):**
+**HIGH PRIORITY (10 sections):**
 - Mulliken/Loewdin Orbital Populations Per MO (~11k MOs - HUGE dataset)
 - Mulliken Overlap Charges
-- Loewdin Bond Orders
 - Mulliken/Loewdin Orbital Charges
 - J-Coupling Tensor Components (DSO/PSO/FC/SD/SD-FC)
 - Chemical Shielding Tensors (full anisotropic)
@@ -151,20 +151,20 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 **Last Updated:** 2025-11-25
 **Test File:** p1xs0p.out (113,234 lines)
-**Current Coverage:** 27/57 sections parsed (47%)
+**Current Coverage:** 28/57 sections parsed (49%)
 
 ### Status Summary
 
 | Category | Parsed | Remaining | Total |
 |----------|--------|-----------|-------|
-| **HIGH Priority** | 5 | 11 | 16 |
+| **HIGH Priority** | 6 | 10 | 16 |
 | **MEDIUM Priority** | 15 | 12 | 27 |
 | **LOW Priority** | 7 | 7 | 14 |
-| **TOTAL** | **27** | **30** | **57** |
+| **TOTAL** | **28** | **29** | **57** |
 
-### High Priority Unparsed Sections (11)
+### High Priority Unparsed Sections (10)
 
-#### Electronic Structure - Charge Analysis (5 sections)
+#### Electronic Structure - Charge Analysis (4 sections)
 
 **28. MULLIKEN OVERLAP CHARGES** ⭐
 - **Location:** Line 75366
