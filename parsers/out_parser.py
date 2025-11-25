@@ -57,8 +57,31 @@ class OrbitalEnergy:
 
 
 @dataclass
+class ChemicalShieldingTensor:
+    """Full chemical shielding tensor for a nucleus."""
+    atom_index: int
+    element: str
+    # 3x3 tensors (stored as list of 9 values: [xx, xy, xz, yx, yy, yz, zx, zy, zz])
+    diamagnetic_tensor: list[float] = field(default_factory=list)  # 3x3 matrix
+    paramagnetic_tensor: list[float] = field(default_factory=list)  # 3x3 matrix
+    total_tensor: list[float] = field(default_factory=list)  # 3x3 matrix
+    # Diagonalized components
+    sdso_components: list[float] = field(default_factory=list)  # [comp1, comp2, comp3]
+    spso_components: list[float] = field(default_factory=list)  # [comp1, comp2, comp3]
+    total_components: list[float] = field(default_factory=list)  # [comp1, comp2, comp3]
+    # Isotropic values
+    sdso_iso: float = 0.0
+    spso_iso: float = 0.0
+    total_iso: float = 0.0
+    # Orientation eigenvectors (3 vectors of 3 components each)
+    orientation_x: list[float] = field(default_factory=list)  # [x, y, z]
+    orientation_y: list[float] = field(default_factory=list)  # [x, y, z]
+    orientation_z: list[float] = field(default_factory=list)  # [x, y, z]
+
+
+@dataclass
 class NMRShift:
-    """NMR chemical shift for a nucleus."""
+    """NMR chemical shift for a nucleus (summary data)."""
     atom_index: int
     element: str
     isotropic: float  # ppm
@@ -288,6 +311,7 @@ class OrcaOutput:
     mulliken_overlap_charges: list[tuple[int, int, float]] = field(default_factory=list)  # (atom1, atom2, overlap_charge)
     thermochemistry: Optional[Thermochemistry] = None
     nmr_data: Optional[NMRData] = None
+    chemical_shielding_tensors: list[ChemicalShieldingTensor] = field(default_factory=list)  # Full tensor data
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -504,7 +528,26 @@ class OrcaOutput:
                     {'atom1': j.atom1_index, 'atom2': j.atom2_index, 'value': j.value}
                     for j in self.nmr_data.j_couplings
                 ]
-            } if self.nmr_data else None
+            } if self.nmr_data else None,
+            'chemical_shielding_tensors': [
+                {
+                    'atom_index': t.atom_index,
+                    'element': t.element,
+                    'diamagnetic_tensor': t.diamagnetic_tensor,
+                    'paramagnetic_tensor': t.paramagnetic_tensor,
+                    'total_tensor': t.total_tensor,
+                    'sdso_components': t.sdso_components,
+                    'spso_components': t.spso_components,
+                    'total_components': t.total_components,
+                    'sdso_iso': t.sdso_iso,
+                    'spso_iso': t.spso_iso,
+                    'total_iso': t.total_iso,
+                    'orientation_x': t.orientation_x,
+                    'orientation_y': t.orientation_y,
+                    'orientation_z': t.orientation_z
+                }
+                for t in self.chemical_shielding_tensors
+            ]
         }
 
 
@@ -539,6 +582,7 @@ def parse_out_content(content: str) -> OrcaOutput:
     mulliken_overlap = parse_mulliken_overlap_charges(content)
     thermo = parse_thermochemistry(content)
     nmr = parse_nmr_data(content)
+    shielding_tensors = parse_chemical_shielding_tensors(content)
     scf_iterations = parse_scf_iterations(content)
     timing = parse_timing_data(content)
     dft_grid = parse_dft_grid_info(content)
@@ -587,7 +631,8 @@ def parse_out_content(content: str) -> OrcaOutput:
         loewdin_bond_orders=loewdin_bond_orders,
         mulliken_overlap_charges=mulliken_overlap,
         thermochemistry=thermo,
-        nmr_data=nmr
+        nmr_data=nmr,
+        chemical_shielding_tensors=shielding_tensors
     )
 
 
@@ -1191,6 +1236,76 @@ def parse_nmr_data(content: str) -> Optional[NMRData]:
     return None
 
 
+def parse_chemical_shielding_tensors(content: str) -> list[ChemicalShieldingTensor]:
+    """Extract full chemical shielding tensors (diamagnetic, paramagnetic, total)."""
+    tensors = []
+
+    # Find all nucleus sections in CHEMICAL SHIELDINGS (ppm) block
+    # Pattern: "Nucleus   1H :" or "Nucleus   0C :"
+    nucleus_pattern = r'-{10,}\s*Nucleus\s+(\d+)([A-Z][a-z]?)\s*:\s*-{10,}\s*(.*?)(?=-{10,}\s*Nucleus|\Z)'
+
+    nucleus_matches = re.findall(nucleus_pattern, content, re.DOTALL)
+
+    for atom_idx, element, nucleus_content in nucleus_matches:
+        tensor = ChemicalShieldingTensor(
+            atom_index=int(atom_idx),
+            element=element
+        )
+
+        # Parse diamagnetic tensor (3x3 matrix)
+        dia_match = re.search(
+            r'Diamagnetic contribution.*?:\s*\n\s*(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s*\n\s*(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s*\n\s*(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)',
+            nucleus_content
+        )
+        if dia_match:
+            tensor.diamagnetic_tensor = [float(dia_match.group(i)) for i in range(1, 10)]
+
+        # Parse paramagnetic tensor (3x3 matrix)
+        para_match = re.search(
+            r'Paramagnetic contribution.*?:\s*\n\s*(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s*\n\s*(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s*\n\s*(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)',
+            nucleus_content
+        )
+        if para_match:
+            tensor.paramagnetic_tensor = [float(para_match.group(i)) for i in range(1, 10)]
+
+        # Parse total shielding tensor (3x3 matrix)
+        total_match = re.search(
+            r'Total shielding tensor.*?:\s*\n\s*(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s*\n\s*(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s*\n\s*(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)',
+            nucleus_content
+        )
+        if total_match:
+            tensor.total_tensor = [float(total_match.group(i)) for i in range(1, 10)]
+
+        # Parse diagonalized components
+        # Format: sDSO  11.490  44.520  27.669  iso=  27.893
+        diag_match = re.search(
+            r'sDSO\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+iso=\s*(-?\d+\.?\d+)\s*\n\s*sPSO\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+iso=\s*(-?\d+\.?\d+)\s*\n.*?Total\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+iso=\s*(-?\d+\.?\d+)',
+            nucleus_content, re.DOTALL
+        )
+        if diag_match:
+            tensor.sdso_components = [float(diag_match.group(i)) for i in [1, 2, 3]]
+            tensor.sdso_iso = float(diag_match.group(4))
+            tensor.spso_components = [float(diag_match.group(i)) for i in [5, 6, 7]]
+            tensor.spso_iso = float(diag_match.group(8))
+            tensor.total_components = [float(diag_match.group(i)) for i in [9, 10, 11]]
+            tensor.total_iso = float(diag_match.group(12))
+
+        # Parse orientation eigenvectors
+        # Format: X  -0.0461294  0.0468023  -0.9978385
+        orient_match = re.search(
+            r'Orientation:\s*\n\s*X\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s*\n\s*Y\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s*\n\s*Z\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)\s+(-?\d+\.?\d+)',
+            nucleus_content
+        )
+        if orient_match:
+            tensor.orientation_x = [float(orient_match.group(i)) for i in [1, 2, 3]]
+            tensor.orientation_y = [float(orient_match.group(i)) for i in [4, 5, 6]]
+            tensor.orientation_z = [float(orient_match.group(i)) for i in [7, 8, 9]]
+
+        tensors.append(tensor)
+
+    return tensors
+
+
 def parse_raman_spectrum(content: str) -> list[RamanMode]:
     """Extract Raman spectrum data."""
     modes = []
@@ -1792,6 +1907,13 @@ if __name__ == '__main__':
         if result.nmr_data:
             print(f"NMR Shifts: {len(result.nmr_data.chemical_shifts)} nuclei")
             print(f"J-Couplings: {len(result.nmr_data.j_couplings)} pairs")
+
+        if result.chemical_shielding_tensors:
+            print(f"Chemical Shielding Tensors: {len(result.chemical_shielding_tensors)} nuclei")
+            # Show first tensor as example
+            if result.chemical_shielding_tensors:
+                t = result.chemical_shielding_tensors[0]
+                print(f"  Example: {t.atom_index}{t.element}, total_iso={t.total_iso:.2f} ppm")
 
         if result.raman_spectrum:
             strongest = max(result.raman_spectrum, key=lambda x: x.activity)
