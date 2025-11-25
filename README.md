@@ -72,53 +72,54 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 **Format:** ORCA text output with multiple sections
 
-**Currently Parsed (28 sections):**
+**Currently Parsed (32 sections):**
 1. **Job Info:** Method, basis set, charge, multiplicity
 2. **Final Energy:** Total SCF energy
 3. **SCF Energies:** Energy at each SCF iteration
 4. **Optimization Energies:** Energy at each geometry step
 5. **Coordinates:** Cartesian coordinates (Angstrom)
-6. **Dipole Moment:** X, Y, Z components (a.u. and Debye)
-7. **Polarizability:** Static polarizability tensor + eigenvalues
-8. **Orbital Energies:** HOMO, LUMO, all occupied/virtual orbitals
-9. **Vibrational Frequencies:** All normal modes (cm⁻¹)
-10. **IR Spectrum:** Frequencies with intensities (km/mol)
-11. **Raman Spectrum:** Frequencies with activities and depolarization
-12. **Dispersion Correction:** DFTD3 (E6, E8 components)
-13. **Mulliken Charges:** Atomic partial charges
-14. **Loewdin Charges:** Alternative charge analysis
-15. **Mayer Bond Orders:** Covalent bond strengths
-16. **Loewdin Bond Orders:** Alternative bond order analysis
-17. **Thermochemistry:**
+6. **Coordinates (a.u.):** Cartesian coordinates with atomic numbers and masses (Bohr)
+7. **Internal Coordinates:** Z-matrix (bond lengths, angles, dihedrals) in Angstrom and a.u.
+8. **Dipole Moment:** X, Y, Z components (a.u. and Debye)
+9. **Polarizability:** Static polarizability tensor + eigenvalues
+10. **Orbital Energies:** HOMO, LUMO, all occupied/virtual orbitals
+11. **Vibrational Frequencies:** All normal modes (cm⁻¹)
+12. **IR Spectrum:** Frequencies with intensities (km/mol)
+13. **Raman Spectrum:** Frequencies with activities and depolarization
+14. **Dispersion Correction:** DFTD3 (E6, E8 components)
+15. **Mulliken Charges:** Atomic partial charges
+16. **Mulliken Overlap Charges:** Charge overlap between atom pairs (105 pairs)
+17. **Loewdin Charges:** Alternative charge analysis
+18. **Mayer Bond Orders:** Covalent bond strengths
+19. **Loewdin Bond Orders:** Alternative bond order analysis
+20. **Thermochemistry:**
     - Zero-point energy (ZPE)
     - Thermal corrections
     - Enthalpy, Entropy (electronic/vibrational/rotational/translational)
     - Gibbs free energy
-18. **NMR Chemical Shifts:** Isotropic shielding (ppm)
-19. **NMR J-Couplings:** Isotropic coupling constants (Hz)
-20. **Normal Modes:** Vibrational displacement vectors (partial)
-21. **SCF Iterations:** Detailed convergence data per iteration
-22. **Timing Data:** Computational timing breakdown
-23. **DFT Grid Info:** Integration grid parameters
-24. **Basis Set Info:** Basis set name, functions, primitives
-25. **Energy Components:** Nuclear/electronic/kinetic/potential/virial/XC
-26. **CPCM Solvation:** Surface charge, dielectric energy
-27. **SCF Convergence:** Final convergence metrics
-28. **Mulliken Orbital Populations:** s,p,d,f,g breakdown per atom
+21. **NMR Chemical Shifts:** Isotropic shielding (ppm)
+22. **NMR J-Couplings:** Isotropic coupling constants (Hz)
+23. **Normal Modes:** Vibrational displacement vectors (partial)
+24. **SCF Iterations:** Detailed convergence data per iteration
+25. **Timing Data:** Computational timing breakdown + total run time
+26. **DFT Grid Info:** Integration grid parameters
+27. **Basis Set Info:** Basis set name, functions, primitives
+28. **Energy Components:** Nuclear/electronic/kinetic/potential/virial/XC
+29. **CPCM Solvation:** Surface charge, dielectric energy
+30. **SCF Convergence:** Final convergence metrics
+31. **Mulliken Orbital Populations:** s,p,d,f,g breakdown per atom
+32. **Total Run Time:** Complete execution time (days, hours, minutes, seconds)
 
-**Unparsed Sections Available (29 more):**
+**Unparsed Sections Available (25 more):**
 
-**HIGH PRIORITY (10 sections):**
+**HIGH PRIORITY (9 sections):**
 - Mulliken/Loewdin Orbital Populations Per MO (~11k MOs - HUGE dataset)
-- Mulliken Overlap Charges
 - Mulliken/Loewdin Orbital Charges
 - J-Coupling Tensor Components (DSO/PSO/FC/SD/SD-FC)
 - Chemical Shielding Tensors (full anisotropic)
 - Chemical Shielding Summary
 
-**MEDIUM PRIORITY (12 sections):**
-- Internal Coordinates (bond lengths/angles/dihedrals)
-- Cartesian Coordinates (atomic units)
+**MEDIUM PRIORITY (10 sections):**
 - Geometric Perturbations
 - Basis Set Details (contractions, exponents)
 - SHARK Integral Package
@@ -127,14 +128,13 @@ This project provides parsers for various ORCA output file formats and a UI to p
 - DIIS/SOSCF Details
 - CPCM Detailed Parameters
 
-**LOW PRIORITY (7 sections):**
+**LOW PRIORITY (6 sections):**
 - Normal Modes (complete all 63 modes)
 - SCF Hessian Matrix
 - MO Coefficients (MASSIVE dataset)
 - Pople Linear Equation Solver
 - SCF Settings (detailed)
 - Citations
-- Total Runtime
 
 **Preview:**
 - Energy convergence plots
@@ -151,27 +151,20 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 **Last Updated:** 2025-11-25
 **Test File:** p1xs0p.out (113,234 lines)
-**Current Coverage:** 28/57 sections parsed (49%)
+**Current Coverage:** 32/57 sections parsed (56%)
 
 ### Status Summary
 
 | Category | Parsed | Remaining | Total |
 |----------|--------|-----------|-------|
-| **HIGH Priority** | 6 | 10 | 16 |
-| **MEDIUM Priority** | 15 | 12 | 27 |
-| **LOW Priority** | 7 | 7 | 14 |
-| **TOTAL** | **28** | **29** | **57** |
+| **HIGH Priority** | 7 | 9 | 16 |
+| **MEDIUM Priority** | 17 | 10 | 27 |
+| **LOW Priority** | 8 | 6 | 14 |
+| **TOTAL** | **32** | **25** | **57** |
 
-### High Priority Unparsed Sections (10)
+### High Priority Unparsed Sections (9)
 
-#### Electronic Structure - Charge Analysis (4 sections)
-
-**28. MULLIKEN OVERLAP CHARGES** ⭐
-- **Location:** Line 75366
-- **Data:** Charge overlap between atom pairs
-- **Size:** 23×23 = 529 values
-- **Use Case:** Alternative bonding analysis
-- **Estimated Effort:** 2-3 hours
+#### Electronic Structure - Charge Analysis (3 sections)
 
 **29. MULLIKEN ORBITAL CHARGES**
 - **Location:** Line 74800
@@ -227,20 +220,9 @@ This project provides parsers for various ORCA output file formats and a UI to p
 - **Note:** May be redundant with tensor parsing
 - **Estimated Effort:** 1-2 hours
 
-### Medium Priority Unparsed Sections (12)
+### Medium Priority Unparsed Sections (10)
 
-#### Geometry & Coordinates (3 sections)
-
-**38. INTERNAL COORDINATES** ⭐
-- **Location:** Lines 375, 402
-- **Data:** Bond lengths, angles, dihedrals (Z-matrix)
-- **Size:** ~100 internal coordinates
-- **Estimated Effort:** 2-3 hours
-
-**39. CARTESIAN COORDINATES (A.U.)**
-- **Location:** Line 347
-- **Data:** Coordinates in atomic units (Bohr)
-- **Estimated Effort:** 30 min
+#### Geometry & Coordinates (1 section)
 
 **40. GEOMETRIC PERTURBATIONS**
 - **Location:** Line 111531
@@ -295,7 +277,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 - **Missing:** Construction details, partition functions
 - **Estimated Effort:** 2 hours
 
-### Low Priority Unparsed Sections (7)
+### Low Priority Unparsed Sections (6)
 
 **50. NORMAL MODES (Complete)** - All 63 modes (3-4 hours)
 **51. SCF HESSIAN** ⚠️ LARGE - 69×69 matrix (4-5 hours)
@@ -303,7 +285,6 @@ This project provides parsers for various ORCA output file formats and a UI to p
 **53. POPLE LINEAR SOLVER** - CPKS/CPHF details (2-3 hours)
 **54. SCF SETTINGS (Detailed)** - All parameters (3-4 hours)
 **55. CITATIONS** - Reference existing bibtex parser (1 hour)
-**56. TOTAL RUN TIME** - Summary only (15 min)
 
 ### Implementation Roadmap
 
@@ -311,14 +292,14 @@ This project provides parsers for various ORCA output file formats and a UI to p
 1. J-Coupling Tensor Components (4-6 hrs)
 2. Chemical Shielding Tensors (3-4 hrs)
 
-**Phase 2: Charge & Bond Analysis (5-7 hours)**
-3. Loewdin Bond Orders (1-2 hrs)
-4. Mulliken Overlap Charges (2-3 hrs)
+**Phase 2: Charge & Bond Analysis (2-3 hours)** ✅ Partially Complete
+3. ✅ Loewdin Bond Orders (completed)
+4. ✅ Mulliken Overlap Charges (completed)
 5. Mulliken/Loewdin Orbital Charges (2-3 hrs)
 
-**Phase 3: Geometry Details (3-4 hours)**
-6. Internal Coordinates (2-3 hrs)
-7. Cartesian Coordinates (a.u.) (30 min)
+**Phase 3: Geometry Details** ✅ COMPLETED
+6. ✅ Internal Coordinates (completed)
+7. ✅ Cartesian Coordinates (a.u.) (completed)
 
 **Phase 4: Computational Details (6-8 hours)**
 8. Enhanced Basis Set Info (4-5 hrs)
@@ -330,7 +311,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 12. Complete Normal Modes (3-4 hrs)
 13. SCF Hessian (4-5 hrs)
 
-**Total Estimated Effort:** 37-49 hours for all high/medium priority sections
+**Total Estimated Effort:** 30-42 hours for all remaining high/medium priority sections (reduced from 37-49 after completing 4 sections)
 
 ### Storage Considerations
 
