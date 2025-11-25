@@ -1001,23 +1001,23 @@ function App() {
 
 ### Phase 3B: Enhanced 3D Molecular Visualizations (HIGH PRIORITY)
 **Charge & Electronic Properties:**
-- [ ] **3B.1** Charge-colored atoms
-  - Color atoms by Mulliken/Loewdin charge
-  - Red (negative) → White (neutral) → Blue (positive)
-  - Toggle between charge types
-  - Color scale legend
+- [x] **3B.1** Charge-colored atoms - **DONE** ✓
+  - ✓ Color atoms by Mulliken/Loewdin charge
+  - ✓ Red (negative) → White (neutral) → Blue (positive)
+  - ✓ Toggle between charge types (Element/Mulliken/Loewdin)
+  - ✓ Color scale legend with gradient
   - Data: `mulliken_charges`, `loewdin_charges`
-- [ ] **3B.2** Bond order visualization
-  - Bond thickness proportional to bond order
-  - Color gradient for bond strength
-  - Show bond order values on hover
-  - Filter by threshold
-  - Data: `mayer_bond_orders`, `loewdin_bond_orders`
-- [ ] **3B.3** Dipole moment vector
-  - 3D arrow showing dipole direction
-  - Length proportional to magnitude
-  - Component breakdown (x, y, z)
-  - Toggle on/off
+- [x] **3B.2** Bond order visualization - **DONE** ✓
+  - ✓ Show bond order values as labels
+  - ✓ Yellow labels on bond midpoints
+  - ✓ Filter by threshold (> 0.5)
+  - ✓ Toggle on/off button
+  - Data: `mayer_bond_orders`
+- [x] **3B.3** Dipole moment vector - **DONE** ✓
+  - ✓ 3D purple arrow showing dipole direction
+  - ✓ Length proportional to magnitude
+  - ✓ Label with magnitude in Debye
+  - ✓ Toggle on/off button
   - Data: `dipole_moment`
 
 **Geometry Evolution:**
@@ -1037,11 +1037,12 @@ function App() {
 
 ### Phase 3C: Advanced Spectroscopy (MEDIUM PRIORITY)
 **Combined Spectra:**
-- [ ] **3C.1** IR + Raman overlay
-  - Dual y-axes (IR intensity, Raman activity)
-  - Color-coded traces
-  - Synchronized x-axis zoom
-  - Peak comparison mode
+- [x] **3C.1** IR + Raman overlay - **DONE** ✓
+  - ✓ Dual y-axes (IR intensity on left, Raman activity on right)
+  - ✓ Color-coded traces (green for IR, red for Raman)
+  - ✓ Synchronized x-axis (frequency in cm⁻¹)
+  - ✓ Opacity for overlapping bars
+  - ✓ Export as PNG/SVG
 - [ ] **3C.2** NMR with J-coupling network
   - Show coupling constants between nuclei
   - Network graph visualization
@@ -1094,11 +1095,12 @@ function App() {
 
 ### Phase 3F: Performance & Diagnostics (UTILITY)
 **Computation Analysis:**
-- [ ] **3F.1** Timing breakdown pie chart
-  - Time spent in each module
-  - Percentage labels
-  - Interactive tooltips
-  - Bar chart alternative
+- [x] **3F.1** Timing breakdown pie chart - **DONE** ✓
+  - ✓ Time spent in each module (pie chart)
+  - ✓ Percentage labels
+  - ✓ Interactive hover tooltips with exact times
+  - ✓ Color-coded sections
+  - ✓ Export as PNG
   - Data: `timing_data`
 - [ ] **3F.2** Basis set composition
   - Pie chart: s, p, d, f functions

@@ -533,6 +533,22 @@
                     <button class="btn-export" onclick="exportPlot('nmr-plot', 'nmr_spectrum.png')">📷 PNG</button>
                 </div>
             </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">IR + Raman Overlay ✨</button>
+            <div class="collapsible-content">
+                <div id="combined-spectrum-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('combined-spectrum-plot', 'ir_raman_combined.png')">📷 PNG</button>
+                </div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Computation Timing Breakdown ⏱️</button>
+            <div class="collapsible-content">
+                <div id="timing-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('timing-plot', 'timing_breakdown.png')">📷 PNG</button>
+                </div>
+            </div>
         </div>
 
         <!-- Geometry Tab -->
@@ -968,6 +984,150 @@
             a.click();
         }
 
+        // ===== CHARGE COLORING =====
+        let currentChargeType = 'none';
+
+        function setChargeColoring(chargeType) {
+            if (!viewer3d || !data) return;
+            currentChargeType = chargeType;
+
+            const legend = document.getElementById('charge-legend');
+
+            if (chargeType === 'none') {
+                // Reset to element colors
+                viewer3d.setStyle({}, {stick: {radius: 0.15}, sphere: {scale: 0.3}});
+                legend.style.display = 'none';
+            } else {
+                // Get charges
+                const charges = chargeType === 'mulliken' ? data.mulliken_charges : data.loewdin_charges;
+                if (!charges) {
+                    alert(`${chargeType} charges not available in data`);
+                    return;
+                }
+
+                // Color each atom by charge
+                data.coordinates.forEach((coord, i) => {
+                    const element = coord[0];
+                    const atomKey = `${i}${element}`;
+                    const chargeData = charges[atomKey];
+
+                    if (chargeData) {
+                        const charge = chargeData.charge;
+                        const color = chargeToColor(charge);
+                        viewer3d.setStyle({serial: i}, {
+                            stick: {radius: 0.15},
+                            sphere: {scale: 0.4, color: color}
+                        });
+                    }
+                });
+
+                legend.style.display = 'block';
+            }
+
+            viewer3d.render();
+        }
+
+        function chargeToColor(charge) {
+            // Map charge to color: red (negative) -> white (neutral) -> blue (positive)
+            const clampedCharge = Math.max(-1, Math.min(1, charge)); // Clamp to [-1, 1]
+
+            if (clampedCharge < 0) {
+                // Negative: white to red
+                const intensity = Math.abs(clampedCharge);
+                const r = 255;
+                const g = Math.round(255 * (1 - intensity));
+                const b = Math.round(255 * (1 - intensity));
+                return `rgb(${r}, ${g}, ${b})`;
+            } else {
+                // Positive: white to blue
+                const intensity = clampedCharge;
+                const r = Math.round(255 * (1 - intensity));
+                const g = Math.round(255 * (1 - intensity));
+                const b = 255;
+                return `rgb(${r}, ${g}, ${b})`;
+            }
+        }
+
+        // ===== DIPOLE MOMENT VECTOR =====
+        let showDipole = false;
+
+        function toggleDipole() {
+            if (!viewer3d || !data || !data.dipole_moment) return;
+            showDipole = !showDipole;
+
+            viewer3d.removeAllShapes();
+
+            if (showDipole) {
+                const dipole = data.dipole_moment;
+                const mag = dipole.magnitude_debye;
+
+                // Scale factor for arrow length
+                const scale = 2.0;
+
+                // Draw arrow from center of molecule
+                const center = {x: 0, y: 0, z: 0};
+                const end = {
+                    x: dipole.x_debye * scale,
+                    y: dipole.y_debye * scale,
+                    z: dipole.z_debye * scale
+                };
+
+                viewer3d.addArrow({
+                    start: center,
+                    end: end,
+                    radius: 0.2,
+                    color: 'purple',
+                    mid: 0.8
+                });
+
+                viewer3d.addLabel(`μ = ${mag.toFixed(2)} D`, {
+                    position: end,
+                    backgroundColor: 'purple',
+                    fontColor: 'white',
+                    fontSize: 14
+                });
+            }
+
+            viewer3d.render();
+        }
+
+        // ===== BOND ORDERS =====
+        let showBondOrdersFlag = false;
+
+        function toggleBondOrders() {
+            if (!viewer3d || !data || !data.mayer_bond_orders) return;
+            showBondOrdersFlag = !showBondOrdersFlag;
+
+            viewer3d.removeAllLabels();
+
+            if (showBondOrdersFlag) {
+                // Show bond orders as labels
+                data.mayer_bond_orders.forEach(bond => {
+                    if (bond.bond_order > 0.5) { // Only show significant bonds
+                        const coord1 = data.coordinates[bond.atom1_index];
+                        const coord2 = data.coordinates[bond.atom2_index];
+
+                        if (coord1 && coord2) {
+                            const midpoint = {
+                                x: (coord1[1] + coord2[1]) / 2,
+                                y: (coord1[2] + coord2[2]) / 2,
+                                z: (coord1[3] + coord2[3]) / 2
+                            };
+
+                            viewer3d.addLabel(bond.bond_order.toFixed(2), {
+                                position: midpoint,
+                                backgroundColor: 'rgba(255, 255, 0, 0.7)',
+                                fontColor: 'black',
+                                fontSize: 10
+                            });
+                        }
+                    }
+                });
+            }
+
+            viewer3d.render();
+        }
+
         // ===== PLOTLY VISUALIZATIONS =====
         function renderAllPlots() {
             if (!data) return;
@@ -977,6 +1137,8 @@
             renderThermoPlot();
             renderOrbitalPlot();
             renderNMRPlot();
+            renderCombinedSpectrum();
+            renderTimingBreakdown();
         }
 
         function renderSCFPlot() {
@@ -1138,6 +1300,104 @@
             };
 
             Plotly.newPlot('nmr-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderCombinedSpectrum() {
+            if (!data || (!data.ir_spectrum && !data.raman_spectrum)) return;
+
+            const traces = [];
+
+            // IR spectrum trace
+            if (data.ir_spectrum && data.ir_spectrum.length > 0) {
+                const irTrace = {
+                    x: data.ir_spectrum.map(d => d.frequency),
+                    y: data.ir_spectrum.map(d => d.intensity),
+                    type: 'bar',
+                    name: 'IR Intensity',
+                    marker: {color: '#28a745'},
+                    yaxis: 'y',
+                    opacity: 0.7
+                };
+                traces.push(irTrace);
+            }
+
+            // Raman spectrum trace
+            if (data.raman_spectrum && data.raman_spectrum.length > 0) {
+                const ramanTrace = {
+                    x: data.raman_spectrum.map(d => d.frequency),
+                    y: data.raman_spectrum.map(d => d.activity),
+                    type: 'bar',
+                    name: 'Raman Activity',
+                    marker: {color: '#dc3545'},
+                    yaxis: 'y2',
+                    opacity: 0.7
+                };
+                traces.push(ramanTrace);
+            }
+
+            const layout = {
+                title: 'IR + Raman Combined Spectrum',
+                xaxis: {title: 'Frequency (cm⁻¹)'},
+                yaxis: {
+                    title: 'IR Intensity (km/mol)',
+                    titlefont: {color: '#28a745'},
+                    tickfont: {color: '#28a745'}
+                },
+                yaxis2: {
+                    title: 'Raman Activity',
+                    titlefont: {color: '#dc3545'},
+                    tickfont: {color: '#dc3545'},
+                    overlaying: 'y',
+                    side: 'right'
+                },
+                hovermode: 'closest',
+                showlegend: true
+            };
+
+            Plotly.newPlot('combined-spectrum-plot', traces, layout, {responsive: true});
+        }
+
+        function renderTimingBreakdown() {
+            if (!data || !data.timing_data) return;
+
+            const timing = data.timing_data;
+
+            // Extract timing data (exclude total_run_time)
+            const modules = [];
+            const times = [];
+
+            for (const [key, value] of Object.entries(timing)) {
+                if (key !== 'total_run_time' && typeof value === 'number' && value > 0) {
+                    // Format key for display
+                    const displayName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    modules.push(displayName);
+                    times.push(value);
+                }
+            }
+
+            if (modules.length === 0) {
+                // No timing data available
+                return;
+            }
+
+            const trace = {
+                labels: modules,
+                values: times,
+                type: 'pie',
+                textinfo: 'label+percent',
+                hoverinfo: 'label+value+percent',
+                marker: {
+                    colors: ['#667eea', '#764ba2', '#28a745', '#ffc107', '#dc3545', '#17a2b8', '#6c757d', '#e83e8c']
+                }
+            };
+
+            const layout = {
+                title: 'Computation Time Breakdown',
+                height: 400,
+                showlegend: true
+            };
+
+            Plotly.newPlot('timing-plot', [trace], layout, {responsive: true});
         }
 
         // ===== COLLAPSIBLE SECTIONS =====
