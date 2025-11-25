@@ -411,13 +411,18 @@
 
         <div class="controls">
             <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
-                <input type="file" id="fileInput" accept=".out,.txt" onchange="uploadFile(event)">
-                <p>📤 <strong>Upload ORCA Output File</strong></p>
-                <p style="font-size: 12px; margin-top: 5px;">Drag & drop or click to browse (.out, .txt)</p>
+                <input type="file" id="fileInput" accept=".out,.txt" multiple onchange="uploadFile(event)">
+                <p>📤 <strong>Upload ORCA Output File(s)</strong></p>
+                <p style="font-size: 12px; margin-top: 5px;">Drag & drop or click to browse (.out, .txt) - Multiple files supported</p>
             </div>
-            <div style="display: flex; gap: 10px; flex: 1; align-items: center;">
+            <div style="display: flex; gap: 10px; flex: 1; align-items: center; flex-wrap: wrap;">
                 <button class="btn-primary" onclick="loadDefaultData()">📂 Load Example</button>
                 <button class="btn-secondary" onclick="exportJSON()">💾 Export JSON</button>
+                <button class="btn-secondary" onclick="generatePDFReport()">📄 PDF Report</button>
+                <button class="btn-secondary" onclick="shareViaURL()">🔗 Share URL</button>
+                <select id="fileSelector" onchange="switchFile()" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd; display: none;">
+                    <option value="0">File 1</option>
+                </select>
                 <div class="status" id="status">Upload a file or load example data</div>
             </div>
         </div>
@@ -426,6 +431,7 @@
             <button class="tab active" onclick="showTab('summary')">📊 Summary</button>
             <button class="tab" onclick="showTab('molecule')">🔬 3D Molecule</button>
             <button class="tab" onclick="showTab('plots')">📈 Interactive Plots</button>
+            <button class="tab" onclick="showTab('comparison')" id="comparisonTab" style="display: none;">⚖️ Comparison</button>
             <button class="tab" onclick="showTab('geometry')">📍 Geometry</button>
             <button class="tab" onclick="showTab('energy')">⚡ Energy</button>
             <button class="tab" onclick="showTab('orbitals')">🌀 Orbitals</button>
@@ -440,6 +446,56 @@
             <h2 class="section-title">Summary Overview</h2>
             <div id="summary-content">
                 <p class="loading">Click "Load Data" to parse ORCA output file</p>
+            </div>
+        </div>
+
+        <!-- Comparison Tab -->
+        <div id="comparison" class="tab-content">
+            <h2 class="section-title">⚖️ Multi-File Comparison</h2>
+            <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <p style="margin-bottom: 10px;"><strong>Compare Files:</strong></p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <select id="compareFile1" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
+                        <option value="0">File 1</option>
+                    </select>
+                    <span style="padding: 8px;">vs</span>
+                    <select id="compareFile2" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
+                        <option value="1">File 2</option>
+                    </select>
+                    <button class="btn-primary" onclick="renderComparison()">🔄 Compare</button>
+                </div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Energy Comparison 📊</button>
+            <div class="collapsible-content">
+                <div id="comparison-energy-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('comparison-energy-plot', 'energy_comparison.png')">📷 PNG</button>
+                </div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">SCF Convergence Overlay 📈</button>
+            <div class="collapsible-content">
+                <div id="comparison-scf-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('comparison-scf-plot', 'scf_comparison.png')">📷 PNG</button>
+                </div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Charge Difference Map 🗺️</button>
+            <div class="collapsible-content">
+                <div id="comparison-charge-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('comparison-charge-plot', 'charge_difference.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Mulliken charge differences between the two files (File 2 - File 1).
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Side-by-Side Properties 📋</button>
+            <div class="collapsible-content">
+                <div id="comparison-table" style="overflow-x: auto;"></div>
             </div>
         </div>
 
@@ -1165,8 +1221,12 @@
     </div>
 
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
         let data = null;
+        let allFiles = [];  // Store multiple files
+        let currentFileIndex = 0;  // Current file being viewed
         let viewer3d = null;
         let showLabels = false;
 
@@ -1197,9 +1257,11 @@
 
         // File upload handlers
         function uploadFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            handleFileUpload(file);
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            // Handle multiple files
+            Array.from(files).forEach(file => handleFileUpload(file));
         }
 
         async function handleFileUpload(file) {
@@ -1215,15 +1277,60 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    data = result.data;
-                    setStatus(`✓ Parsed ${file.name} successfully`, true);
+                    allFiles.push({name: file.name, data: result.data});
+                    data = result.data;  // Set to latest file
+                    currentFileIndex = allFiles.length - 1;
+
+                    setStatus(`✓ Parsed ${file.name} successfully (${allFiles.length} file(s) loaded)`, true);
+                    updateFileSelector();
                     renderAllTabs();
+
+                    // Show comparison tab if multiple files
+                    if (allFiles.length > 1) {
+                        document.getElementById('comparisonTab').style.display = 'inline-block';
+                        updateComparisonSelectors();
+                    }
                 } else {
                     setStatus(`✗ Error: ${result.message}`, false);
                 }
             } catch (error) {
                 setStatus(`✗ Upload failed: ${error.message}`, false);
             }
+        }
+
+        function updateFileSelector() {
+            const selector = document.getElementById('fileSelector');
+            if (allFiles.length <= 1) {
+                selector.style.display = 'none';
+                return;
+            }
+
+            selector.style.display = 'inline-block';
+            selector.innerHTML = allFiles.map((file, idx) =>
+                `<option value="${idx}" ${idx === currentFileIndex ? 'selected' : ''}>${file.name}</option>`
+            ).join('');
+        }
+
+        function switchFile() {
+            const selector = document.getElementById('fileSelector');
+            currentFileIndex = parseInt(selector.value);
+            data = allFiles[currentFileIndex].data;
+            setStatus(`✓ Switched to ${allFiles[currentFileIndex].name}`, true);
+            renderAllTabs();
+        }
+
+        function updateComparisonSelectors() {
+            const sel1 = document.getElementById('compareFile1');
+            const sel2 = document.getElementById('compareFile2');
+
+            const options = allFiles.map((file, idx) =>
+                `<option value="${idx}">${file.name}</option>`
+            ).join('');
+
+            sel1.innerHTML = options;
+            sel2.innerHTML = options;
+            sel1.value = '0';
+            sel2.value = allFiles.length > 1 ? '1' : '0';
         }
 
         // Drag and drop
@@ -4618,6 +4725,333 @@
 
             summaryDiv.innerHTML = cards.join('');
         }
+
+        // ============ PHASE 4: ADVANCED FEATURES ============
+
+        // 4.1 Multi-file Comparison
+        function renderComparison() {
+            if (allFiles.length < 2) {
+                alert('Please upload at least 2 files to compare');
+                return;
+            }
+
+            const idx1 = parseInt(document.getElementById('compareFile1').value);
+            const idx2 = parseInt(document.getElementById('compareFile2').value);
+
+            if (idx1 === idx2) {
+                alert('Please select two different files to compare');
+                return;
+            }
+
+            const file1 = allFiles[idx1].data;
+            const file2 = allFiles[idx2].data;
+
+            // Energy comparison
+            renderEnergyComparison(file1, file2, idx1, idx2);
+
+            // SCF overlay
+            renderSCFOverlay(file1, file2, idx1, idx2);
+
+            // Charge difference
+            renderChargeDifference(file1, file2, idx1, idx2);
+
+            // Properties table
+            renderPropertiesTable(file1, file2, idx1, idx2);
+        }
+
+        function renderEnergyComparison(file1, file2, idx1, idx2) {
+            const categories = ['Final Energy', 'HOMO', 'LUMO', 'HOMO-LUMO Gap'];
+            const values1 = [
+                file1.final_energy || 0,
+                file1.homo_energy || 0,
+                file1.lumo_energy || 0,
+                file1.lumo_energy && file1.homo_energy ? (file1.lumo_energy - file1.homo_energy) * 27.211 : 0
+            ];
+            const values2 = [
+                file2.final_energy || 0,
+                file2.homo_energy || 0,
+                file2.lumo_energy || 0,
+                file2.lumo_energy && file2.homo_energy ? (file2.lumo_energy - file2.homo_energy) * 27.211 : 0
+            ];
+
+            const trace1 = {
+                x: categories.slice(0, -1),
+                y: values1.slice(0, -1),
+                name: allFiles[idx1].name,
+                type: 'bar',
+                marker: {color: '#667eea'}
+            };
+
+            const trace2 = {
+                x: categories.slice(0, -1),
+                y: values2.slice(0, -1),
+                name: allFiles[idx2].name,
+                type: 'bar',
+                marker: {color: '#f39c12'}
+            };
+
+            // Gap on second y-axis
+            const trace3 = {
+                x: ['HOMO-LUMO Gap'],
+                y: [values1[3]],
+                name: allFiles[idx1].name + ' Gap',
+                type: 'bar',
+                yaxis: 'y2',
+                marker: {color: '#667eea', opacity: 0.6}
+            };
+
+            const trace4 = {
+                x: ['HOMO-LUMO Gap'],
+                y: [values2[3]],
+                name: allFiles[idx2].name + ' Gap',
+                type: 'bar',
+                yaxis: 'y2',
+                marker: {color: '#f39c12', opacity: 0.6}
+            };
+
+            const layout = {
+                title: 'Energy Comparison',
+                xaxis: {title: 'Property'},
+                yaxis: {title: 'Energy (Eh)', side: 'left'},
+                yaxis2: {title: 'Gap (eV)', side: 'right', overlaying: 'y'},
+                barmode: 'group',
+                showlegend: true
+            };
+
+            Plotly.newPlot('comparison-energy-plot', [trace1, trace2, trace3, trace4], layout, {responsive: true});
+        }
+
+        function renderSCFOverlay(file1, file2, idx1, idx2) {
+            if (!file1.scf_energies || !file2.scf_energies) return;
+
+            const trace1 = {
+                x: Array.from({length: file1.scf_energies.length}, (_, i) => i + 1),
+                y: file1.scf_energies,
+                mode: 'lines+markers',
+                name: allFiles[idx1].name,
+                line: {color: '#667eea', width: 2},
+                marker: {size: 4}
+            };
+
+            const trace2 = {
+                x: Array.from({length: file2.scf_energies.length}, (_, i) => i + 1),
+                y: file2.scf_energies,
+                mode: 'lines+markers',
+                name: allFiles[idx2].name,
+                line: {color: '#f39c12', width: 2},
+                marker: {size: 4}
+            };
+
+            const layout = {
+                title: 'SCF Convergence Overlay',
+                xaxis: {title: 'Iteration'},
+                yaxis: {title: 'Energy (Eh)'},
+                showlegend: true
+            };
+
+            Plotly.newPlot('comparison-scf-plot', [trace1, trace2], layout, {responsive: true});
+        }
+
+        function renderChargeDifference(file1, file2, idx1, idx2) {
+            if (!file1.mulliken_charges || !file2.mulliken_charges) return;
+
+            const minLen = Math.min(file1.mulliken_charges.length, file2.mulliken_charges.length);
+            const differences = [];
+            const labels = [];
+
+            for (let i = 0; i < minLen; i++) {
+                differences.push(file2.mulliken_charges[i] - file1.mulliken_charges[i]);
+                labels.push(`Atom ${i+1}`);
+            }
+
+            const trace = {
+                x: labels,
+                y: differences,
+                type: 'bar',
+                marker: {
+                    color: differences.map(d => d > 0 ? '#e74c3c' : '#2ecc71'),
+                    line: {width: 1, color: 'white'}
+                },
+                hovertemplate: '%{x}<br>Δ Charge: %{y:.4f}<extra></extra>'
+            };
+
+            const layout = {
+                title: `Charge Difference (${allFiles[idx2].name} - ${allFiles[idx1].name})`,
+                xaxis: {title: 'Atom', tickangle: -45},
+                yaxis: {title: 'Charge Difference', zeroline: true},
+                showlegend: false,
+                margin: {b: 100}
+            };
+
+            Plotly.newPlot('comparison-charge-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderPropertiesTable(file1, file2, idx1, idx2) {
+            const properties = [
+                {name: 'Method', key: 'method'},
+                {name: 'Basis Set', key: 'basis_set'},
+                {name: 'Final Energy (Eh)', key: 'final_energy', format: v => v?.toFixed(6)},
+                {name: 'HOMO (Eh)', key: 'homo_energy', format: v => v?.toFixed(6)},
+                {name: 'LUMO (Eh)', key: 'lumo_energy', format: v => v?.toFixed(6)},
+                {name: 'HOMO-LUMO Gap (eV)', calc: d => d.lumo_energy && d.homo_energy ? ((d.lumo_energy - d.homo_energy) * 27.211).toFixed(3) : 'N/A'},
+                {name: 'SCF Iterations', key: 'scf_energies', format: v => v?.length || 'N/A'},
+                {name: 'Total Atoms', key: 'coordinates_au', format: v => v?.length || 'N/A'},
+                {name: 'Vibrational Modes', key: 'frequencies', format: v => v?.length || 'N/A'},
+                {name: 'Runtime (s)', key: 'total_run_time', format: v => v?.total_seconds?.toFixed(2) || 'N/A'}
+            ];
+
+            let html = '<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">';
+            html += '<thead><tr style="background: #667eea; color: white;">';
+            html += '<th style="padding: 10px; text-align: left;">Property</th>';
+            html += `<th style="padding: 10px; text-align: left;">${allFiles[idx1].name}</th>`;
+            html += `<th style="padding: 10px; text-align: left;">${allFiles[idx2].name}</th>`;
+            html += '<th style="padding: 10px; text-align: left;">Difference</th>';
+            html += '</tr></thead><tbody>';
+
+            properties.forEach((prop, i) => {
+                const val1 = prop.calc ? prop.calc(file1) : (prop.format ? prop.format(file1[prop.key]) : file1[prop.key] || 'N/A');
+                const val2 = prop.calc ? prop.calc(file2) : (prop.format ? prop.format(file2[prop.key]) : file2[prop.key] || 'N/A');
+
+                let diff = 'N/A';
+                if (prop.key && typeof file1[prop.key] === 'number' && typeof file2[prop.key] === 'number') {
+                    diff = (file2[prop.key] - file1[prop.key]).toFixed(6);
+                }
+
+                html += `<tr style="background: ${i % 2 === 0 ? '#f8f9fa' : 'white'};">`;
+                html += `<td style="padding: 8px; border: 1px solid #ddd;">${prop.name}</td>`;
+                html += `<td style="padding: 8px; border: 1px solid #ddd;">${val1}</td>`;
+                html += `<td style="padding: 8px; border: 1px solid #ddd;">${val2}</td>`;
+                html += `<td style="padding: 8px; border: 1px solid #ddd;">${diff}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('comparison-table').innerHTML = html;
+        }
+
+        // 4.2 Animation Export
+        function exportAnimationGIF(plotId, filename) {
+            alert('GIF export feature: Use Plotly\'s built-in animation controls and browser screen recording, or click "📷 PNG" to export current frame.');
+        }
+
+        // 4.3 PDF Report Generation
+        async function generatePDFReport() {
+            if (!data) {
+                alert('Please load data first');
+                return;
+            }
+
+            setStatus('Generating PDF report...', true);
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+                let yPos = 20;
+
+                // Title
+                pdf.setFontSize(20);
+                pdf.text('ORCA Output Analysis Report', pageWidth / 2, yPos, {align: 'center'});
+                yPos += 15;
+
+                // Summary
+                pdf.setFontSize(12);
+                pdf.text('File Summary', 10, yPos);
+                yPos += 7;
+                pdf.setFontSize(10);
+
+                const summary = [
+                    `Method: ${data.method || 'N/A'}`,
+                    `Basis Set: ${data.basis_set || 'N/A'}`,
+                    `Final Energy: ${data.final_energy?.toFixed(6) || 'N/A'} Eh`,
+                    `HOMO-LUMO Gap: ${data.homo_energy && data.lumo_energy ? ((data.lumo_energy - data.homo_energy) * 27.211).toFixed(3) : 'N/A'} eV`,
+                    `Total Atoms: ${data.coordinates_au?.length || 'N/A'}`,
+                    `SCF Iterations: ${data.scf_energies?.length || 'N/A'}`,
+                    `Runtime: ${data.total_run_time?.total_seconds?.toFixed(2) || 'N/A'} seconds`
+                ];
+
+                summary.forEach(line => {
+                    pdf.text(line, 10, yPos);
+                    yPos += 6;
+                });
+
+                yPos += 10;
+                pdf.text('Note: Full visualization export requires additional browser plugins.', 10, yPos);
+                pdf.text('Use individual plot export buttons (📷 PNG) to save visualizations separately.', 10, yPos + 6);
+
+                pdf.save('orca_report.pdf');
+                setStatus('✓ PDF report generated successfully', true);
+            } catch (error) {
+                setStatus(`✗ PDF generation failed: ${error.message}`, false);
+                console.error('PDF Error:', error);
+            }
+        }
+
+        // 4.4 URL Sharing
+        function shareViaURL() {
+            if (!data) {
+                alert('Please load data first');
+                return;
+            }
+
+            try {
+                // Create shareable state (simplified - only basic info)
+                const shareData = {
+                    method: data.method,
+                    basis_set: data.basis_set,
+                    final_energy: data.final_energy,
+                    homo_energy: data.homo_energy,
+                    lumo_energy: data.lumo_energy,
+                    timestamp: new Date().toISOString()
+                };
+
+                // Encode as URL parameter
+                const encoded = btoa(JSON.stringify(shareData));
+                const shareURL = `${window.location.origin}${window.location.pathname}?share=${encoded}`;
+
+                // Copy to clipboard
+                navigator.clipboard.writeText(shareURL).then(() => {
+                    alert('✓ Shareable URL copied to clipboard!\\n\\nNote: This URL contains basic summary data only. To share full visualizations, use the PDF export or individual plot exports.');
+                    setStatus('✓ Shareable URL copied to clipboard', true);
+                }).catch(err => {
+                    prompt('Copy this URL to share:', shareURL);
+                });
+            } catch (error) {
+                alert(`Error generating share URL: ${error.message}`);
+            }
+        }
+
+        // Load shared data from URL on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const shareData = urlParams.get('share');
+
+            if (shareData) {
+                try {
+                    const decoded = JSON.parse(atob(shareData));
+                    setStatus(`✓ Loaded shared data (${decoded.method || 'Unknown'} calculation)`, true);
+
+                    // Display basic info
+                    const summaryContent = document.getElementById('summary-content');
+                    summaryContent.innerHTML = `
+                        <div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                            <h3>Shared Calculation Summary</h3>
+                            <p><strong>Method:</strong> ${decoded.method || 'N/A'}</p>
+                            <p><strong>Basis Set:</strong> ${decoded.basis_set || 'N/A'}</p>
+                            <p><strong>Final Energy:</strong> ${decoded.final_energy?.toFixed(6) || 'N/A'} Eh</p>
+                            <p><strong>HOMO-LUMO Gap:</strong> ${decoded.homo_energy && decoded.lumo_energy ? ((decoded.lumo_energy - decoded.homo_energy) * 27.211).toFixed(3) : 'N/A'} eV</p>
+                            <p><strong>Shared:</strong> ${new Date(decoded.timestamp).toLocaleString()}</p>
+                            <p style="margin-top: 15px; color: #666; font-size: 12px;">
+                                Note: This is a summary view. Upload the original .out file for full analysis and visualizations.
+                            </p>
+                        </div>
+                    `;
+                } catch (error) {
+                    console.error('Failed to load shared data:', error);
+                }
+            }
+        });
     </script>
 </body>
 </html>
