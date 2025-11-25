@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ORCA Output Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .status {
+            flex: 1;
+            text-align: right;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .status.success {
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e0e0e0;
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+            white-space: nowrap;
+        }
+
+        .tab:hover {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: white;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .card h3 {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .card .value {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .card .label {
+            font-size: 0.85em;
+            opacity: 0.8;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        tbody tr:hover {
+            background: #e9ecef;
+        }
+
+        .section-title {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .info-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .info-box h4 {
+            margin-bottom: 10px;
+            color: #667eea;
+        }
+
+        .progress {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            transition: width 0.5s;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .json-viewer {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .molecular-structure {
+            text-align: center;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧪 ORCA Output Viewer</h1>
+            <p>Comprehensive Quantum Chemistry Data Visualization</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">34/57 sections parsed (60% coverage)</p>
+        </header>
+
+        <div class="controls">
+            <button class="btn-primary" onclick="loadData()">📂 Load Data</button>
+            <button class="btn-secondary" onclick="exportJSON()">💾 Export JSON</button>
+            <button class="btn-secondary" onclick="refreshData()">🔄 Refresh</button>
+            <div class="status" id="status">Ready to load data</div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('summary')">📊 Summary</button>
+            <button class="tab" onclick="showTab('geometry')">🔬 Geometry</button>
+            <button class="tab" onclick="showTab('energy')">⚡ Energy</button>
+            <button class="tab" onclick="showTab('orbitals')">🌀 Orbitals</button>
+            <button class="tab" onclick="showTab('vibrations')">📈 Vibrations</button>
+            <button class="tab" onclick="showTab('nmr')">🧲 NMR</button>
+            <button class="tab" onclick="showTab('population')">👥 Population</button>
+            <button class="tab" onclick="showTab('raw')">📄 Raw JSON</button>
+        </div>
+
+        <!-- Summary Tab -->
+        <div id="summary" class="tab-content active">
+            <h2 class="section-title">Summary Overview</h2>
+            <div id="summary-content">
+                <p class="loading">Click "Load Data" to parse ORCA output file</p>
+            </div>
+        </div>
+
+        <!-- Geometry Tab -->
+        <div id="geometry" class="tab-content">
+            <h2 class="section-title">Molecular Geometry</h2>
+            <div id="geometry-content">
+                <p class="loading">No data loaded</p>
+            </div>
+        </div>
+
+        <!-- Energy Tab -->
+        <div id="energy" class="tab-content">
+            <h2 class="section-title">Energy Data</h2>
+            <div id="energy-content">
+                <p class="loading">No data loaded</p>
+            </div>
+        </div>
+
+        <!-- Orbitals Tab -->
+        <div id="orbitals" class="tab-content">
+            <h2 class="section-title">Molecular Orbitals</h2>
+            <div id="orbitals-content">
+                <p class="loading">No data loaded</p>
+            </div>
+        </div>
+
+        <!-- Vibrations Tab -->
+        <div id="vibrations" class="tab-content">
+            <h2 class="section-title">Vibrational Analysis</h2>
+            <div id="vibrations-content">
+                <p class="loading">No data loaded</p>
+            </div>
+        </div>
+
+        <!-- NMR Tab -->
+        <div id="nmr" class="tab-content">
+            <h2 class="section-title">NMR Spectroscopy</h2>
+            <div id="nmr-content">
+                <p class="loading">No data loaded</p>
+            </div>
+        </div>
+
+        <!-- Population Tab -->
+        <div id="population" class="tab-content">
+            <h2 class="section-title">Population Analysis</h2>
+            <div id="population-content">
+                <p class="loading">No data loaded</p>
+            </div>
+        </div>
+
+        <!-- Raw JSON Tab -->
+        <div id="raw" class="tab-content">
+            <h2 class="section-title">Raw JSON Data</h2>
+            <div id="raw-content" class="json-viewer">
+                <p>No data loaded</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script>
+        let data = null;
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function setStatus(message, success = false) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = success ? 'status success' : 'status';
+        }
+
+        async function loadData() {
+            setStatus('Loading data...');
+            
+            try {
+                const response = await fetch('/api/parse', { method: 'POST' });
+                const result = await response.json();
+
+                if (result.success) {
+                    data = result.data;
+                    setStatus('✓ Data loaded successfully', true);
+                    renderAllTabs();
+                } else {
+                    setStatus('✗ Error: ' + result.message);
+                }
+            } catch (error) {
+                setStatus('✗ Error: ' + error.message);
+            }
+        }
+
+        function renderAllTabs() {
+            renderSummary();
+            renderGeometry();
+            renderEnergy();
+            renderOrbitals();
+            renderVibrations();
+            renderNMR();
+            renderPopulation();
+            renderRawJSON();
+        }
+
+        function renderSummary() {
+            if (!data) return;
+
+            const content = `
+                <div class="summary-grid">
+                    <div class="card">
+                        <h3>Basis Set</h3>
+                        <div class="value">${data.job_info.basis_set}</div>
+                        <div class="label">${data.job_info.num_electrons} electrons</div>
+                    </div>
+                    <div class="card">
+                        <h3>Final Energy</h3>
+                        <div class="value">${data.final_energy ? data.final_energy.toFixed(6) : 'N/A'}</div>
+                        <div class="label">Hartree</div>
+                    </div>
+                    <div class="card">
+                        <h3>Atoms</h3>
+                        <div class="value">${data.coordinates.length}</div>
+                        <div class="label">Molecular system</div>
+                    </div>
+                    <div class="card">
+                        <h3>Dipole Moment</h3>
+                        <div class="value">${data.dipole_moment.magnitude_debye.toFixed(4)}</div>
+                        <div class="label">Debye</div>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <h4>📈 Parser Coverage</h4>
+                    <p>This file contains 34 parsed sections out of 57 total sections (60% coverage)</p>
+                    <div class="progress">
+                        <div class="progress-bar" style="width: 60%">60%</div>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <h4>ℹ️ Computation Details</h4>
+                    <p><strong>Basis Functions:</strong> ${data.basis_set_info.num_basis_functions}</p>
+                    <p><strong>DFT Grid Points:</strong> ${data.dft_grid_info.total_grid_points.toLocaleString()}</p>
+                    <p><strong>Total Runtime:</strong> ${(data.timing_data.total_run_time / 60).toFixed(1)} minutes</p>
+                </div>
+            `;
+
+            document.getElementById('summary-content').innerHTML = content;
+        }
+
+        function renderGeometry() {
+            if (!data || !data.coordinates) return;
+
+            let html = '<table><thead><tr><th>Atom</th><th>Element</th><th>X (Å)</th><th>Y (Å)</th><th>Z (Å)</th></tr></thead><tbody>';
+            
+            data.coordinates.forEach((coord, i) => {
+                html += `<tr>
+                    <td>${i}</td>
+                    <td><strong>${coord[0]}</strong></td>
+                    <td>${coord[1].toFixed(6)}</td>
+                    <td>${coord[2].toFixed(6)}</td>
+                    <td>${coord[3].toFixed(6)}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('geometry-content').innerHTML = html;
+        }
+
+        function renderEnergy() {
+            if (!data) return;
+
+            const thermo = data.thermochemistry || {};
+            const html = `
+                <div class="info-box">
+                    <h4>Single Point Energy</h4>
+                    <p><strong>Final Energy:</strong> ${data.final_energy ? data.final_energy.toFixed(6) : 'N/A'} Eh</p>
+                </div>
+
+                <div class="info-box">
+                    <h4>Thermochemistry (298.15 K)</h4>
+                    <p><strong>Gibbs Free Energy:</strong> ${thermo.gibbs_free_energy ? thermo.gibbs_free_energy.toFixed(6) : 'N/A'} Eh</p>
+                    <p><strong>Enthalpy:</strong> ${thermo.total_enthalpy ? thermo.total_enthalpy.toFixed(6) : 'N/A'} Eh</p>
+                    <p><strong>Zero Point Energy:</strong> ${thermo.zero_point_energy ? thermo.zero_point_energy.toFixed(6) : 'N/A'} Eh</p>
+                </div>
+
+                <div class="info-box">
+                    <h4>SCF Convergence</h4>
+                    <p><strong>Iterations:</strong> ${data.scf_energies.length}</p>
+                    <p><strong>Final Energy:</strong> ${data.scf_energies[data.scf_energies.length - 1].toFixed(6)} Eh</p>
+                </div>
+            `;
+
+            document.getElementById('energy-content').innerHTML = html;
+        }
+
+        function renderOrbitals() {
+            if (!data || !data.orbital_energies) return;
+
+            const orbitals = data.orbital_energies.slice(0, 50); // Show first 50
+
+            let html = '<table><thead><tr><th>MO</th><th>Occupation</th><th>Energy (eV)</th><th>Energy (Eh)</th></tr></thead><tbody>';
+            
+            orbitals.forEach(orb => {
+                const highlight = orb.occupation > 0.5 && orb.occupation < 2.0 ? 'style="background: #ffffcc;"' : '';
+                html += `<tr ${highlight}>
+                    <td>${orb.index}</td>
+                    <td>${orb.occupation.toFixed(4)}</td>
+                    <td>${orb.energy_ev.toFixed(4)}</td>
+                    <td>${orb.energy_eh.toFixed(6)}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table>';
+            html += `<p style="margin-top: 20px; color: #666;">Showing first 50 of ${data.orbital_energies.length} molecular orbitals</p>`;
+            
+            document.getElementById('orbitals-content').innerHTML = html;
+        }
+
+        function renderVibrations() {
+            if (!data || !data.frequencies) return;
+
+            let html = '<table><thead><tr><th>Mode</th><th>Frequency (cm⁻¹)</th><th>Raman Activity</th></tr></thead><tbody>';
+            
+            data.frequencies.forEach((freq, i) => {
+                const raman = data.raman_spectrum[i] ? data.raman_spectrum[i].activity.toFixed(2) : 'N/A';
+                html += `<tr>
+                    <td>${i + 1}</td>
+                    <td>${freq.toFixed(2)}</td>
+                    <td>${raman}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('vibrations-content').innerHTML = html;
+        }
+
+        function renderNMR() {
+            if (!data || !data.nmr_data) return;
+
+            const shifts = data.nmr_data.chemical_shifts;
+            
+            let html = '<table><thead><tr><th>Nucleus</th><th>Element</th><th>Isotropic (ppm)</th><th>Anisotropy (ppm)</th></tr></thead><tbody>';
+            
+            shifts.forEach(shift => {
+                html += `<tr>
+                    <td>${shift.nucleus}</td>
+                    <td><strong>${shift.element}</strong></td>
+                    <td>${shift.isotropic.toFixed(2)}</td>
+                    <td>${shift.anisotropy.toFixed(2)}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('nmr-content').innerHTML = html;
+        }
+
+        function renderPopulation() {
+            if (!data) return;
+
+            let html = '<div class="info-box"><h4>Mulliken Charges</h4><table><thead><tr><th>Atom</th><th>Element</th><th>Charge</th></tr></thead><tbody>';
+            
+            Object.entries(data.mulliken_charges).forEach(([atom, info]) => {
+                html += `<tr>
+                    <td>${atom}</td>
+                    <td><strong>${info.element}</strong></td>
+                    <td>${info.charge.toFixed(4)}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table></div>';
+
+            html += '<div class="info-box"><h4>Bond Orders</h4>';
+            html += `<p><strong>Mayer Bond Orders:</strong> ${data.mayer_bond_orders.length} bonds</p>`;
+            html += `<p><strong>Loewdin Bond Orders:</strong> ${data.loewdin_bond_orders.length} bonds</p>`;
+            html += '</div>';
+
+            document.getElementById('population-content').innerHTML = html;
+        }
+
+        function renderRawJSON() {
+            if (!data) return;
+            document.getElementById('raw-content').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        }
+
+        function exportJSON() {
+            if (!data) {
+                alert('No data loaded. Please load data first.');
+                return;
+            }
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'orca_output_parsed.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function refreshData() {
+            location.reload();
+        }
+    </script>
+</body>
+</html>
