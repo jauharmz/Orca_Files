@@ -150,6 +150,7 @@ class SCFIteration:
 class TimingData:
     """Computational timing breakdown."""
     total_time: float = 0.0  # seconds
+    total_run_time: float = 0.0  # seconds (from TOTAL RUN TIME at end)
     scf_time: float = 0.0
     fock_matrix_time: float = 0.0
     diagonalization_time: float = 0.0
@@ -228,6 +229,19 @@ class OrbitalPopulation:
 
 
 @dataclass
+class InternalCoordinate:
+    """Internal coordinate (Z-matrix) entry."""
+    atom_index: int
+    element: str
+    bond_to: int  # Atom index for bond
+    angle_to: int  # Atom index for angle
+    dihedral_to: int  # Atom index for dihedral
+    bond_length: float  # Angstrom or a.u.
+    bond_angle: float  # degrees
+    dihedral_angle: float  # degrees
+
+
+@dataclass
 class OrcaOutput:
     """Complete parsed ORCA output."""
     job_info: JobInfo
@@ -235,6 +249,9 @@ class OrcaOutput:
     scf_energies: list[float] = field(default_factory=list)
     optimization_energies: list[float] = field(default_factory=list)
     coordinates: list[tuple[str, float, float, float]] = field(default_factory=list)  # (element, x, y, z) in Angstrom
+    coordinates_au: list[tuple[str, float, float, float, float, float]] = field(default_factory=list)  # (element, x, y, z, atomic_number, mass) in a.u.
+    internal_coords: list[InternalCoordinate] = field(default_factory=list)  # Z-matrix in Angstrom
+    internal_coords_au: list[InternalCoordinate] = field(default_factory=list)  # Z-matrix in a.u.
     dipole_moment: Optional[DipoleMoment] = None
     polarizability: Optional[Polarizability] = None
     orbital_energies: list[OrbitalEnergy] = field(default_factory=list)
@@ -255,6 +272,7 @@ class OrcaOutput:
     loewdin_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     mayer_bond_orders: list[tuple[int, int, float]] = field(default_factory=list)
     loewdin_bond_orders: list[tuple[int, int, float]] = field(default_factory=list)
+    mulliken_overlap_charges: list[tuple[int, int, float]] = field(default_factory=list)  # (atom1, atom2, overlap_charge)
     thermochemistry: Optional[Thermochemistry] = None
     nmr_data: Optional[NMRData] = None
 
@@ -275,6 +293,36 @@ class OrcaOutput:
             'coordinates': [
                 {'element': c[0], 'x': c[1], 'y': c[2], 'z': c[3]}
                 for c in self.coordinates
+            ],
+            'coordinates_au': [
+                {'element': c[0], 'x': c[1], 'y': c[2], 'z': c[3], 'atomic_number': c[4], 'mass': c[5]}
+                for c in self.coordinates_au
+            ],
+            'internal_coords': [
+                {
+                    'atom_index': ic.atom_index,
+                    'element': ic.element,
+                    'bond_to': ic.bond_to,
+                    'angle_to': ic.angle_to,
+                    'dihedral_to': ic.dihedral_to,
+                    'bond_length': ic.bond_length,
+                    'bond_angle': ic.bond_angle,
+                    'dihedral_angle': ic.dihedral_angle
+                }
+                for ic in self.internal_coords
+            ],
+            'internal_coords_au': [
+                {
+                    'atom_index': ic.atom_index,
+                    'element': ic.element,
+                    'bond_to': ic.bond_to,
+                    'angle_to': ic.angle_to,
+                    'dihedral_to': ic.dihedral_to,
+                    'bond_length': ic.bond_length,
+                    'bond_angle': ic.bond_angle,
+                    'dihedral_angle': ic.dihedral_angle
+                }
+                for ic in self.internal_coords_au
             ],
             'dipole_moment': {
                 'x': self.dipole_moment.x,
@@ -320,6 +368,7 @@ class OrcaOutput:
             } if self.dispersion_correction else None,
             'timing_data': {
                 'total_time': self.timing_data.total_time,
+                'total_run_time': self.timing_data.total_run_time,
                 'scf_time': self.timing_data.scf_time,
                 'fock_matrix_time': self.timing_data.fock_matrix_time,
                 'timings': self.timing_data.timings
@@ -393,6 +442,10 @@ class OrcaOutput:
                 {'atom1': b[0], 'atom2': b[1], 'order': b[2]}
                 for b in self.loewdin_bond_orders
             ],
+            'mulliken_overlap_charges': [
+                {'atom1': oc[0], 'atom2': oc[1], 'overlap_charge': oc[2]}
+                for oc in self.mulliken_overlap_charges
+            ],
             'thermochemistry': {
                 'temperature': self.thermochemistry.temperature,
                 'pressure': self.thermochemistry.pressure,
@@ -435,6 +488,9 @@ def parse_out_content(content: str) -> OrcaOutput:
     scf_energies = parse_scf_energies(content)
     opt_energies = parse_optimization_energies(content)
     coordinates = parse_coordinates(content)
+    coordinates_au = parse_coordinates_au(content)
+    internal_coords = parse_internal_coordinates(content, "ANGSTROEM")
+    internal_coords_au = parse_internal_coordinates(content, "A.U.")
     dipole = parse_dipole_moment(content)
     polarizability = parse_polarizability(content)
     orbitals = parse_orbital_energies(content)
@@ -446,6 +502,7 @@ def parse_out_content(content: str) -> OrcaOutput:
     loewdin = parse_loewdin_charges(content)
     bond_orders = parse_mayer_bond_orders(content)
     loewdin_bond_orders = parse_loewdin_bond_orders(content)
+    mulliken_overlap = parse_mulliken_overlap_charges(content)
     thermo = parse_thermochemistry(content)
     nmr = parse_nmr_data(content)
     scf_iterations = parse_scf_iterations(content)
@@ -467,6 +524,9 @@ def parse_out_content(content: str) -> OrcaOutput:
         scf_energies=scf_energies,
         optimization_energies=opt_energies,
         coordinates=coordinates,
+        coordinates_au=coordinates_au,
+        internal_coords=internal_coords,
+        internal_coords_au=internal_coords_au,
         dipole_moment=dipole,
         polarizability=polarizability,
         orbital_energies=orbitals,
@@ -487,6 +547,7 @@ def parse_out_content(content: str) -> OrcaOutput:
         loewdin_charges=loewdin,
         mayer_bond_orders=bond_orders,
         loewdin_bond_orders=loewdin_bond_orders,
+        mulliken_overlap_charges=mulliken_overlap,
         thermochemistry=thermo,
         nmr_data=nmr
     )
@@ -517,6 +578,68 @@ def parse_coordinates(content: str) -> list[tuple[str, float, float, float]]:
         coordinates.append((element, float(x), float(y), float(z)))
 
     return coordinates
+
+
+def parse_coordinates_au(content: str) -> list[tuple[str, float, float, float, float, float]]:
+    """Extract Cartesian coordinates in atomic units with atomic number and mass."""
+    coordinates = []
+
+    # Find the first CARTESIAN COORDINATES (A.U.) section
+    coord_section = re.search(
+        r'CARTESIAN COORDINATES \(A\.U\.\)\s*-+\s*NO\s+LB\s+ZA\s+FRAG\s+MASS\s+X\s+Y\s+Z\s+(.*?)(?:\n\n|$)',
+        content, re.DOTALL
+    )
+
+    if not coord_section:
+        return coordinates
+
+    section_text = coord_section.group(1)
+
+    # Parse each coordinate line: "   0 C     6.0000    0    12.011    1.845179    7.582676   -0.129125"
+    coord_lines = re.findall(
+        r'^\s*\d+\s+([A-Z][a-z]?)\s+(\d+\.?\d*)\s+\d+\s+(\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)',
+        section_text, re.MULTILINE
+    )
+
+    for element, za, mass, x, y, z in coord_lines:
+        coordinates.append((element, float(x), float(y), float(z), float(za), float(mass)))
+
+    return coordinates
+
+
+def parse_internal_coordinates(content: str, units: str = "ANGSTROEM") -> list[InternalCoordinate]:
+    """Extract internal coordinates (Z-matrix format)."""
+    coords = []
+
+    # Find the INTERNAL COORDINATES section
+    pattern = rf'INTERNAL COORDINATES \({units}\)\s*-+\s*(.*?)(?:\n-+|$)'
+    coord_section = re.search(pattern, content, re.DOTALL)
+
+    if not coord_section:
+        return coords
+
+    section_text = coord_section.group(1)
+
+    # Parse each line: " C      0   0   0     0.000000000000     0.00000000     0.00000000"
+    # Format: Element, bond_to, angle_to, dihedral_to, bond_length, bond_angle, dihedral_angle
+    coord_lines = re.findall(
+        r'^\s*([A-Z][a-z]?)\s+(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)',
+        section_text, re.MULTILINE
+    )
+
+    for idx, (element, bond_to, angle_to, dihedral_to, bond_length, bond_angle, dihedral_angle) in enumerate(coord_lines):
+        coords.append(InternalCoordinate(
+            atom_index=idx,
+            element=element,
+            bond_to=int(bond_to),
+            angle_to=int(angle_to),
+            dihedral_to=int(dihedral_to),
+            bond_length=float(bond_length),
+            bond_angle=float(bond_angle),
+            dihedral_angle=float(dihedral_angle)
+        ))
+
+    return coords
 
 
 def parse_job_info(content: str) -> JobInfo:
@@ -818,6 +941,36 @@ def parse_loewdin_bond_orders(content: str) -> list[tuple[int, int, float]]:
                 bond_orders.append((atom1, atom2, order))
 
     return bond_orders
+
+
+def parse_mulliken_overlap_charges(content: str) -> list[tuple[int, int, float]]:
+    """Extract Mulliken overlap charges (bonding analysis)."""
+    overlap_charges = []
+
+    # Find the Mulliken overlap charges section
+    overlap_section = re.search(
+        r'MULLIKEN OVERLAP CHARGES\s*-+\s*(.*?)(?:\n\n|$)',
+        content, re.DOTALL
+    )
+
+    if not overlap_section:
+        return overlap_charges
+
+    section_text = overlap_section.group(1)
+
+    # Find all overlap charge entries: B(  0-C ,  1-H ) :   1.1736
+    matches = re.findall(
+        r'B\(\s*(\d+)-\w+\s*,\s*(\d+)-\w+\s*\)\s*:\s+(-?\d+\.?\d*)',
+        section_text
+    )
+
+    for match in matches:
+        atom1 = int(match[0])
+        atom2 = int(match[1])
+        overlap = float(match[2])
+        overlap_charges.append((atom1, atom2, overlap))
+
+    return overlap_charges
 
 
 def parse_thermochemistry(content: str) -> Optional[Thermochemistry]:
@@ -1393,6 +1546,20 @@ def parse_timing_data(content: str) -> Optional[TimingData]:
     if total_match:
         timing.total_time = float(total_match.group(1))
 
+    # Parse TOTAL RUN TIME at the very end of the file
+    runtime_match = re.search(
+        r'TOTAL RUN TIME:\s+(\d+)\s+days?\s+(\d+)\s+hours?\s+(\d+)\s+minutes?\s+(\d+)\s+seconds?\s+(\d+)\s+msec',
+        content
+    )
+    if runtime_match:
+        days = int(runtime_match.group(1))
+        hours = int(runtime_match.group(2))
+        minutes = int(runtime_match.group(3))
+        seconds = int(runtime_match.group(4))
+        msec = int(runtime_match.group(5))
+        # Convert to total seconds
+        timing.total_run_time = days * 86400 + hours * 3600 + minutes * 60 + seconds + msec / 1000.0
+
     # Parse SCF time
     scf_match = re.search(r'Total SCF time:\s+\d+\s+days?\s+\d+\s+hours?\s+\d+\s+min\s+(\d+)', section_text)
     if scf_match:
@@ -1435,6 +1602,16 @@ if __name__ == '__main__':
         if result.coordinates:
             print(f"Coordinates: {len(result.coordinates)} atoms")
 
+        if result.coordinates_au:
+            print(f"Coordinates (a.u.): {len(result.coordinates_au)} atoms with atomic numbers and masses")
+
+        if result.internal_coords:
+            print(f"Internal Coordinates: {len(result.internal_coords)} atoms (Z-matrix)")
+            if len(result.internal_coords) > 1:
+                # Show second atom as example (first atom has no bonds)
+                ic = result.internal_coords[1]
+                print(f"  Example: {ic.element} bonded to atom {ic.bond_to}, r={ic.bond_length:.4f} Å")
+
         if result.dipole_moment:
             print(f"Dipole: {result.dipole_moment.magnitude_debye:.3f} Debye")
 
@@ -1469,6 +1646,12 @@ if __name__ == '__main__':
 
         if result.loewdin_bond_orders:
             print(f"Loewdin Bond Orders: {len(result.loewdin_bond_orders)} bonds")
+
+        if result.mulliken_overlap_charges:
+            print(f"Mulliken Overlap Charges: {len(result.mulliken_overlap_charges)} atom pairs")
+            # Show a strong bonding example
+            strong = max(result.mulliken_overlap_charges, key=lambda x: abs(x[2]))
+            print(f"  Strongest overlap: atoms {strong[0]}-{strong[1]}, charge={strong[2]:.4f}")
 
         if result.mulliken_orbital_populations:
             print(f"Mulliken Orbital Populations: {len(result.mulliken_orbital_populations)} atoms")
@@ -1512,6 +1695,10 @@ if __name__ == '__main__':
 
         if result.timing_data:
             print(f"Total Time: {result.timing_data.total_time:.1f} sec")
+            if result.timing_data.total_run_time > 0:
+                mins = int(result.timing_data.total_run_time // 60)
+                secs = result.timing_data.total_run_time % 60
+                print(f"Total Run Time: {mins} min {secs:.1f} sec ({result.timing_data.total_run_time:.1f} sec)")
             if result.timing_data.fock_matrix_time > 0:
                 print(f"  Fock Matrix: {result.timing_data.fock_matrix_time:.1f} sec ({result.timing_data.fock_matrix_time/result.timing_data.total_time*100:.1f}%)")
 
