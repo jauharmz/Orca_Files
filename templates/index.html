@@ -406,7 +406,7 @@
         <header>
             <h1>🧪 ORCA Output Viewer</h1>
             <p>Comprehensive Quantum Chemistry Data Visualization</p>
-            <p style="margin-top: 10px; font-size: 0.9em;">38/57 sections parsed (67% coverage) | 35 Interactive Visualizations</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">38/57 sections parsed (67% coverage) | 44 Interactive Visualizations</p>
         </header>
 
         <div class="controls">
@@ -809,6 +809,97 @@
                 </div>
                 <p style="margin-top: 10px; font-size: 12px; color: #666;">
                     Energy reduction per SCF iteration. Shows convergence rate and efficiency.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">CPCM Solvation Analysis 💧</button>
+            <div class="collapsible-content">
+                <div id="solvation-plot" style="width: 100%; height: 400px;"></div>
+                <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                    <div id="solvation-details"></div>
+                </div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('solvation-plot', 'solvation.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    CPCM solvation energy components: electrostatic, cavitation, dispersion, repulsion.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Orbital Energy Distribution 📊</button>
+            <div class="collapsible-content">
+                <div id="orbital-distribution-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('orbital-distribution-plot', 'orbital_distribution.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Histogram of orbital energies showing distribution across energy range.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Frequency Analysis by Type 🎼</button>
+            <div class="collapsible-content">
+                <div id="frequency-analysis-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('frequency-analysis-plot', 'frequency_analysis.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Vibrational frequencies categorized by energy range with IR/Raman activity overlay.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Charge Distribution Analysis 🥧</button>
+            <div class="collapsible-content">
+                <div id="charge-distribution-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('charge-distribution-plot', 'charge_distribution.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Pie chart showing distribution of positive, neutral, and negative charges across atoms.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Bond Order vs Length Correlation 📈</button>
+            <div class="collapsible-content">
+                <div id="bond-correlation-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('bond-correlation-plot', 'bond_correlation.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Scatter plot showing relationship between bond length and bond order (Mayer).
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Orbital Eigenvalue Spectrum 🌈</button>
+            <div class="collapsible-content">
+                <div id="eigenvalue-spectrum-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('eigenvalue-spectrum-plot', 'eigenvalue_spectrum.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    All orbital energies displayed as horizontal bars with HOMO-LUMO gap highlighted.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">IR vs Raman Activity Correlation 🔬</button>
+            <div class="collapsible-content">
+                <div id="ir-raman-correlation-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('ir-raman-correlation-plot', 'ir_raman_correlation.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Scatter plot comparing IR intensity vs Raman activity for each vibrational mode.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Atomic Mass Distribution 📊</button>
+            <div class="collapsible-content">
+                <div id="mass-distribution-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('mass-distribution-plot', 'mass_distribution.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Bar chart showing atomic mass contribution by element type.
                 </p>
             </div>
         </div>
@@ -1481,6 +1572,14 @@
             renderOrbitalPopulation();
             renderInternalCoordinates();
             renderSCFEfficiency();
+            renderSolvationAnalysis();
+            renderOrbitalDistribution();
+            renderFrequencyAnalysis();
+            renderChargeDistributionPie();
+            renderBondCorrelation();
+            renderEigenvalueSpectrum();
+            renderIRRamanCorrelation();
+            renderMassDistribution();
         }
 
         function renderSCFPlot() {
@@ -3103,6 +3202,366 @@
             };
 
             Plotly.newPlot('scf-efficiency-plot', [trace], layout, {responsive: true});
+        }
+
+        // 17. CPCM SOLVATION ANALYSIS
+        function renderSolvationAnalysis() {
+            if (!data || !data.cpcm_solvation) return;
+
+            const solv = data.cpcm_solvation;
+
+            const components = [];
+            const values = [];
+            const colors = ['#667eea', '#764ba2', '#28a745', '#ffc107'];
+
+            if (solv.electrostatic !== undefined && solv.electrostatic !== 0) {
+                components.push('Electrostatic');
+                values.push(Math.abs(solv.electrostatic));
+            }
+            if (solv.cavitation !== undefined && solv.cavitation !== 0) {
+                components.push('Cavitation');
+                values.push(Math.abs(solv.cavitation));
+            }
+            if (solv.dispersion !== undefined && solv.dispersion !== 0) {
+                components.push('Dispersion');
+                values.push(Math.abs(solv.dispersion));
+            }
+            if (solv.repulsion !== undefined && solv.repulsion !== 0) {
+                components.push('Repulsion');
+                values.push(Math.abs(solv.repulsion));
+            }
+
+            if (components.length === 0) return;
+
+            const trace = {
+                labels: components,
+                values: values,
+                type: 'pie',
+                marker: {colors: colors.slice(0, components.length)},
+                hovertemplate: '%{label}<br>|Energy|: %{value:.6f} Eh<br>%{percent}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'CPCM Solvation Energy Components',
+                showlegend: true
+            };
+
+            Plotly.newPlot('solvation-plot', [trace], layout, {responsive: true});
+
+            // Details table
+            let detailsHTML = '<h4 style="margin-top: 0;">Solvation Energy Details</h4><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">';
+            if (solv.electrostatic !== undefined) detailsHTML += `<div><strong>Electrostatic:</strong> ${solv.electrostatic.toFixed(6)} Eh</div>`;
+            if (solv.cavitation !== undefined) detailsHTML += `<div><strong>Cavitation:</strong> ${solv.cavitation.toFixed(6)} Eh</div>`;
+            if (solv.dispersion !== undefined) detailsHTML += `<div><strong>Dispersion:</strong> ${solv.dispersion.toFixed(6)} Eh</div>`;
+            if (solv.repulsion !== undefined) detailsHTML += `<div><strong>Repulsion:</strong> ${solv.repulsion.toFixed(6)} Eh</div>`;
+            if (solv.total_solvation_energy !== undefined) detailsHTML += `<div><strong>Total:</strong> ${solv.total_solvation_energy.toFixed(6)} Eh</div>`;
+            detailsHTML += '</div>';
+            document.getElementById('solvation-details').innerHTML = detailsHTML;
+        }
+
+        // 18. ORBITAL ENERGY DISTRIBUTION
+        function renderOrbitalDistribution() {
+            if (!data || !data.orbital_energies || data.orbital_energies.length === 0) return;
+
+            const energies = data.orbital_energies.map(o => o.energy_ev);
+
+            const trace = {
+                x: energies,
+                type: 'histogram',
+                nbinsx: 30,
+                marker: {
+                    color: '#667eea',
+                    line: {color: 'white', width: 1}
+                },
+                hovertemplate: 'Energy: %{x:.2f} eV<br>Count: %{y}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Orbital Energy Distribution',
+                xaxis: {title: 'Energy (eV)'},
+                yaxis: {title: 'Number of Orbitals'},
+                showlegend: false
+            };
+
+            Plotly.newPlot('orbital-distribution-plot', [trace], layout, {responsive: true});
+        }
+
+        // 19. FREQUENCY ANALYSIS BY TYPE
+        function renderFrequencyAnalysis() {
+            if (!data || !data.frequencies || data.frequencies.length === 0) return;
+
+            const frequencies = data.frequencies;
+            const irSpectrum = data.ir_spectrum || [];
+            const ramanSpectrum = data.raman_spectrum || [];
+
+            // Categorize frequencies
+            const low = [], mid = [], high = [];
+            const lowIR = [], midIR = [], highIR = [];
+
+            frequencies.forEach((freq, i) => {
+                const intensity = irSpectrum[i] ? irSpectrum[i].intensity : 0;
+                if (freq < 1000) {
+                    low.push(freq);
+                    lowIR.push(intensity);
+                } else if (freq < 2000) {
+                    mid.push(freq);
+                    midIR.push(intensity);
+                } else {
+                    high.push(freq);
+                    highIR.push(intensity);
+                }
+            });
+
+            const trace1 = {
+                x: ['Low (<1000)', 'Mid (1000-2000)', 'High (>2000)'],
+                y: [low.length, mid.length, high.length],
+                name: 'Mode Count',
+                type: 'bar',
+                marker: {color: '#667eea'},
+                hovertemplate: 'Range: %{x}<br>Modes: %{y}<extra></extra>'
+            };
+
+            const avgLowIR = low.length > 0 ? lowIR.reduce((a,b) => a+b, 0) / low.length : 0;
+            const avgMidIR = mid.length > 0 ? midIR.reduce((a,b) => a+b, 0) / mid.length : 0;
+            const avgHighIR = high.length > 0 ? highIR.reduce((a,b) => a+b, 0) / high.length : 0;
+
+            const trace2 = {
+                x: ['Low (<1000)', 'Mid (1000-2000)', 'High (>2000)'],
+                y: [avgLowIR, avgMidIR, avgHighIR],
+                name: 'Avg IR Intensity',
+                type: 'bar',
+                marker: {color: '#28a745'},
+                yaxis: 'y2',
+                hovertemplate: 'Range: %{x}<br>Avg IR: %{y:.2f} km/mol<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Frequency Analysis by Energy Range',
+                xaxis: {title: 'Frequency Range (cm⁻¹)'},
+                yaxis: {title: 'Number of Modes'},
+                yaxis2: {title: 'Avg IR Intensity (km/mol)', overlaying: 'y', side: 'right'},
+                showlegend: true,
+                barmode: 'group'
+            };
+
+            Plotly.newPlot('frequency-analysis-plot', [trace1, trace2], layout, {responsive: true});
+        }
+
+        // 20. CHARGE DISTRIBUTION PIE
+        function renderChargeDistributionPie() {
+            if (!data || !data.mulliken_charges || Object.keys(data.mulliken_charges).length === 0) return;
+
+            let positive = 0, negative = 0, neutral = 0;
+
+            Object.values(data.mulliken_charges).forEach(([element, charge]) => {
+                if (charge > 0.1) positive++;
+                else if (charge < -0.1) negative++;
+                else neutral++;
+            });
+
+            const trace = {
+                labels: ['Positive', 'Neutral', 'Negative'],
+                values: [positive, neutral, negative],
+                type: 'pie',
+                marker: {colors: ['#dc3545', '#ffc107', '#28a745']},
+                hovertemplate: '%{label}<br>Count: %{value}<br>%{percent}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Atomic Charge Distribution (Mulliken)',
+                showlegend: true
+            };
+
+            Plotly.newPlot('charge-distribution-plot', [trace], layout, {responsive: true});
+        }
+
+        // 21. BOND ORDER VS LENGTH CORRELATION
+        function renderBondCorrelation() {
+            if (!data || !data.mayer_bond_orders || data.mayer_bond_orders.length === 0) return;
+            if (!data.internal_coords || data.internal_coords.length === 0) return;
+
+            const bondOrders = [];
+            const bondLengths = [];
+            const bondLabels = [];
+
+            data.mayer_bond_orders.forEach(bond => {
+                // Find corresponding bond length from internal coords
+                const intCoord = data.internal_coords.find(ic =>
+                    ic.bond_to === bond.atom1_index || ic.bond_to === bond.atom2_index
+                );
+
+                if (intCoord && intCoord.bond_length && bond.bond_order > 0.1) {
+                    bondOrders.push(bond.bond_order);
+                    bondLengths.push(intCoord.bond_length);
+                    const coord1 = data.coordinates[bond.atom1_index];
+                    const coord2 = data.coordinates[bond.atom2_index];
+                    const label = coord1 && coord2 ?
+                        `${coord1[0]}${bond.atom1_index}-${coord2[0]}${bond.atom2_index}` :
+                        `${bond.atom1_index}-${bond.atom2_index}`;
+                    bondLabels.push(label);
+                }
+            });
+
+            if (bondOrders.length === 0) return;
+
+            const trace = {
+                x: bondLengths,
+                y: bondOrders,
+                mode: 'markers',
+                marker: {
+                    size: 10,
+                    color: bondOrders,
+                    colorscale: 'Viridis',
+                    colorbar: {title: 'Bond Order'},
+                    line: {width: 1, color: 'white'}
+                },
+                text: bondLabels,
+                hovertemplate: 'Bond: %{text}<br>Length: %{x:.3f} Å<br>Order: %{y:.3f}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Bond Order vs Bond Length Correlation',
+                xaxis: {title: 'Bond Length (Å)'},
+                yaxis: {title: 'Bond Order (Mayer)'},
+                hovermode: 'closest'
+            };
+
+            Plotly.newPlot('bond-correlation-plot', [trace], layout, {responsive: true});
+        }
+
+        // 22. ORBITAL EIGENVALUE SPECTRUM
+        function renderEigenvalueSpectrum() {
+            if (!data || !data.orbital_energies || data.orbital_energies.length === 0) return;
+
+            const orbitals = data.orbital_energies;
+            const homoIndex = orbitals.findIndex(o => o.occupation <= 0.5) - 1;
+
+            const energies = orbitals.map(o => o.energy_ev);
+            const indices = orbitals.map((o, i) => i);
+            const colors = orbitals.map((o, i) =>
+                i === homoIndex ? '#dc3545' :
+                i === homoIndex + 1 ? '#28a745' :
+                o.occupation > 0.5 ? '#667eea' : '#ffc107'
+            );
+
+            const trace = {
+                x: energies,
+                y: indices,
+                type: 'bar',
+                orientation: 'h',
+                marker: {
+                    color: colors,
+                    line: {width: 0.5, color: 'white'}
+                },
+                hovertemplate: 'MO %{y}<br>Energy: %{x:.3f} eV<br>Occ: %{customdata:.1f}<extra></extra>',
+                customdata: orbitals.map(o => o.occupation)
+            };
+
+            const layout = {
+                title: 'Orbital Eigenvalue Spectrum',
+                xaxis: {title: 'Energy (eV)'},
+                yaxis: {title: 'Molecular Orbital Index', autorange: 'reversed'},
+                height: Math.min(800, orbitals.length * 3 + 100),
+                showlegend: false,
+                annotations: homoIndex >= 0 ? [{
+                    x: orbitals[homoIndex].energy_ev,
+                    y: homoIndex,
+                    text: 'HOMO',
+                    showarrow: true,
+                    arrowhead: 2
+                }, {
+                    x: orbitals[homoIndex + 1].energy_ev,
+                    y: homoIndex + 1,
+                    text: 'LUMO',
+                    showarrow: true,
+                    arrowhead: 2
+                }] : []
+            };
+
+            Plotly.newPlot('eigenvalue-spectrum-plot', [trace], layout, {responsive: true});
+        }
+
+        // 23. IR VS RAMAN CORRELATION
+        function renderIRRamanCorrelation() {
+            if (!data || !data.ir_spectrum || data.ir_spectrum.length === 0) return;
+            if (!data.raman_spectrum || data.raman_spectrum.length === 0) return;
+
+            const irIntensities = [];
+            const ramanActivities = [];
+            const frequencies = [];
+
+            data.ir_spectrum.forEach((ir, i) => {
+                const raman = data.raman_spectrum[i];
+                if (raman) {
+                    irIntensities.push(ir.intensity);
+                    ramanActivities.push(raman.activity);
+                    frequencies.push(data.frequencies[i] || i);
+                }
+            });
+
+            const trace = {
+                x: irIntensities,
+                y: ramanActivities,
+                mode: 'markers',
+                marker: {
+                    size: 8,
+                    color: frequencies,
+                    colorscale: 'Jet',
+                    colorbar: {title: 'Frequency (cm⁻¹)'},
+                    line: {width: 1, color: 'white'}
+                },
+                text: frequencies.map(f => `${f.toFixed(1)} cm⁻¹`),
+                hovertemplate: 'Frequency: %{text}<br>IR: %{x:.2f} km/mol<br>Raman: %{y:.2f}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'IR vs Raman Activity Correlation',
+                xaxis: {title: 'IR Intensity (km/mol)', type: 'log'},
+                yaxis: {title: 'Raman Activity', type: 'log'},
+                hovermode: 'closest'
+            };
+
+            Plotly.newPlot('ir-raman-correlation-plot', [trace], layout, {responsive: true});
+        }
+
+        // 24. ATOMIC MASS DISTRIBUTION
+        function renderMassDistribution() {
+            if (!data || !data.coordinates_au || data.coordinates_au.length === 0) return;
+
+            // Group by element
+            const elementMasses = {};
+            data.coordinates_au.forEach(coord => {
+                const element = coord[0]; // element symbol
+                const mass = coord[5];    // atomic mass
+                if (!elementMasses[element]) {
+                    elementMasses[element] = 0;
+                }
+                elementMasses[element] += mass;
+            });
+
+            const elements = Object.keys(elementMasses).sort();
+            const masses = elements.map(e => elementMasses[e]);
+
+            const trace = {
+                x: elements,
+                y: masses,
+                type: 'bar',
+                marker: {
+                    color: masses,
+                    colorscale: 'Viridis',
+                    line: {width: 1, color: 'white'}
+                },
+                hovertemplate: 'Element: %{x}<br>Total Mass: %{y:.2f} amu<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Atomic Mass Distribution by Element',
+                xaxis: {title: 'Element'},
+                yaxis: {title: 'Total Mass (amu)'},
+                showlegend: false
+            };
+
+            Plotly.newPlot('mass-distribution-plot', [trace], layout, {responsive: true});
         }
     </script>
 </body>

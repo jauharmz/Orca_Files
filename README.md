@@ -1186,6 +1186,62 @@ function App() {
   - ✓ Shows ΔE between consecutive steps
   - Data: `scf_iterations`
 
+### Phase 3H: Advanced Analysis & Correlations (NEW!)
+**Solvation & Energy:**
+- [x] **3H.1** CPCM Solvation analysis - **DONE** ✓
+  - ✓ Pie chart of solvation energy components
+  - ✓ Electrostatic, cavitation, dispersion, repulsion
+  - ✓ Detailed energy table with signed values
+  - ✓ 6-decimal precision
+  - Data: `cpcm_solvation`
+- [x] **3H.2** Orbital energy distribution - **DONE** ✓
+  - ✓ Histogram of all orbital energies
+  - ✓ 30 bins across energy range
+  - ✓ Energy in eV on x-axis
+  - ✓ Count on y-axis
+  - Data: `orbital_energies`
+
+**Frequency & Charge:**
+- [x] **3H.3** Frequency analysis by type - **DONE** ✓
+  - ✓ Grouped bar chart by frequency range
+  - ✓ Categories: Low (<1000), Mid (1000-2000), High (>2000) cm⁻¹
+  - ✓ Mode count + average IR intensity (dual y-axes)
+  - ✓ Color-coded bars
+  - Data: `frequencies`, `ir_spectrum`
+- [x] **3H.4** Charge distribution pie - **DONE** ✓
+  - ✓ Pie chart: Positive, Neutral, Negative atoms
+  - ✓ Threshold: ±0.1 charge units
+  - ✓ Color-coded (red/yellow/green)
+  - ✓ Percentage display
+  - Data: `mulliken_charges`
+
+**Correlation Analysis:**
+- [x] **3H.5** Bond order vs length correlation - **DONE** ✓
+  - ✓ Scatter plot with Viridis colorscale
+  - ✓ X = bond length (Å), Y = Mayer bond order
+  - ✓ Color intensity = bond order
+  - ✓ Bond labels with hover
+  - Data: `mayer_bond_orders`, `internal_coords`
+- [x] **3H.6** Orbital eigenvalue spectrum - **DONE** ✓
+  - ✓ Horizontal bar chart for all MOs
+  - ✓ Color-coded: HOMO (red), LUMO (green), occupied (blue), virtual (yellow)
+  - ✓ HOMO/LUMO annotations with arrows
+  - ✓ Dynamic height (up to 800px)
+  - ✓ Occupation display in hover
+  - Data: `orbital_energies`
+- [x] **3H.7** IR vs Raman correlation - **DONE** ✓
+  - ✓ Scatter plot with log-log axes
+  - ✓ Color-coded by frequency (Jet colorscale)
+  - ✓ Frequency colorbar
+  - ✓ Hover shows frequency + intensities
+  - Data: `ir_spectrum`, `raman_spectrum`
+- [x] **3H.8** Atomic mass distribution - **DONE** ✓
+  - ✓ Bar chart by element type
+  - ✓ Total mass per element in amu
+  - ✓ Viridis colorscale
+  - ✓ Sorted elements
+  - Data: `coordinates_au`
+
 ### Phase 4: Advanced Features
 - [ ] **4.1** Multi-file comparison
   - Side-by-side structure viewer
@@ -1295,9 +1351,9 @@ streamlit run app.py
 
 ## Current Progress
 
-**Status:** Phase 3 visualizations - **35/36 features implemented** 🎉 (97% complete!)
+**Status:** Phase 3 visualizations - **44/45 features implemented** 🎉 (98% complete!)
 
-**Latest Session (2025-11-25):** Added **16 new advanced visualizations** across multiple phases!
+**Latest Session (2025-11-25):** Added **25 new advanced visualizations** across multiple phases!
 
 **First Wave (7 visualizations) - Advanced Chemistry:**
 - ✅ Geometry optimization trajectory with animation controls
@@ -1321,6 +1377,16 @@ streamlit run app.py
 - ✅ Internal coordinates distribution (dual histograms)
 - ✅ SCF iteration efficiency (log scale)
 
+**Fourth Wave (9 visualizations) - Advanced Correlations:**
+- ✅ CPCM Solvation energy analysis
+- ✅ Orbital energy distribution histogram
+- ✅ Frequency analysis by range (with IR overlay)
+- ✅ Charge distribution pie chart
+- ✅ Bond order vs length correlation scatter
+- ✅ Orbital eigenvalue spectrum (all MOs)
+- ✅ IR vs Raman correlation (log-log)
+- ✅ Atomic mass distribution by element
+
 **Completion Status:**
 - **Phase 3A:** 10/10 features (100% DONE) ✓
 - **Phase 3B:** 5/5 features (100% DONE) ✓
@@ -1328,9 +1394,10 @@ streamlit run app.py
 - **Phase 3D:** 4/4 features (100% DONE) ✓
 - **Phase 3E:** 2/2 features (100% DONE) ✓
 - **Phase 3F:** 3/4 features (75% DONE)
-- **Phase 3G:** 7/7 features (100% DONE) ✓ **NEW!**
+- **Phase 3G:** 7/7 features (100% DONE) ✓
+- **Phase 3H:** 8/8 features (100% DONE) ✓ **NEW!**
 
-**Total: 35 Interactive Visualizations | 38/57 sections parsed (67%)**
+**Total: 44 Interactive Visualizations | 38/57 sections parsed (67%)**
 
 **Next steps:**
 - Phase 3F.4: Memory usage tracking (final Phase 3F feature)
