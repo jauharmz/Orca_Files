@@ -448,12 +448,33 @@
             <h2 class="section-title">🔬 3D Molecular Structure</h2>
             <div class="viz-container">
                 <div id="molecule-viewer"></div>
-                <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button class="btn-secondary" onclick="setMoleculeStyle('stick')">Stick</button>
-                    <button class="btn-secondary" onclick="setMoleculeStyle('sphere')">Sphere</button>
-                    <button class="btn-secondary" onclick="setMoleculeStyle('cartoon')">Ball & Stick</button>
-                    <button class="btn-secondary" onclick="toggleLabels()">Toggle Labels</button>
-                    <button class="btn-export" onclick="exportMoleculeImage()">📷 Export PNG</button>
+                <div style="margin-top: 15px;">
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+                        <strong>Style:</strong>
+                        <button class="btn-secondary" onclick="setMoleculeStyle('stick')">Stick</button>
+                        <button class="btn-secondary" onclick="setMoleculeStyle('sphere')">Sphere</button>
+                        <button class="btn-secondary" onclick="setMoleculeStyle('cartoon')">Ball & Stick</button>
+                        <button class="btn-secondary" onclick="toggleLabels()">Labels</button>
+                    </div>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+                        <strong>Color By:</strong>
+                        <button class="btn-secondary" onclick="setChargeColoring('none')">Element</button>
+                        <button class="btn-secondary" onclick="setChargeColoring('mulliken')">Mulliken Charge</button>
+                        <button class="btn-secondary" onclick="setChargeColoring('loewdin')">Loewdin Charge</button>
+                        <button class="btn-secondary" onclick="toggleDipole()">Dipole Vector</button>
+                    </div>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn-secondary" onclick="toggleBondOrders()">Show Bond Orders</button>
+                        <button class="btn-export" onclick="exportMoleculeImage()">📷 Export PNG</button>
+                    </div>
+                    <div id="charge-legend" style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 6px; display: none;">
+                        <strong>Charge Scale:</strong>
+                        <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+                            <span style="color: red;">−1.0 (negative)</span>
+                            <div style="flex: 1; height: 20px; background: linear-gradient(to right, red, white, blue); border-radius: 4px;"></div>
+                            <span style="color: blue;">+1.0 (positive)</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
