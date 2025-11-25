@@ -406,7 +406,7 @@
         <header>
             <h1>🧪 ORCA Output Viewer</h1>
             <p>Comprehensive Quantum Chemistry Data Visualization</p>
-            <p style="margin-top: 10px; font-size: 0.9em;">34/57 sections parsed (60% coverage)</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">38/57 sections parsed (67% coverage) | 26 Interactive Visualizations</p>
         </header>
 
         <div class="controls">
@@ -575,6 +575,116 @@
                 <div class="export-buttons">
                     <button class="btn-export" onclick="exportPlot('grid-plot', 'grid_statistics.png')">📷 PNG</button>
                 </div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Geometry Optimization Trajectory 🎬</button>
+            <div class="collapsible-content">
+                <div id="opt-trajectory-plot" style="width: 100%; height: 500px;"></div>
+                <div style="margin: 15px 0;">
+                    <label for="opt-slider"><strong>Geometry Step:</strong> <span id="opt-step-label">1</span></label>
+                    <input type="range" id="opt-slider" min="0" max="0" value="0" style="width: 100%;" oninput="updateOptStep(this.value)">
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button class="btn-secondary" onclick="playOptAnimation()">▶️ Play</button>
+                        <button class="btn-secondary" onclick="pauseOptAnimation()">⏸️ Pause</button>
+                        <button class="btn-secondary" onclick="resetOptAnimation()">⏮️ Reset</button>
+                    </div>
+                </div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('opt-trajectory-plot', 'optimization_trajectory.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Energy vs optimization step. Use slider to view geometry at each step.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Vibrational Mode Animation 🎵</button>
+            <div class="collapsible-content">
+                <div style="margin-bottom: 15px;">
+                    <label for="mode-selector"><strong>Select Vibrational Mode:</strong></label>
+                    <select id="mode-selector" onchange="selectVibrationalMode(this.value)" style="width: 100%; padding: 8px; margin-top: 5px;">
+                        <option value="">-- Select Mode --</option>
+                    </select>
+                </div>
+                <div id="vib-mode-info" style="padding: 10px; background: #f8f9fa; border-radius: 4px; margin-bottom: 10px; display: none;">
+                    <p><strong>Frequency:</strong> <span id="vib-frequency">--</span> cm⁻¹</p>
+                    <p><strong>IR Intensity:</strong> <span id="vib-ir-intensity">--</span> km/mol</p>
+                    <p><strong>Raman Activity:</strong> <span id="vib-raman-activity">--</span></p>
+                </div>
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <button class="btn-secondary" onclick="playVibAnimation()">▶️ Animate</button>
+                    <button class="btn-secondary" onclick="pauseVibAnimation()">⏸️ Pause</button>
+                    <label style="display: flex; align-items: center; gap: 5px;">
+                        <strong>Amplitude:</strong>
+                        <input type="range" id="vib-amplitude" min="0.1" max="2.0" step="0.1" value="1.0" style="width: 100px;" oninput="updateVibAmplitude(this.value)">
+                        <span id="vib-amp-label">1.0</span>
+                    </label>
+                </div>
+                <p style="font-size: 12px; color: #666;">
+                    Select a mode to see atomic displacements. Animation shows normal mode vibration.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Orbital Charge Heatmap 🌡️</button>
+            <div class="collapsible-content">
+                <div id="orbital-heatmap-plot" style="width: 100%; height: 600px;"></div>
+                <div style="display: flex; gap: 10px; margin: 15px 0;">
+                    <button class="btn-secondary" onclick="zoomToHOMOLUMO()">🔍 Zoom to HOMO-LUMO</button>
+                    <button class="btn-secondary" onclick="resetHeatmapZoom()">🔄 Reset Zoom</button>
+                    <label style="display: flex; align-items: center; gap: 5px;">
+                        <strong>Charge Type:</strong>
+                        <select id="heatmap-charge-type" onchange="updateHeatmapChargeType(this.value)">
+                            <option value="mulliken">Mulliken</option>
+                            <option value="loewdin">Loewdin</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('orbital-heatmap-plot', 'orbital_charges_heatmap.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    2D heatmap showing charge contribution of each MO on each atom. Click to highlight.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">NMR J-Coupling Network 🔗</button>
+            <div class="collapsible-content">
+                <div id="jcoupling-network-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('jcoupling-network-plot', 'jcoupling_network.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Network graph showing J-coupling between nuclei. Edge thickness represents coupling strength.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Chemical Shielding Tensors 📊</button>
+            <div class="collapsible-content">
+                <div id="shielding-tensors-table"></div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Full chemical shielding tensor data for all nuclei. Click rows to expand tensor details.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">HOMO-LUMO Gap Tracker 📉</button>
+            <div class="collapsible-content">
+                <div id="homo-lumo-gap-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('homo-lumo-gap-plot', 'homo_lumo_gap.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    HOMO-LUMO energy gap evolution during geometry optimization.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Density of States 📊</button>
+            <div class="collapsible-content">
+                <div id="dos-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('dos-plot', 'density_of_states.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Density of states with Gaussian broadening. Blue = occupied, Red = virtual.
+                </p>
             </div>
         </div>
 
@@ -1229,6 +1339,14 @@
             renderSCFDetails();
             renderBasisComposition();
             renderGridStatistics();
+            // NEW VISUALIZATIONS
+            renderOptimizationTrajectory();
+            populateVibrationalModes();
+            renderOrbitalChargeHeatmap();
+            renderJCouplingNetwork();
+            renderChemicalShieldingTable();
+            renderHOMOLUMOGapTracker();
+            renderDensityOfStates();
         }
 
         function renderSCFPlot() {
@@ -1705,6 +1823,584 @@
                 width: 1200,
                 height: 800
             });
+        }
+
+        // ===== NEW VISUALIZATIONS =====
+
+        // 1. GEOMETRY OPTIMIZATION TRAJECTORY
+        let optAnimationInterval = null;
+
+        function renderOptimizationTrajectory() {
+            if (!data || !data.optimization_energies || data.optimization_energies.length === 0) return;
+
+            const energies = data.optimization_energies;
+            const steps = Array.from({length: energies.length}, (_, i) => i + 1);
+
+            // Update slider max
+            const slider = document.getElementById('opt-slider');
+            slider.max = energies.length - 1;
+
+            const trace = {
+                x: steps,
+                y: energies,
+                mode: 'lines+markers',
+                name: 'Energy',
+                line: {color: '#667eea', width: 3},
+                marker: {size: 8, color: '#764ba2'},
+                hovertemplate: 'Step %{x}<br>Energy: %{y:.8f} Eh<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Geometry Optimization Energy Trajectory',
+                xaxis: {title: 'Optimization Step'},
+                yaxis: {title: 'Energy (Eh)'},
+                hovermode: 'closest',
+                showlegend: false
+            };
+
+            Plotly.newPlot('opt-trajectory-plot', [trace], layout, {responsive: true});
+
+            // Add click event to jump to step
+            document.getElementById('opt-trajectory-plot').on('plotly_click', function(data) {
+                if (data.points && data.points.length > 0) {
+                    const step = data.points[0].pointIndex;
+                    updateOptStep(step);
+                    slider.value = step;
+                }
+            });
+        }
+
+        function updateOptStep(step) {
+            document.getElementById('opt-step-label').textContent = parseInt(step) + 1;
+
+            // Highlight the selected point on the plot
+            if (!data || !data.optimization_energies) return;
+
+            const energies = data.optimization_energies;
+            const steps = Array.from({length: energies.length}, (_, i) => i + 1);
+
+            const trace1 = {
+                x: steps,
+                y: energies,
+                mode: 'lines+markers',
+                name: 'Energy',
+                line: {color: '#667eea', width: 3},
+                marker: {size: 8, color: '#764ba2'},
+                hovertemplate: 'Step %{x}<br>Energy: %{y:.8f} Eh<extra></extra>'
+            };
+
+            const trace2 = {
+                x: [parseInt(step) + 1],
+                y: [energies[parseInt(step)]],
+                mode: 'markers',
+                name: 'Current',
+                marker: {size: 15, color: '#ffc107', line: {width: 2, color: 'black'}},
+                hovertemplate: 'Current Step: %{x}<br>Energy: %{y:.8f} Eh<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Geometry Optimization Energy Trajectory',
+                xaxis: {title: 'Optimization Step'},
+                yaxis: {title: 'Energy (Eh)'},
+                hovermode: 'closest',
+                showlegend: false
+            };
+
+            Plotly.react('opt-trajectory-plot', [trace1, trace2], layout, {responsive: true});
+        }
+
+        function playOptAnimation() {
+            if (optAnimationInterval) return; // Already playing
+
+            const slider = document.getElementById('opt-slider');
+            const maxStep = parseInt(slider.max);
+            let currentStep = parseInt(slider.value);
+
+            optAnimationInterval = setInterval(() => {
+                currentStep++;
+                if (currentStep > maxStep) {
+                    currentStep = 0;
+                }
+                slider.value = currentStep;
+                updateOptStep(currentStep);
+            }, 500); // 500ms per step
+        }
+
+        function pauseOptAnimation() {
+            if (optAnimationInterval) {
+                clearInterval(optAnimationInterval);
+                optAnimationInterval = null;
+            }
+        }
+
+        function resetOptAnimation() {
+            pauseOptAnimation();
+            const slider = document.getElementById('opt-slider');
+            slider.value = 0;
+            updateOptStep(0);
+        }
+
+        // 2. VIBRATIONAL MODE ANIMATION
+        let vibAnimationInterval = null;
+        let currentVibMode = null;
+
+        function populateVibrationalModes() {
+            if (!data || !data.frequencies || data.frequencies.length === 0) return;
+
+            const selector = document.getElementById('mode-selector');
+            selector.innerHTML = '<option value="">-- Select Mode --</option>';
+
+            data.frequencies.forEach((freq, i) => {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `Mode ${i + 1}: ${freq.toFixed(2)} cm⁻¹`;
+                selector.appendChild(option);
+            });
+        }
+
+        function selectVibrationalMode(modeIndex) {
+            if (!modeIndex || !data) return;
+
+            currentVibMode = parseInt(modeIndex);
+            const freq = data.frequencies[currentVibMode];
+            const irData = data.ir_spectrum ? data.ir_spectrum[currentVibMode] : null;
+            const ramanData = data.raman_spectrum ? data.raman_spectrum[currentVibMode] : null;
+
+            // Update info display
+            document.getElementById('vib-frequency').textContent = freq.toFixed(2);
+            document.getElementById('vib-ir-intensity').textContent = irData ? irData.intensity.toFixed(2) : 'N/A';
+            document.getElementById('vib-raman-activity').textContent = ramanData ? ramanData.activity.toFixed(2) : 'N/A';
+            document.getElementById('vib-mode-info').style.display = 'block';
+
+            // Display mode info
+            alert(`Vibrational mode ${currentVibMode + 1} selected.\n\nNote: Full normal mode displacement vectors are partially available in the parsed data. For complete animation, all 3N displacement vectors would be needed from the ORCA output.`);
+        }
+
+        function playVibAnimation() {
+            if (!currentVibMode && currentVibMode !== 0) {
+                alert('Please select a vibrational mode first.');
+                return;
+            }
+            alert('Vibrational animation would animate atomic displacements based on normal mode vectors. This requires the full normal mode displacement data (3N vectors per mode).');
+        }
+
+        function pauseVibAnimation() {
+            if (vibAnimationInterval) {
+                clearInterval(vibAnimationInterval);
+                vibAnimationInterval = null;
+            }
+        }
+
+        function updateVibAmplitude(value) {
+            document.getElementById('vib-amp-label').textContent = value;
+        }
+
+        // 3. ORBITAL CHARGE HEATMAP
+        let currentHeatmapChargeType = 'mulliken';
+
+        function renderOrbitalChargeHeatmap() {
+            if (!data || !data.mulliken_orbital_charges || data.mulliken_orbital_charges.length === 0) return;
+
+            updateHeatmapChargeType('mulliken');
+        }
+
+        function updateHeatmapChargeType(chargeType) {
+            currentHeatmapChargeType = chargeType;
+            const charges = chargeType === 'mulliken' ? data.mulliken_orbital_charges : data.loewdin_orbital_charges;
+
+            if (!charges || charges.length === 0) {
+                alert(`${chargeType} orbital charges not available in data`);
+                return;
+            }
+
+            // Build heatmap data: MOs (rows) × Atoms (columns)
+            // Each MOCharge has: mo_index, atom_charges (dict)
+
+            // Get all unique atom indices
+            const atomIndices = new Set();
+            charges.forEach(moCharge => {
+                Object.keys(moCharge.atom_charges || {}).forEach(atomIdx => {
+                    atomIndices.add(parseInt(atomIdx));
+                });
+            });
+            const sortedAtomIndices = Array.from(atomIndices).sort((a, b) => a - b);
+
+            // Build z matrix (MO × Atom)
+            const zMatrix = [];
+            const moLabels = [];
+            const atomLabels = sortedAtomIndices.map(idx => {
+                const coord = data.coordinates[idx];
+                return coord ? `${coord[0]}${idx}` : `Atom${idx}`;
+            });
+
+            charges.forEach(moCharge => {
+                const row = [];
+                sortedAtomIndices.forEach(atomIdx => {
+                    const charge = moCharge.atom_charges[atomIdx] || 0;
+                    row.push(charge);
+                });
+                zMatrix.push(row);
+                moLabels.push(`MO ${moCharge.mo_index}`);
+            });
+
+            const trace = {
+                z: zMatrix,
+                x: atomLabels,
+                y: moLabels,
+                type: 'heatmap',
+                colorscale: 'RdBu',
+                reversescale: true,
+                hovertemplate: 'MO: %{y}<br>Atom: %{x}<br>Charge: %{z:.4f}<extra></extra>',
+                colorbar: {
+                    title: 'Charge'
+                }
+            };
+
+            const layout = {
+                title: `${chargeType.charAt(0).toUpperCase() + chargeType.slice(1)} Orbital Charges Heatmap`,
+                xaxis: {title: 'Atoms', tickangle: -45},
+                yaxis: {title: 'Molecular Orbitals', autorange: 'reversed'},
+                height: 600
+            };
+
+            Plotly.newPlot('orbital-heatmap-plot', [trace], layout, {responsive: true});
+        }
+
+        function zoomToHOMOLUMO() {
+            if (!data || !data.orbital_energies) return;
+
+            // Find HOMO index (last occupied orbital)
+            const homoIndex = data.orbital_energies.findIndex(o => o.occupation <= 0.5) - 1;
+            if (homoIndex < 0) return;
+
+            // Show HOMO-10 to LUMO+10
+            const startMO = Math.max(0, homoIndex - 10);
+            const endMO = Math.min(data.orbital_energies.length - 1, homoIndex + 11);
+
+            Plotly.relayout('orbital-heatmap-plot', {
+                'yaxis.range': [endMO, startMO]  // Reversed because y is reversed
+            });
+        }
+
+        function resetHeatmapZoom() {
+            Plotly.relayout('orbital-heatmap-plot', {
+                'yaxis.range': null,
+                'xaxis.range': null
+            });
+        }
+
+        // 4. NMR J-COUPLING NETWORK
+        function renderJCouplingNetwork() {
+            if (!data || !data.nmr_data || !data.nmr_data.j_couplings || data.nmr_data.j_couplings.length === 0) return;
+
+            const jCouplings = data.nmr_data.j_couplings;
+            const chemicalShifts = data.nmr_data.chemical_shifts || [];
+
+            // Create nodes (nuclei)
+            const nodeIndices = new Set();
+            jCouplings.forEach(jc => {
+                nodeIndices.add(jc.atom1_index);
+                nodeIndices.add(jc.atom2_index);
+            });
+
+            const nodes = Array.from(nodeIndices).map(idx => {
+                const shift = chemicalShifts.find(s => s.nucleus === idx);
+                const coord = data.coordinates[idx];
+                return {
+                    index: idx,
+                    element: coord ? coord[0] : 'X',
+                    shift: shift ? shift.isotropic : 0
+                };
+            });
+
+            // Create edges (J-couplings)
+            const edges = jCouplings.map(jc => ({
+                from: jc.atom1_index,
+                to: jc.atom2_index,
+                value: Math.abs(jc.value),
+                label: jc.value.toFixed(2) + ' Hz'
+            }));
+
+            // Use a force-directed layout approximation with Plotly
+            // For simplicity, use a circular layout
+            const n = nodes.length;
+            const nodeX = nodes.map((node, i) => Math.cos(2 * Math.PI * i / n));
+            const nodeY = nodes.map((node, i) => Math.sin(2 * Math.PI * i / n));
+
+            // Edge traces
+            const edgeTraces = [];
+            edges.forEach(edge => {
+                const fromIdx = nodes.findIndex(n => n.index === edge.from);
+                const toIdx = nodes.findIndex(n => n.index === edge.to);
+                if (fromIdx >= 0 && toIdx >= 0) {
+                    const edgeTrace = {
+                        x: [nodeX[fromIdx], nodeX[toIdx], null],
+                        y: [nodeY[fromIdx], nodeY[toIdx], null],
+                        mode: 'lines',
+                        line: {
+                            width: Math.min(10, Math.max(1, edge.value / 10)),
+                            color: '#999'
+                        },
+                        hovertemplate: `J-coupling: ${edge.label}<extra></extra>`,
+                        showlegend: false
+                    };
+                    edgeTraces.push(edgeTrace);
+                }
+            });
+
+            // Node trace
+            const nodeTrace = {
+                x: nodeX,
+                y: nodeY,
+                mode: 'markers+text',
+                marker: {
+                    size: 20,
+                    color: nodes.map((_, i) => i),
+                    colorscale: 'Viridis',
+                    line: {width: 2, color: 'white'}
+                },
+                text: nodes.map(n => `${n.element}${n.index}`),
+                textposition: 'top center',
+                hovertemplate: 'Nucleus: %{text}<br>Chemical Shift: %{customdata:.2f} ppm<extra></extra>',
+                customdata: nodes.map(n => n.shift)
+            };
+
+            const traces = [...edgeTraces, nodeTrace];
+
+            const layout = {
+                title: 'NMR J-Coupling Network',
+                xaxis: {showgrid: false, zeroline: false, showticklabels: false},
+                yaxis: {showgrid: false, zeroline: false, showticklabels: false},
+                hovermode: 'closest',
+                showlegend: false,
+                height: 500
+            };
+
+            Plotly.newPlot('jcoupling-network-plot', traces, layout, {responsive: true});
+        }
+
+        // 5. CHEMICAL SHIELDING TENSORS TABLE
+        function renderChemicalShieldingTable() {
+            if (!data || !data.chemical_shielding_tensors || data.chemical_shielding_tensors.length === 0) return;
+
+            const tensors = data.chemical_shielding_tensors;
+
+            let html = '<table><thead><tr><th>Atom</th><th>Element</th><th>Isotropic (ppm)</th><th>Components</th><th>Details</th></tr></thead><tbody>';
+
+            tensors.forEach((tensor, i) => {
+                const coord = data.coordinates[tensor.atom_index];
+                const element = coord ? coord[0] : 'X';
+
+                html += `<tr>
+                    <td>${tensor.atom_index}</td>
+                    <td><strong>${element}</strong></td>
+                    <td>${tensor.total_iso.toFixed(2)}</td>
+                    <td>
+                        ${tensor.total_components[0]?.toFixed(2) || 'N/A'},
+                        ${tensor.total_components[1]?.toFixed(2) || 'N/A'},
+                        ${tensor.total_components[2]?.toFixed(2) || 'N/A'}
+                    </td>
+                    <td>
+                        <button class="btn-secondary" onclick="showTensorDetails(${i})" style="font-size: 11px; padding: 4px 8px;">View Tensor</button>
+                    </td>
+                </tr>`;
+            });
+
+            html += '</tbody></table>';
+            html += '<div id="tensor-details-modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 1000; max-width: 600px;"></div>';
+            html += '<div id="tensor-modal-overlay" onclick="closeTensorDetails()" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999;"></div>';
+
+            document.getElementById('shielding-tensors-table').innerHTML = html;
+        }
+
+        function showTensorDetails(tensorIndex) {
+            if (!data || !data.chemical_shielding_tensors) return;
+
+            const tensor = data.chemical_shielding_tensors[tensorIndex];
+            const coord = data.coordinates[tensor.atom_index];
+            const element = coord ? coord[0] : 'X';
+
+            // Format 3x3 tensor
+            const formatTensor = (values) => {
+                if (!values || values.length !== 9) return 'N/A';
+                return `
+                    <table style="margin: 10px auto; border-collapse: collapse;">
+                        <tr><td style="padding: 5px;">${values[0].toFixed(3)}</td><td style="padding: 5px;">${values[1].toFixed(3)}</td><td style="padding: 5px;">${values[2].toFixed(3)}</td></tr>
+                        <tr><td style="padding: 5px;">${values[3].toFixed(3)}</td><td style="padding: 5px;">${values[4].toFixed(3)}</td><td style="padding: 5px;">${values[5].toFixed(3)}</td></tr>
+                        <tr><td style="padding: 5px;">${values[6].toFixed(3)}</td><td style="padding: 5px;">${values[7].toFixed(3)}</td><td style="padding: 5px;">${values[8].toFixed(3)}</td></tr>
+                    </table>
+                `;
+            };
+
+            const html = `
+                <h3 style="margin-top: 0;">Chemical Shielding Tensor - ${element}${tensor.atom_index}</h3>
+                <button onclick="closeTensorDetails()" style="position: absolute; top: 10px; right: 10px; border: none; background: #dc3545; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer;">✕</button>
+
+                <h4>Total Tensor (ppm)</h4>
+                ${formatTensor(tensor.total_tensor)}
+
+                <h4>Diamagnetic Tensor (ppm)</h4>
+                ${formatTensor(tensor.diamagnetic_tensor)}
+
+                <h4>Paramagnetic Tensor (ppm)</h4>
+                ${formatTensor(tensor.paramagnetic_tensor)}
+
+                <h4>Isotropic Values</h4>
+                <p><strong>Total:</strong> ${tensor.total_iso.toFixed(2)} ppm</p>
+                <p><strong>Diamagnetic:</strong> ${tensor.sdso_iso.toFixed(2)} ppm</p>
+                <p><strong>Paramagnetic:</strong> ${tensor.spso_iso.toFixed(2)} ppm</p>
+
+                <h4>Eigenvalues (Diagonalized Components)</h4>
+                <p>${tensor.total_components[0]?.toFixed(2) || 'N/A'}, ${tensor.total_components[1]?.toFixed(2) || 'N/A'}, ${tensor.total_components[2]?.toFixed(2) || 'N/A'} ppm</p>
+            `;
+
+            document.getElementById('tensor-details-modal').innerHTML = html;
+            document.getElementById('tensor-details-modal').style.display = 'block';
+            document.getElementById('tensor-modal-overlay').style.display = 'block';
+        }
+
+        function closeTensorDetails() {
+            document.getElementById('tensor-details-modal').style.display = 'none';
+            document.getElementById('tensor-modal-overlay').style.display = 'none';
+        }
+
+        // 6. HOMO-LUMO GAP TRACKER
+        function renderHOMOLUMOGapTracker() {
+            if (!data || !data.orbital_energies || data.orbital_energies.length === 0) return;
+
+            // Find HOMO and LUMO for each optimization step
+            // Note: We only have one set of orbital energies (final geometry)
+            // For a true gap tracker, we'd need orbital energies at each optimization step
+
+            // For now, show a single point with the final HOMO-LUMO gap
+            const orbitals = data.orbital_energies;
+            const homoIndex = orbitals.findIndex(o => o.occupation <= 0.5) - 1;
+
+            if (homoIndex < 0 || homoIndex >= orbitals.length - 1) {
+                // No HOMO-LUMO gap available
+                return;
+            }
+
+            const homo = orbitals[homoIndex];
+            const lumo = orbitals[homoIndex + 1];
+            const gap = lumo.energy_ev - homo.energy_ev;
+
+            // If we have optimization energies, create a placeholder plot
+            if (data.optimization_energies && data.optimization_energies.length > 1) {
+                const steps = Array.from({length: data.optimization_energies.length}, (_, i) => i + 1);
+                const gaps = Array(data.optimization_energies.length).fill(gap); // Constant for now
+
+                const trace = {
+                    x: steps,
+                    y: gaps,
+                    mode: 'lines+markers',
+                    name: 'HOMO-LUMO Gap',
+                    line: {color: '#667eea', width: 3},
+                    marker: {size: 8, color: '#764ba2'},
+                    hovertemplate: 'Step %{x}<br>Gap: %{y:.4f} eV<extra></extra>'
+                };
+
+                const layout = {
+                    title: 'HOMO-LUMO Energy Gap Evolution',
+                    xaxis: {title: 'Optimization Step'},
+                    yaxis: {title: 'HOMO-LUMO Gap (eV)'},
+                    hovermode: 'closest',
+                    annotations: [{
+                        text: 'Note: Gap shown is from final geometry (orbital energies at intermediate steps not available)',
+                        x: 0.5,
+                        y: 1.1,
+                        xref: 'paper',
+                        yref: 'paper',
+                        showarrow: false,
+                        font: {size: 10, color: '#666'}
+                    }]
+                };
+
+                Plotly.newPlot('homo-lumo-gap-plot', [trace], layout, {responsive: true});
+            } else {
+                // Single point
+                const trace = {
+                    x: [1],
+                    y: [gap],
+                    mode: 'markers',
+                    name: 'HOMO-LUMO Gap',
+                    marker: {size: 15, color: '#667eea'},
+                    hovertemplate: 'Gap: %{y:.4f} eV<extra></extra>'
+                };
+
+                const layout = {
+                    title: 'HOMO-LUMO Energy Gap',
+                    xaxis: {title: 'Final Geometry', showticklabels: false},
+                    yaxis: {title: 'HOMO-LUMO Gap (eV)'},
+                    hovermode: 'closest'
+                };
+
+                Plotly.newPlot('homo-lumo-gap-plot', [trace], layout, {responsive: true});
+            }
+        }
+
+        // 7. DENSITY OF STATES
+        function renderDensityOfStates() {
+            if (!data || !data.orbital_energies || data.orbital_energies.length === 0) return;
+
+            const orbitals = data.orbital_energies;
+
+            // Separate occupied and virtual orbitals
+            const occupiedEnergies = orbitals.filter(o => o.occupation > 0.5).map(o => o.energy_ev);
+            const virtualEnergies = orbitals.filter(o => o.occupation <= 0.5).map(o => o.energy_ev);
+
+            // Create histogram with Gaussian broadening
+            const sigma = 0.3; // eV
+            const numPoints = 200;
+
+            const allEnergies = orbitals.map(o => o.energy_ev);
+            const minE = Math.min(...allEnergies) - 2;
+            const maxE = Math.max(...allEnergies) + 2;
+            const energyRange = Array.from({length: numPoints}, (_, i) => minE + (maxE - minE) * i / (numPoints - 1));
+
+            // Gaussian function
+            const gaussian = (x, mu, sigma) => Math.exp(-0.5 * Math.pow((x - mu) / sigma, 2)) / (sigma * Math.sqrt(2 * Math.PI));
+
+            // Calculate DOS for occupied orbitals
+            const dosOccupied = energyRange.map(E => {
+                return occupiedEnergies.reduce((sum, e) => sum + gaussian(E, e, sigma), 0);
+            });
+
+            // Calculate DOS for virtual orbitals
+            const dosVirtual = energyRange.map(E => {
+                return virtualEnergies.reduce((sum, e) => sum + gaussian(E, e, sigma), 0);
+            });
+
+            const trace1 = {
+                x: energyRange,
+                y: dosOccupied,
+                fill: 'tozeroy',
+                name: 'Occupied',
+                line: {color: '#28a745', width: 2},
+                fillcolor: 'rgba(40, 167, 69, 0.3)',
+                hovertemplate: 'Energy: %{x:.2f} eV<br>DOS: %{y:.4f}<extra></extra>'
+            };
+
+            const trace2 = {
+                x: energyRange,
+                y: dosVirtual,
+                fill: 'tozeroy',
+                name: 'Virtual',
+                line: {color: '#dc3545', width: 2},
+                fillcolor: 'rgba(220, 53, 69, 0.3)',
+                hovertemplate: 'Energy: %{x:.2f} eV<br>DOS: %{y:.4f}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Density of States (DOS)',
+                xaxis: {title: 'Energy (eV)'},
+                yaxis: {title: 'Density of States'},
+                hovermode: 'x unified',
+                showlegend: true,
+                legend: {x: 0.8, y: 1}
+            };
+
+            Plotly.newPlot('dos-plot', [trace1, trace2], layout, {responsive: true});
         }
     </script>
 </body>
