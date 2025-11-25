@@ -228,6 +228,44 @@ class CPCMSolvation:
 
 
 @dataclass
+class GeometricPerturbations:
+    """Geometric perturbations data for numerical derivatives."""
+    num_nuclei: int = 0
+    num_perturbations: int = 0
+    num_batches: int = 0
+    total_time: float = 0.0  # seconds
+    max_memory_mb: float = 0.0
+
+
+@dataclass
+class SharkIntegrals:
+    """SHARK integral package configuration."""
+    num_basis_functions: int = 0
+    num_shells: int = 0
+    max_angular_momentum: int = 0
+    num_aux_j_functions: int = 0
+    num_aux_j_shells: int = 0
+    max_angular_momentum_aux_j: int = 0
+    total_shell_pairs: int = 0
+    shell_pairs_after_screening: int = 0
+    schwartz_threshold: float = 0.0
+    tcut_threshold: float = 0.0
+
+
+@dataclass
+class COSXGrid:
+    """COSX grid generation data for a single grid."""
+    grid_number: int = 0
+    integration_accuracy: float = 0.0
+    radial_grid_type: str = ""
+    angular_grid: str = ""
+    total_grid_points: int = 0
+    num_batches: int = 0
+    avg_points_per_batch: int = 0
+    avg_points_per_atom: int = 0
+
+
+@dataclass
 class SCFConvergence:
     """SCF convergence criteria values."""
     energy_change: float = 0.0
@@ -312,6 +350,9 @@ class OrcaOutput:
     thermochemistry: Optional[Thermochemistry] = None
     nmr_data: Optional[NMRData] = None
     chemical_shielding_tensors: list[ChemicalShieldingTensor] = field(default_factory=list)  # Full tensor data
+    geometric_perturbations: Optional[GeometricPerturbations] = None
+    shark_integrals: Optional[SharkIntegrals] = None
+    cosx_grids: list[COSXGrid] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -547,6 +588,38 @@ class OrcaOutput:
                     'orientation_z': t.orientation_z
                 }
                 for t in self.chemical_shielding_tensors
+            ],
+            'geometric_perturbations': {
+                'num_nuclei': self.geometric_perturbations.num_nuclei,
+                'num_perturbations': self.geometric_perturbations.num_perturbations,
+                'num_batches': self.geometric_perturbations.num_batches,
+                'total_time': self.geometric_perturbations.total_time,
+                'max_memory_mb': self.geometric_perturbations.max_memory_mb
+            } if self.geometric_perturbations else None,
+            'shark_integrals': {
+                'num_basis_functions': self.shark_integrals.num_basis_functions,
+                'num_shells': self.shark_integrals.num_shells,
+                'max_angular_momentum': self.shark_integrals.max_angular_momentum,
+                'num_aux_j_functions': self.shark_integrals.num_aux_j_functions,
+                'num_aux_j_shells': self.shark_integrals.num_aux_j_shells,
+                'max_angular_momentum_aux_j': self.shark_integrals.max_angular_momentum_aux_j,
+                'total_shell_pairs': self.shark_integrals.total_shell_pairs,
+                'shell_pairs_after_screening': self.shark_integrals.shell_pairs_after_screening,
+                'schwartz_threshold': self.shark_integrals.schwartz_threshold,
+                'tcut_threshold': self.shark_integrals.tcut_threshold
+            } if self.shark_integrals else None,
+            'cosx_grids': [
+                {
+                    'grid_number': g.grid_number,
+                    'integration_accuracy': g.integration_accuracy,
+                    'radial_grid_type': g.radial_grid_type,
+                    'angular_grid': g.angular_grid,
+                    'total_grid_points': g.total_grid_points,
+                    'num_batches': g.num_batches,
+                    'avg_points_per_batch': g.avg_points_per_batch,
+                    'avg_points_per_atom': g.avg_points_per_atom
+                }
+                for g in self.cosx_grids
             ]
         }
 
@@ -583,6 +656,9 @@ def parse_out_content(content: str) -> OrcaOutput:
     thermo = parse_thermochemistry(content)
     nmr = parse_nmr_data(content)
     shielding_tensors = parse_chemical_shielding_tensors(content)
+    geom_pert = parse_geometric_perturbations(content)
+    shark = parse_shark_integrals(content)
+    cosx = parse_cosx_grids(content)
     scf_iterations = parse_scf_iterations(content)
     timing = parse_timing_data(content)
     dft_grid = parse_dft_grid_info(content)
@@ -632,7 +708,10 @@ def parse_out_content(content: str) -> OrcaOutput:
         mulliken_overlap_charges=mulliken_overlap,
         thermochemistry=thermo,
         nmr_data=nmr,
-        chemical_shielding_tensors=shielding_tensors
+        chemical_shielding_tensors=shielding_tensors,
+        geometric_perturbations=geom_pert,
+        shark_integrals=shark,
+        cosx_grids=cosx
     )
 
 
@@ -1306,6 +1385,130 @@ def parse_chemical_shielding_tensors(content: str) -> list[ChemicalShieldingTens
     return tensors
 
 
+def parse_geometric_perturbations(content: str) -> Optional[GeometricPerturbations]:
+    """Extract geometric perturbations data."""
+    geom_pert = GeometricPerturbations()
+
+    section = re.search(
+        r'GEOMETRIC PERTURBATIONS \((\d+) nuclei\)\s*-+(.*?)(?:Maximum memory|Property integrals)',
+        content, re.DOTALL
+    )
+
+    if not section:
+        return None
+
+    geom_pert.num_nuclei = int(section.group(1))
+
+    # Extract number of perturbations from BATCH line
+    batch_match = re.search(r'BATCH.*?\(\s*(\d+)\s+perturbations\)', section.group(2))
+    if batch_match:
+        geom_pert.num_perturbations = int(batch_match.group(1))
+
+    # Extract total time
+    time_match = re.search(r'geometrical perturbations done \(\s*(\d+\.?\d*)\s+sec\)', section.group(2))
+    if time_match:
+        geom_pert.total_time = float(time_match.group(1))
+
+    # Extract max memory
+    mem_match = re.search(r'MaxCore\s+\.\.\.\s+(\d+)\s+MB', section.group(2))
+    if mem_match:
+        geom_pert.max_memory_mb = float(mem_match.group(1))
+
+    # Extract number of batches
+    batch_count = re.search(r'Number of batches\s+\.\.\.\s+(\d+)', section.group(2))
+    if batch_count:
+        geom_pert.num_batches = int(batch_count.group(1))
+
+    return geom_pert
+
+
+def parse_shark_integrals(content: str) -> Optional[SharkIntegrals]:
+    """Extract SHARK integral package configuration."""
+    shark = SharkIntegrals()
+
+    section = re.search(
+        r'SHARK INTEGRAL PACKAGE\s*-+(.*?)(?:Checking pre-screening|$)',
+        content, re.DOTALL
+    )
+
+    if not section:
+        return None
+
+    section_text = section.group(1)
+
+    # Extract basic info
+    patterns = {
+        'num_basis_functions': r'Number of basis functions\s+\.\.\.\s+(\d+)',
+        'num_shells': r'Number of shells\s+\.\.\.\s+(\d+)',
+        'max_angular_momentum': r'Maximum angular momentum\s+\.\.\.\s+(\d+)',
+        'num_aux_j_functions': r'# of basis functions in Aux-J\s+\.\.\.\s+(\d+)',
+        'num_aux_j_shells': r'# of shells in Aux-J\s+\.\.\.\s+(\d+)',
+        'max_angular_momentum_aux_j': r'Maximum angular momentum in Aux-J\s+\.\.\.\s+(\d+)',
+        'total_shell_pairs': r'Total number of shell pairs\s+\.\.\.\s+(\d+)',
+        'shell_pairs_after_screening': r'Shell pairs after pre-screening\s+\.\.\.\s+(\d+)',
+        'schwartz_threshold': r'Thresh\s+\.\.\.\s+(\d+\.\d+e[+-]?\d+)',
+        'tcut_threshold': r'Tcut\s+\.\.\.\s+(\d+\.\d+e[+-]?\d+)'
+    }
+
+    for field, pattern in patterns.items():
+        match = re.search(pattern, section_text)
+        if match:
+            value = match.group(1)
+            if field in ['schwartz_threshold', 'tcut_threshold']:
+                setattr(shark, field, float(value))
+            else:
+                setattr(shark, field, int(value))
+
+    return shark
+
+
+def parse_cosx_grids(content: str) -> list[COSXGrid]:
+    """Extract COSX grid generation data."""
+    grids = []
+
+    # Find all GRIDX sections
+    grid_sections = re.findall(
+        r'GRIDX\s+(\d+)\s*-+(.*?)(?=GRIDX\s+\d+|$)',
+        content, re.DOTALL
+    )
+
+    for grid_num, grid_content in grid_sections:
+        grid = COSXGrid(grid_number=int(grid_num))
+
+        # Extract grid properties
+        acc_match = re.search(r'General Integration Accuracy\s+IntAcc\s+\.\.\.\s+(\d+\.?\d*)', grid_content)
+        if acc_match:
+            grid.integration_accuracy = float(acc_match.group(1))
+
+        rad_match = re.search(r'Radial Grid Type\s+RadialGrid\s+\.\.\.\s+(.*?)(?:\n|$)', grid_content)
+        if rad_match:
+            grid.radial_grid_type = rad_match.group(1).strip()
+
+        ang_match = re.search(r'Angular Grid.*?AngularGrid\s+\.\.\.\s+(.*?)(?:\n|$)', grid_content)
+        if ang_match:
+            grid.angular_grid = ang_match.group(1).strip()
+
+        points_match = re.search(r'Total number of grid points\s+\.\.\.\s+(\d+)', grid_content)
+        if points_match:
+            grid.total_grid_points = int(points_match.group(1))
+
+        batch_match = re.search(r'Total number of batches\s+\.\.\.\s+(\d+)', grid_content)
+        if batch_match:
+            grid.num_batches = int(batch_match.group(1))
+
+        avg_batch_match = re.search(r'Average number of points per batch\s+\.\.\.\s+(\d+)', grid_content)
+        if avg_batch_match:
+            grid.avg_points_per_batch = int(avg_batch_match.group(1))
+
+        avg_atom_match = re.search(r'Average number of grid points per atom\s+\.\.\.\s+(\d+)', grid_content)
+        if avg_atom_match:
+            grid.avg_points_per_atom = int(avg_atom_match.group(1))
+
+        grids.append(grid)
+
+    return grids
+
+
 def parse_raman_spectrum(content: str) -> list[RamanMode]:
     """Extract Raman spectrum data."""
     modes = []
@@ -1914,6 +2117,19 @@ if __name__ == '__main__':
             if result.chemical_shielding_tensors:
                 t = result.chemical_shielding_tensors[0]
                 print(f"  Example: {t.atom_index}{t.element}, total_iso={t.total_iso:.2f} ppm")
+
+        if result.geometric_perturbations:
+            print(f"Geometric Perturbations: {result.geometric_perturbations.num_perturbations} perturbations")
+            print(f"  Time: {result.geometric_perturbations.total_time:.1f}s, Memory: {result.geometric_perturbations.max_memory_mb:.0f} MB")
+
+        if result.shark_integrals:
+            print(f"SHARK Integrals: {result.shark_integrals.num_basis_functions} basis functions, {result.shark_integrals.num_shells} shells")
+            print(f"  Shell pairs: {result.shark_integrals.shell_pairs_after_screening:,} (after screening)")
+
+        if result.cosx_grids:
+            print(f"COSX Grids: {len(result.cosx_grids)} grids")
+            total_points = sum(g.total_grid_points for g in result.cosx_grids)
+            print(f"  Total grid points: {total_points:,}")
 
         if result.raman_spectrum:
             strongest = max(result.raman_spectrum, key=lambda x: x.activity)
