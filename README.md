@@ -1063,12 +1063,12 @@ function App() {
   - Interactive: Click to highlight
   - Zoom to HOMO/LUMO region
   - Data: `mulliken_orbital_charges` (371 MOs)
-- [ ] **3D.2** SCF convergence details (multi-line)
-  - Energy convergence
-  - Density convergence
-  - DIIS error
-  - Three traces on same plot
-  - Convergence thresholds
+- [x] **3D.2** SCF convergence details (multi-line) - **DONE** ✓
+  - ✓ Energy convergence (blue line)
+  - ✓ Density convergence (green dotted, log scale)
+  - ✓ DIIS error (red dashed, log scale)
+  - ✓ Three y-axes on same plot
+  - ✓ Unified hover mode with custom templates
   - Data: `scf_iterations`
 - [ ] **3D.3** HOMO-LUMO gap tracker
   - Gap value vs geometry step
@@ -1102,15 +1102,17 @@ function App() {
   - ✓ Color-coded sections
   - ✓ Export as PNG
   - Data: `timing_data`
-- [ ] **3F.2** Basis set composition
-  - Pie chart: s, p, d, f functions
-  - Bar chart per atom type
-  - Statistics table
+- [x] **3F.2** Basis set composition - **DONE** ✓
+  - ✓ Pie chart showing basis functions, contracted/primitive shells
+  - ✓ Basis set name in title
+  - ✓ Total functions annotation
+  - ✓ Interactive hover with percentages
   - Data: `basis_set_info`
-- [ ] **3F.3** DFT grid statistics
-  - Grid points per atom
-  - Accuracy levels
-  - COSX grid details
+- [x] **3F.3** DFT grid statistics - **DONE** ✓
+  - ✓ Bar chart with grid points (DFT + COSX)
+  - ✓ Logarithmic y-axis for large numbers
+  - ✓ Grouped bars for comparison
+  - ✓ Hover tooltips with formatted counts
   - Data: `dft_grid_info`, `cosx_grids`
 - [ ] **3F.4** Memory usage tracking
   - Peak memory per module

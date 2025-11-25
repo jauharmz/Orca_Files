@@ -549,6 +549,33 @@
                     <button class="btn-export" onclick="exportPlot('timing-plot', 'timing_breakdown.png')">📷 PNG</button>
                 </div>
             </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">SCF Convergence Details 🔬</button>
+            <div class="collapsible-content">
+                <div id="scf-details-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('scf-details-plot', 'scf_details.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Multi-line plot showing energy convergence, density change, and DIIS error
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Basis Set Composition 📚</button>
+            <div class="collapsible-content">
+                <div id="basis-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('basis-plot', 'basis_composition.png')">📷 PNG</button>
+                </div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">DFT Grid Statistics 🎯</button>
+            <div class="collapsible-content">
+                <div id="grid-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('grid-plot', 'grid_statistics.png')">📷 PNG</button>
+                </div>
+            </div>
         </div>
 
         <!-- Geometry Tab -->
@@ -920,26 +947,86 @@
 
         // ===== 3D MOLECULAR VISUALIZATION =====
         function render3DMolecule() {
-            if (!data || !data.coordinates) return;
+            if (!data || !data.coordinates || data.coordinates.length === 0) {
+                console.error('No coordinate data available');
+                return;
+            }
 
             const container = document.getElementById('molecule-viewer');
+            if (!container) {
+                console.error('Molecule viewer container not found');
+                return;
+            }
+
             container.innerHTML = ''; // Clear previous viewer
 
-            viewer3d = $3Dmol.createViewer(container, {
-                backgroundColor: 'white'
-            });
+            try {
+                viewer3d = $3Dmol.createViewer(container, {
+                    backgroundColor: 'white',
+                    antialias: true
+                });
 
-            // Convert coordinates to XYZ format
-            let xyzData = `${data.coordinates.length}\nORCA Molecule\n`;
-            data.coordinates.forEach(coord => {
-                const [element, x, y, z] = coord;
-                xyzData += `${element}  ${x}  ${y}  ${z}\n`;
-            });
+                // Convert coordinates to XYZ format
+                let xyzData = `${data.coordinates.length}\n`;
+                xyzData += `ORCA Molecule - ${data.job_info?.basis_set || 'Unknown basis'}\n`;
 
-            viewer3d.addModel(xyzData, 'xyz');
-            viewer3d.setStyle({}, {stick: {radius: 0.15}, sphere: {scale: 0.3}});
-            viewer3d.zoomTo();
-            viewer3d.render();
+                data.coordinates.forEach((coord, idx) => {
+                    const [element, x, y, z] = coord;
+                    if (element && typeof x === 'number' && typeof y === 'number' && typeof z === 'number') {
+                        xyzData += `${element}  ${x.toFixed(6)}  ${y.toFixed(6)}  ${z.toFixed(6)}\n`;
+                    } else {
+                        console.warn(`Invalid coordinate at index ${idx}:`, coord);
+                    }
+                });
+
+                // Add model with better error handling
+                const model = viewer3d.addModel(xyzData, 'xyz');
+
+                if (!model) {
+                    throw new Error('Failed to create 3D model');
+                }
+
+                // Set default style with better visibility
+                viewer3d.setStyle({}, {
+                    stick: {radius: 0.15, color: 'spectrum'},
+                    sphere: {scale: 0.3}
+                });
+
+                // Add hover labels
+                viewer3d.setHoverable({}, true, function(atom, viewer, event, container) {
+                    if (!atom.label) {
+                        const label = `${atom.elem} #${atom.serial}\n` +
+                                    `x: ${atom.x.toFixed(3)}\n` +
+                                    `y: ${atom.y.toFixed(3)}\n` +
+                                    `z: ${atom.z.toFixed(3)}`;
+                        viewer.addLabel(label, {
+                            position: atom,
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            fontColor: 'white',
+                            fontSize: 12,
+                            showBackground: true
+                        });
+                        atom.label = true;
+                    }
+                }, function(atom) {
+                    if (atom.label) {
+                        viewer3d.removeAllLabels();
+                        atom.label = false;
+                    }
+                });
+
+                viewer3d.zoomTo();
+                viewer3d.render();
+
+                console.log('3D molecule rendered successfully');
+            } catch (error) {
+                console.error('Error rendering 3D molecule:', error);
+                container.innerHTML = `<div style="padding: 20px; color: red;">
+                    <strong>Error rendering 3D molecule:</strong><br>
+                    ${error.message}<br>
+                    Please check the console for details.
+                </div>`;
+            }
         }
 
         function setMoleculeStyle(style) {
@@ -1139,6 +1226,9 @@
             renderNMRPlot();
             renderCombinedSpectrum();
             renderTimingBreakdown();
+            renderSCFDetails();
+            renderBasisComposition();
+            renderGridStatistics();
         }
 
         function renderSCFPlot() {
@@ -1398,6 +1488,206 @@
             };
 
             Plotly.newPlot('timing-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderSCFDetails() {
+            if (!data || !data.scf_iterations || data.scf_iterations.length === 0) return;
+
+            const iterations = data.scf_iterations;
+            const xData = iterations.map((_, i) => i + 1);
+
+            const traces = [];
+
+            // Energy convergence
+            if (iterations[0].energy !== undefined) {
+                traces.push({
+                    x: xData,
+                    y: iterations.map(it => it.energy),
+                    name: 'Energy (Eh)',
+                    mode: 'lines+markers',
+                    line: {color: '#667eea', width: 2},
+                    marker: {size: 6},
+                    yaxis: 'y',
+                    hovertemplate: 'Iteration %{x}<br>Energy: %{y:.8f} Eh<extra></extra>'
+                });
+            }
+
+            // Density convergence
+            if (iterations[0].max_density_change !== undefined) {
+                traces.push({
+                    x: xData,
+                    y: iterations.map(it => Math.abs(it.max_density_change)),
+                    name: 'Density Change',
+                    mode: 'lines+markers',
+                    line: {color: '#28a745', width: 2, dash: 'dot'},
+                    marker: {size: 6},
+                    yaxis: 'y2',
+                    hovertemplate: 'Iteration %{x}<br>Density: %{y:.2e}<extra></extra>'
+                });
+            }
+
+            // DIIS error
+            if (iterations[0].diis_error !== undefined) {
+                traces.push({
+                    x: xData,
+                    y: iterations.map(it => it.diis_error),
+                    name: 'DIIS Error',
+                    mode: 'lines+markers',
+                    line: {color: '#dc3545', width: 2, dash: 'dash'},
+                    marker: {size: 6},
+                    yaxis: 'y3',
+                    hovertemplate: 'Iteration %{x}<br>DIIS Error: %{y:.2e}<extra></extra>'
+                });
+            }
+
+            if (traces.length === 0) return;
+
+            const layout = {
+                title: 'SCF Convergence Details',
+                xaxis: {title: 'Iteration'},
+                yaxis: {
+                    title: 'Energy (Eh)',
+                    titlefont: {color: '#667eea'},
+                    tickfont: {color: '#667eea'}
+                },
+                yaxis2: {
+                    title: 'Density Change',
+                    titlefont: {color: '#28a745'},
+                    tickfont: {color: '#28a745'},
+                    overlaying: 'y',
+                    side: 'right',
+                    type: 'log'
+                },
+                yaxis3: {
+                    title: 'DIIS Error',
+                    titlefont: {color: '#dc3545'},
+                    tickfont: {color: '#dc3545'},
+                    anchor: 'free',
+                    overlaying: 'y',
+                    side: 'right',
+                    position: 0.95,
+                    type: 'log'
+                },
+                hovermode: 'x unified',
+                showlegend: true,
+                legend: {x: 0.01, y: 0.99}
+            };
+
+            Plotly.newPlot('scf-details-plot', traces, layout, {responsive: true});
+        }
+
+        function renderBasisComposition() {
+            if (!data || !data.basis_set_info) return;
+
+            const basis = data.basis_set_info;
+
+            // Count shells by type
+            const shellCounts = {};
+            let totalPrimitives = 0;
+
+            // Try to extract shell information
+            // This is a simplified version - real implementation depends on data structure
+            const labels = [];
+            const values = [];
+
+            if (basis.num_basis_functions) {
+                // If we have detailed shell info, use it
+                // Otherwise, show general info
+                labels.push('Total Basis Functions');
+                values.push(basis.num_basis_functions);
+            }
+
+            if (basis.num_contracted_shells) {
+                labels.push('Contracted Shells');
+                values.push(basis.num_contracted_shells);
+            }
+
+            if (basis.num_primitive_shells) {
+                labels.push('Primitive Shells');
+                values.push(basis.num_primitive_shells);
+            }
+
+            if (labels.length === 0) return;
+
+            const trace = {
+                labels: labels,
+                values: values,
+                type: 'pie',
+                textinfo: 'label+value',
+                hoverinfo: 'label+value+percent',
+                marker: {
+                    colors: ['#667eea', '#764ba2', '#28a745', '#ffc107', '#dc3545']
+                },
+                hovertemplate: '%{label}<br>Count: %{value}<br>Percent: %{percent}<extra></extra>'
+            };
+
+            const layout = {
+                title: `Basis Set: ${basis.basis_set_name || 'Unknown'}`,
+                height: 400,
+                showlegend: true,
+                annotations: [{
+                    text: `${basis.num_basis_functions || 0} Functions`,
+                    x: 0.5,
+                    y: -0.1,
+                    xref: 'paper',
+                    yref: 'paper',
+                    showarrow: false,
+                    font: {size: 14}
+                }]
+            };
+
+            Plotly.newPlot('basis-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderGridStatistics() {
+            if (!data || (!data.dft_grid_info && !data.cosx_grids)) return;
+
+            const traces = [];
+
+            // DFT Grid data
+            if (data.dft_grid_info) {
+                const grid = data.dft_grid_info;
+                traces.push({
+                    x: ['Total Grid Points', 'Radial Points', 'Angular Points'],
+                    y: [
+                        grid.total_grid_points || 0,
+                        grid.radial_grid_points || 0,
+                        grid.angular_grid_points || 0
+                    ],
+                    name: 'DFT Grid',
+                    type: 'bar',
+                    marker: {color: '#667eea'},
+                    hovertemplate: '%{x}: %{y:,}<extra></extra>'
+                });
+            }
+
+            // COSX Grids
+            if (data.cosx_grids && data.cosx_grids.length > 0) {
+                const cosxLabels = data.cosx_grids.map((g, i) => `Grid ${g.grid_number || i+1}`);
+                const cosxPoints = data.cosx_grids.map(g => g.total_grid_points || 0);
+
+                traces.push({
+                    x: cosxLabels,
+                    y: cosxPoints,
+                    name: 'COSX Grids',
+                    type: 'bar',
+                    marker: {color: '#28a745'},
+                    hovertemplate: '%{x}: %{y:,} points<extra></extra>'
+                });
+            }
+
+            if (traces.length === 0) return;
+
+            const layout = {
+                title: 'DFT Grid Statistics',
+                xaxis: {title: 'Grid Type'},
+                yaxis: {title: 'Number of Points', type: 'log'},
+                barmode: 'group',
+                hovermode: 'closest',
+                showlegend: traces.length > 1
+            };
+
+            Plotly.newPlot('grid-plot', traces, layout, {responsive: true});
         }
 
         // ===== COLLAPSIBLE SECTIONS =====
