@@ -194,6 +194,27 @@ class EnergyComponents:
 
 
 @dataclass
+class CPCMSolvation:
+    """CPCM solvation model properties."""
+    surface_charge: float = 0.0
+    corrected_charge: float = 0.0
+    outlying_charge_correction: float = 0.0  # Eh
+    outlying_charge_correction_ev: float = 0.0  # eV
+    dielectric_energy: float = 0.0  # Eh (CPCM Dielectric term)
+
+
+@dataclass
+class SCFConvergence:
+    """SCF convergence criteria values."""
+    energy_change: float = 0.0
+    max_density_change: float = 0.0
+    rms_density_change: float = 0.0
+    diis_error: float = 0.0
+    orbital_gradient: float = 0.0
+    orbital_rotation: float = 0.0
+
+
+@dataclass
 class OrcaOutput:
     """Complete parsed ORCA output."""
     job_info: JobInfo
@@ -213,6 +234,8 @@ class OrcaOutput:
     dft_grid_info: Optional[DFTGridInfo] = None
     basis_set_info: Optional[BasisSetInfo] = None
     energy_components: Optional[EnergyComponents] = None
+    cpcm_solvation: Optional[CPCMSolvation] = None
+    scf_convergence: Optional[SCFConvergence] = None
     mulliken_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     loewdin_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     mayer_bond_orders: list[tuple[int, int, float]] = field(default_factory=list)
@@ -306,6 +329,21 @@ class OrcaOutput:
                 'correlation_energy': self.energy_components.correlation_energy,
                 'xc_energy': self.energy_components.xc_energy
             } if self.energy_components else None,
+            'cpcm_solvation': {
+                'surface_charge': self.cpcm_solvation.surface_charge,
+                'corrected_charge': self.cpcm_solvation.corrected_charge,
+                'outlying_charge_correction': self.cpcm_solvation.outlying_charge_correction,
+                'outlying_charge_correction_ev': self.cpcm_solvation.outlying_charge_correction_ev,
+                'dielectric_energy': self.cpcm_solvation.dielectric_energy
+            } if self.cpcm_solvation else None,
+            'scf_convergence': {
+                'energy_change': self.scf_convergence.energy_change,
+                'max_density_change': self.scf_convergence.max_density_change,
+                'rms_density_change': self.scf_convergence.rms_density_change,
+                'diis_error': self.scf_convergence.diis_error,
+                'orbital_gradient': self.scf_convergence.orbital_gradient,
+                'orbital_rotation': self.scf_convergence.orbital_rotation
+            } if self.scf_convergence else None,
             'mulliken_charges': {
                 str(k): {'element': v[0], 'charge': v[1]}
                 for k, v in self.mulliken_charges.items()
@@ -376,6 +414,8 @@ def parse_out_content(content: str) -> OrcaOutput:
     dft_grid = parse_dft_grid_info(content)
     basis_set = parse_basis_set_info(content)
     energy_comp = parse_energy_components(content)
+    cpcm_solv = parse_cpcm_solvation(content)
+    scf_conv = parse_scf_convergence(content)
 
     # Get number of atoms for normal modes parsing
     num_atoms = len(mulliken) if mulliken else 0
@@ -399,6 +439,8 @@ def parse_out_content(content: str) -> OrcaOutput:
         dft_grid_info=dft_grid,
         basis_set_info=basis_set,
         energy_components=energy_comp,
+        cpcm_solvation=cpcm_solv,
+        scf_convergence=scf_conv,
         mulliken_charges=mulliken,
         loewdin_charges=loewdin,
         mayer_bond_orders=bond_orders,
@@ -1106,6 +1148,64 @@ def parse_energy_components(content: str) -> Optional[EnergyComponents]:
     return None
 
 
+def parse_cpcm_solvation(content: str) -> Optional[CPCMSolvation]:
+    """Extract CPCM solvation model properties."""
+    cpcm = CPCMSolvation()
+
+    # Find CPCM Solvation Model Properties section
+    cpcm_section = re.search(
+        r'CPCM Solvation Model Properties:\s*'
+        r'Surface-charge\s*:\s*(-?\d+\.?\d*)\s*'
+        r'Corrected charge\s*:\s*(-?\d+\.?\d*)\s*'
+        r'Outlying charge corr\.\s*:\s*(-?\d+\.?\d+)\s*Eh\s*(-?\d+\.?\d+)\s*eV',
+        content, re.DOTALL
+    )
+
+    if cpcm_section:
+        cpcm.surface_charge = float(cpcm_section.group(1))
+        cpcm.corrected_charge = float(cpcm_section.group(2))
+        cpcm.outlying_charge_correction = float(cpcm_section.group(3))
+        cpcm.outlying_charge_correction_ev = float(cpcm_section.group(4))
+
+    # Also extract CPCM Dielectric energy from components section
+    dielectric_match = re.search(r'CPCM Dielectric\s*:\s*(-?\d+\.?\d+)\s*Eh', content)
+    if dielectric_match:
+        cpcm.dielectric_energy = float(dielectric_match.group(1))
+
+    # Return if we found at least some data
+    if cpcm.surface_charge != 0.0 or cpcm.dielectric_energy != 0.0:
+        return cpcm
+    return None
+
+
+def parse_scf_convergence(content: str) -> Optional[SCFConvergence]:
+    """Extract SCF convergence criteria values."""
+    conv = SCFConvergence()
+
+    # Find SCF CONVERGENCE section
+    conv_section = re.search(
+        r'SCF CONVERGENCE\s*-+\s*'
+        r'Last Energy change\s*\.\.\.\s*(-?\d+\.?\d+e[+-]?\d+).*?'
+        r'Last MAX-Density change\s*\.\.\.\s*(-?\d+\.?\d+e[+-]?\d+).*?'
+        r'Last RMS-Density change\s*\.\.\.\s*(-?\d+\.?\d+e[+-]?\d+).*?'
+        r'Last DIIS Error\s*\.\.\.\s*(-?\d+\.?\d+e[+-]?\d+).*?'
+        r'Last Orbital Gradient\s*\.\.\.\s*(-?\d+\.?\d+e[+-]?\d+).*?'
+        r'Last Orbital Rotation\s*\.\.\.\s*(-?\d+\.?\d+e[+-]?\d+)',
+        content, re.DOTALL
+    )
+
+    if conv_section:
+        conv.energy_change = float(conv_section.group(1))
+        conv.max_density_change = float(conv_section.group(2))
+        conv.rms_density_change = float(conv_section.group(3))
+        conv.diis_error = float(conv_section.group(4))
+        conv.orbital_gradient = float(conv_section.group(5))
+        conv.orbital_rotation = float(conv_section.group(6))
+        return conv
+
+    return None
+
+
 def parse_timing_data(content: str) -> Optional[TimingData]:
     """Extract computational timing breakdown."""
     timing = TimingData()
@@ -1247,3 +1347,22 @@ if __name__ == '__main__':
                 print(f"  Virial Ratio: {ec.virial_ratio:.8f}")
             if ec.xc_energy != 0.0:
                 print(f"  XC Energy: {ec.xc_energy:.6f} Eh (X: {ec.exchange_energy:.6f}, C: {ec.correlation_energy:.6f})")
+
+        if result.cpcm_solvation:
+            cpcm = result.cpcm_solvation
+            print(f"CPCM Solvation:")
+            print(f"  Surface Charge: {cpcm.surface_charge:.8f}")
+            print(f"  Corrected Charge: {cpcm.corrected_charge:.8f}")
+            print(f"  Outlying Charge Correction: {cpcm.outlying_charge_correction:.8f} Eh ({cpcm.outlying_charge_correction_ev:.5f} eV)")
+            if cpcm.dielectric_energy != 0.0:
+                print(f"  Dielectric Energy: {cpcm.dielectric_energy:.8f} Eh")
+
+        if result.scf_convergence:
+            conv = result.scf_convergence
+            print(f"SCF Convergence:")
+            print(f"  Energy Change: {conv.energy_change:.2e}")
+            print(f"  MAX-Density Change: {conv.max_density_change:.2e}")
+            print(f"  RMS-Density Change: {conv.rms_density_change:.2e}")
+            print(f"  DIIS Error: {conv.diis_error:.2e}")
+            print(f"  Orbital Gradient: {conv.orbital_gradient:.2e}")
+            print(f"  Orbital Rotation: {conv.orbital_rotation:.2e}")
