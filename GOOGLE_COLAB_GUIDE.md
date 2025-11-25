@@ -19,20 +19,30 @@ Complete guide to run ORCA parser tests and web UI in Google Colab with public a
 
 ### Step 3: Launch with Tunnel (Choose One)
 
-#### Option A: ngrok (Recommended - No IP confirmation needed)
+#### Option A: localtunnel (Recommended - No signup needed) ⭐
+```python
+!python run_with_tunnel.py
+```
+✅ **Easy setup** - The script automatically displays your IP address!
+
+**What you'll see:**
+```
+📋 YOUR IP ADDRESS (copy this!):
+    123.45.67.89
+
+🔗 Your tunnel URL: https://heavy-cats-jump.loca.lt
+```
+
+**Just copy/paste your IP on the landing page and click Continue!** (one-time per session)
+
+#### Option B: ngrok (Alternative - No landing page)
 ```python
 # Get free auth token from https://ngrok.com/
 !pip install pyngrok -q
 !ngrok authtoken YOUR_AUTH_TOKEN
 !python run_with_ngrok.py
 ```
-✅ **Direct access** - No landing page, no IP confirmation
-
-#### Option B: localtunnel (Free, but requires IP confirmation)
-```python
-!python run_with_tunnel.py
-```
-⚠️ **Note:** When you open the URL, click "Click to Continue" on the landing page to confirm your IP address (one-time per session)
+✅ **Direct access** - No landing page, but requires ngrok signup
 
 **That's it!** You'll get a public URL to access the UI from anywhere
 
@@ -257,28 +267,33 @@ Once you have the public URL (e.g., `https://xxxxx.loca.lt`):
 !which lt
 ```
 
-### Issue: Localtunnel asks for IP address as password
+### Issue: Localtunnel asks for IP address on landing page
 
 This is **normal behavior** for localtunnel's security feature.
 
-**Solution 1:** Click "Click to Continue" button on the landing page
-- When you open the tunnel URL, you'll see a confirmation page
-- Click the button to confirm your IP address
-- You'll only need to do this once per session
-- After confirmation, you'll access the UI directly
+**Solution:** The script automatically displays your IP address!
 
-**Solution 2:** Switch to ngrok (no IP confirmation needed)
+When you run `!python run_with_tunnel.py`, you'll see:
+```
+📋 YOUR IP ADDRESS (copy this!):
+    123.45.67.89
+```
+
+**Just copy this IP and paste it on the localtunnel landing page!**
+
+Steps:
+1. Copy the IP address shown in the script output
+2. Open the tunnel URL (e.g., `https://xxxxx.loca.lt`)
+3. Paste the IP on the landing page
+4. Click "Continue"
+5. Access the UI! (one-time confirmation per session)
+
+**Alternative:** Switch to ngrok (no landing page at all)
 ```python
-# Install ngrok
 !pip install pyngrok -q
-
-# Get free auth token from https://ngrok.com/
-!ngrok authtoken YOUR_AUTH_TOKEN
-
-# Run with ngrok
+!ngrok authtoken YOUR_AUTH_TOKEN  # Get from https://ngrok.com/
 !python run_with_ngrok.py
 ```
-✅ ngrok provides direct access without any landing page
 
 ### Issue: "Test file not found"
 
