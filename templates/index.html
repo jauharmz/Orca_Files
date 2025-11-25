@@ -453,7 +453,7 @@
                     </div>
                     <div class="card">
                         <h3>Dipole Moment</h3>
-                        <div class="value">${data.dipole_moment.magnitude_debye.toFixed(4)}</div>
+                        <div class="value">${data.dipole_moment?.magnitude_debye?.toFixed(4) || 'N/A'}</div>
                         <div class="label">Debye</div>
                     </div>
                 </div>
@@ -468,9 +468,9 @@
 
                 <div class="info-box">
                     <h4>ℹ️ Computation Details</h4>
-                    <p><strong>Basis Functions:</strong> ${data.basis_set_info.num_basis_functions}</p>
-                    <p><strong>DFT Grid Points:</strong> ${data.dft_grid_info.total_grid_points.toLocaleString()}</p>
-                    <p><strong>Total Runtime:</strong> ${(data.timing_data.total_run_time / 60).toFixed(1)} minutes</p>
+                    <p><strong>Basis Functions:</strong> ${data.basis_set_info?.num_basis_functions || 'N/A'}</p>
+                    <p><strong>DFT Grid Points:</strong> ${data.dft_grid_info?.total_grid_points?.toLocaleString() || 'N/A'}</p>
+                    <p><strong>Total Runtime:</strong> ${data.timing_data?.total_run_time ? (data.timing_data.total_run_time / 60).toFixed(1) + ' minutes' : 'N/A'}</p>
                 </div>
             `;
 
@@ -485,10 +485,10 @@
             data.coordinates.forEach((coord, i) => {
                 html += `<tr>
                     <td>${i}</td>
-                    <td><strong>${coord[0]}</strong></td>
-                    <td>${coord[1].toFixed(6)}</td>
-                    <td>${coord[2].toFixed(6)}</td>
-                    <td>${coord[3].toFixed(6)}</td>
+                    <td><strong>${coord[0] || 'N/A'}</strong></td>
+                    <td>${typeof coord[1] === 'number' ? coord[1].toFixed(6) : 'N/A'}</td>
+                    <td>${typeof coord[2] === 'number' ? coord[2].toFixed(6) : 'N/A'}</td>
+                    <td>${typeof coord[3] === 'number' ? coord[3].toFixed(6) : 'N/A'}</td>
                 </tr>`;
             });
 
@@ -515,8 +515,8 @@
 
                 <div class="info-box">
                     <h4>SCF Convergence</h4>
-                    <p><strong>Iterations:</strong> ${data.scf_energies.length}</p>
-                    <p><strong>Final Energy:</strong> ${data.scf_energies[data.scf_energies.length - 1].toFixed(6)} Eh</p>
+                    <p><strong>Iterations:</strong> ${data.scf_energies?.length || 'N/A'}</p>
+                    <p><strong>Final Energy:</strong> ${data.scf_energies?.length ? data.scf_energies[data.scf_energies.length - 1].toFixed(6) + ' Eh' : 'N/A'}</p>
                 </div>
             `;
 
@@ -533,10 +533,10 @@
             orbitals.forEach(orb => {
                 const highlight = orb.occupation > 0.5 && orb.occupation < 2.0 ? 'style="background: #ffffcc;"' : '';
                 html += `<tr ${highlight}>
-                    <td>${orb.index}</td>
-                    <td>${orb.occupation.toFixed(4)}</td>
-                    <td>${orb.energy_ev.toFixed(4)}</td>
-                    <td>${orb.energy_eh.toFixed(6)}</td>
+                    <td>${orb.index || 'N/A'}</td>
+                    <td>${orb.occupation?.toFixed(4) || 'N/A'}</td>
+                    <td>${orb.energy_ev?.toFixed(4) || 'N/A'}</td>
+                    <td>${orb.energy_eh?.toFixed(6) || 'N/A'}</td>
                 </tr>`;
             });
 
@@ -552,10 +552,10 @@
             let html = '<table><thead><tr><th>Mode</th><th>Frequency (cm⁻¹)</th><th>Raman Activity</th></tr></thead><tbody>';
             
             data.frequencies.forEach((freq, i) => {
-                const raman = data.raman_spectrum[i] ? data.raman_spectrum[i].activity.toFixed(2) : 'N/A';
+                const raman = data.raman_spectrum?.[i]?.activity?.toFixed(2) || 'N/A';
                 html += `<tr>
                     <td>${i + 1}</td>
-                    <td>${freq.toFixed(2)}</td>
+                    <td>${typeof freq === 'number' ? freq.toFixed(2) : 'N/A'}</td>
                     <td>${raman}</td>
                 </tr>`;
             });
@@ -573,10 +573,10 @@
             
             shifts.forEach(shift => {
                 html += `<tr>
-                    <td>${shift.nucleus}</td>
-                    <td><strong>${shift.element}</strong></td>
-                    <td>${shift.isotropic.toFixed(2)}</td>
-                    <td>${shift.anisotropy.toFixed(2)}</td>
+                    <td>${shift.nucleus || 'N/A'}</td>
+                    <td><strong>${shift.element || 'N/A'}</strong></td>
+                    <td>${shift.isotropic?.toFixed(2) || 'N/A'}</td>
+                    <td>${shift.anisotropy?.toFixed(2) || 'N/A'}</td>
                 </tr>`;
             });
 
@@ -592,8 +592,8 @@
             Object.entries(data.mulliken_charges).forEach(([atom, info]) => {
                 html += `<tr>
                     <td>${atom}</td>
-                    <td><strong>${info.element}</strong></td>
-                    <td>${info.charge.toFixed(4)}</td>
+                    <td><strong>${info.element || 'N/A'}</strong></td>
+                    <td>${info.charge?.toFixed(4) || 'N/A'}</td>
                 </tr>`;
             });
 
