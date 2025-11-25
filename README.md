@@ -151,7 +151,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 **Last Updated:** 2025-11-25
 **Test File:** p1xs0p.out (113,234 lines)
-**Current Coverage:** 35/57 sections parsed (61%)
+**Current Coverage:** 38/57 sections parsed (67%)
 
 ### Status Summary
 
@@ -160,7 +160,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 | **HIGH Priority** | 10 | 6 | 16 |
 | **MEDIUM Priority** | 17 | 10 | 27 |
 | **LOW Priority** | 8 | 6 | 14 |
-| **TOTAL** | **35** | **22** | **57** |
+| **TOTAL** | **38** | **19** | **57** |
 
 ### High Priority Unparsed Sections (7)
 
