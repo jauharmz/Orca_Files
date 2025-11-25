@@ -406,7 +406,7 @@
         <header>
             <h1>🧪 ORCA Output Viewer</h1>
             <p>Comprehensive Quantum Chemistry Data Visualization</p>
-            <p style="margin-top: 10px; font-size: 0.9em;">38/57 sections parsed (67% coverage) | 53 Interactive Visualizations</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">38/57 sections parsed (67% coverage) | 62 Interactive Visualizations</p>
         </header>
 
         <div class="controls">
@@ -1002,6 +1002,107 @@
                 </div>
                 <p style="margin-top: 10px; font-size: 12px; color: #666;">
                     Coordination number (number of nearby atoms within 3.5 Å) for each atom.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">SCF Convergence Dashboard 📊</button>
+            <div class="collapsible-content">
+                <div id="scf-dashboard-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('scf-dashboard-plot', 'scf_convergence_dashboard.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Final SCF convergence criteria: energy change, density change, maximum element.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Energy Decomposition Waterfall 💧</button>
+            <div class="collapsible-content">
+                <div id="energy-waterfall-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('energy-waterfall-plot', 'energy_waterfall.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Cascading breakdown of total energy into nuclear, electronic, kinetic, and exchange-correlation components.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Computational Performance Dashboard ⚡</button>
+            <div class="collapsible-content">
+                <div id="performance-dashboard-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('performance-dashboard-plot', 'performance_metrics.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Performance metrics: total runtime, SCF iterations per second, time per optimization step.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Orbital Energy Gap Landscape 🌄</button>
+            <div class="collapsible-content">
+                <div id="orbital-gaps-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('orbital-gaps-plot', 'orbital_gaps.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Energy gaps between consecutive molecular orbitals (eV). HOMO-LUMO gap highlighted.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Vibrational Mode Classification 🎵</button>
+            <div class="collapsible-content">
+                <div id="mode-classification-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('mode-classification-plot', 'mode_classification.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Vibrational modes grouped by type: bending (<800 cm⁻¹), stretching (800-1800 cm⁻¹), high-frequency (>1800 cm⁻¹).
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">NMR Shift Distribution 🧬</button>
+            <div class="collapsible-content">
+                <div id="nmr-distribution-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('nmr-distribution-plot', 'nmr_distribution.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Box plot distribution of NMR chemical shifts grouped by nucleus type.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Bond Strength Distribution 🔗</button>
+            <div class="collapsible-content">
+                <div id="bond-strength-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('bond-strength-plot', 'bond_distribution.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Histogram of Mayer bond order values. Shows distribution of single, double, triple bonds.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Timing Efficiency Breakdown ⏱️</button>
+            <div class="collapsible-content">
+                <div id="timing-efficiency-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('timing-efficiency-plot', 'timing_efficiency.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Horizontal bar chart showing time spent in each computational module, sorted by duration.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Molecular Properties Summary 📋</button>
+            <div class="collapsible-content">
+                <div id="properties-summary" style="padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                    <h3 style="margin-bottom: 15px; color: #667eea;">Key Molecular Properties</h3>
+                    <div id="summary-content" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Summary dashboard with key molecular statistics and calculation metadata.
                 </p>
             </div>
         </div>
@@ -1691,6 +1792,15 @@
             renderPopulationCorrelation();
             renderDistanceAnalysis();
             renderCoordinationNumbers();
+            renderSCFDashboard();
+            renderEnergyWaterfall();
+            renderPerformanceDashboard();
+            renderOrbitalGapsLandscape();
+            renderModeClassification();
+            renderNMRDistribution();
+            renderBondStrengthDistribution();
+            renderTimingEfficiency();
+            renderPropertiesSummary();
         }
 
         function renderSCFPlot() {
@@ -4052,6 +4162,461 @@
             };
 
             Plotly.newPlot('coordination-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderSCFDashboard() {
+            if (!data || !data.scf_convergence) return;
+
+            const conv = data.scf_convergence;
+            const labels = [];
+            const values = [];
+            const thresholds = [];
+
+            if (conv.energy_change !== null) {
+                labels.push('Energy Change');
+                values.push(Math.abs(conv.energy_change));
+                thresholds.push(1e-6); // typical threshold
+            }
+            if (conv.density_change !== null) {
+                labels.push('Density Change');
+                values.push(Math.abs(conv.density_change));
+                thresholds.push(1e-5);
+            }
+            if (conv.max_element !== null) {
+                labels.push('Max Element');
+                values.push(Math.abs(conv.max_element));
+                thresholds.push(1e-4);
+            }
+
+            if (labels.length === 0) return;
+
+            // Values trace (log scale)
+            const valuesTrace = {
+                x: labels,
+                y: values,
+                type: 'bar',
+                name: 'Actual Value',
+                marker: {
+                    color: values.map((v, i) => v < thresholds[i] ? '#2ecc71' : '#e74c3c'),
+                    line: {width: 1, color: 'white'}
+                },
+                hovertemplate: '%{x}<br>Value: %{y:.2e}<extra></extra>'
+            };
+
+            // Threshold trace
+            const thresholdTrace = {
+                x: labels,
+                y: thresholds,
+                type: 'scatter',
+                mode: 'markers',
+                name: 'Threshold',
+                marker: {size: 12, color: 'orange', symbol: 'line-ew', line: {width: 3}},
+                hovertemplate: '%{x}<br>Threshold: %{y:.2e}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'SCF Convergence Criteria (Final Values)',
+                xaxis: {title: 'Criterion'},
+                yaxis: {title: 'Value', type: 'log'},
+                showlegend: true,
+                annotations: labels.map((label, i) => ({
+                    x: label,
+                    y: values[i],
+                    text: values[i] < thresholds[i] ? '✓' : '✗',
+                    showarrow: false,
+                    yshift: 20,
+                    font: {size: 16, color: values[i] < thresholds[i] ? '#2ecc71' : '#e74c3c'}
+                }))
+            };
+
+            Plotly.newPlot('scf-dashboard-plot', [valuesTrace, thresholdTrace], layout, {responsive: true});
+        }
+
+        function renderEnergyWaterfall() {
+            if (!data || !data.energy_components) return;
+
+            const ec = data.energy_components;
+            const components = [];
+
+            // Build waterfall components
+            if (ec.nuclear_repulsion !== null) components.push({label: 'Nuclear Repulsion', value: ec.nuclear_repulsion});
+            if (ec.electronic_energy !== null) components.push({label: 'Electronic', value: ec.electronic_energy});
+            if (ec.kinetic_energy !== null) components.push({label: 'Kinetic', value: ec.kinetic_energy});
+            if (ec.potential_energy !== null) components.push({label: 'Potential', value: ec.potential_energy});
+            if (ec.xc_energy !== null) components.push({label: 'XC Energy', value: ec.xc_energy});
+            if (data.final_energy !== null) components.push({label: 'Total Energy', value: data.final_energy});
+
+            if (components.length === 0) return;
+
+            const trace = {
+                x: components.map(c => c.label),
+                y: components.map(c => c.value),
+                type: 'waterfall',
+                orientation: 'v',
+                connector: {
+                    line: {color: 'rgb(63, 63, 63)'}
+                },
+                decreasing: {marker: {color: '#e74c3c'}},
+                increasing: {marker: {color: '#2ecc71'}},
+                totals: {marker: {color: '#667eea'}},
+                hovertemplate: '%{x}<br>Energy: %{y:.6f} Eh<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Energy Decomposition Waterfall',
+                xaxis: {title: 'Component', tickangle: -45},
+                yaxis: {title: 'Energy (Eh)'},
+                showlegend: false,
+                margin: {b: 120}
+            };
+
+            Plotly.newPlot('energy-waterfall-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderPerformanceDashboard() {
+            if (!data) return;
+
+            const metrics = [];
+            const values = [];
+
+            // Total runtime
+            if (data.total_run_time && data.total_run_time.total_seconds) {
+                metrics.push('Total Runtime (s)');
+                values.push(data.total_run_time.total_seconds);
+            }
+
+            // SCF iterations per second
+            if (data.scf_energies && data.total_run_time && data.total_run_time.total_seconds) {
+                const iterPerSec = data.scf_energies.length / data.total_run_time.total_seconds;
+                metrics.push('SCF Iterations/sec');
+                values.push(iterPerSec);
+            }
+
+            // Time per optimization step
+            if (data.opt_energies && data.opt_energies.length > 1 && data.total_run_time && data.total_run_time.total_seconds) {
+                const timePerStep = data.total_run_time.total_seconds / data.opt_energies.length;
+                metrics.push('Time/Opt Step (s)');
+                values.push(timePerStep);
+            }
+
+            // Number of basis functions
+            if (data.basis_functions !== null) {
+                metrics.push('Basis Functions');
+                values.push(data.basis_functions);
+            }
+
+            if (metrics.length === 0) return;
+
+            const trace = {
+                x: metrics,
+                y: values,
+                type: 'bar',
+                marker: {
+                    color: ['#667eea', '#2ecc71', '#f39c12', '#9b59b6'],
+                    line: {width: 1, color: 'white'}
+                },
+                hovertemplate: '%{x}<br>Value: %{y:.2f}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Computational Performance Metrics',
+                xaxis: {title: 'Metric', tickangle: -45},
+                yaxis: {title: 'Value'},
+                showlegend: false,
+                margin: {b: 100}
+            };
+
+            Plotly.newPlot('performance-dashboard-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderOrbitalGapsLandscape() {
+            if (!data || !data.orbital_energies || data.orbital_energies.length < 2) return;
+
+            const energies = data.orbital_energies;
+            const gaps = [];
+            const indices = [];
+
+            // Calculate gaps between consecutive orbitals
+            for (let i = 0; i < energies.length - 1; i++) {
+                gaps.push((energies[i + 1] - energies[i]) * 27.211); // Convert to eV
+                indices.push(i);
+            }
+
+            // Find HOMO-LUMO gap
+            let homoIdx = -1;
+            if (data.homo_idx !== null && data.homo_idx !== undefined) {
+                homoIdx = data.homo_idx;
+            }
+
+            const trace = {
+                x: indices,
+                y: gaps,
+                mode: 'lines+markers',
+                type: 'scatter',
+                marker: {
+                    size: 6,
+                    color: gaps,
+                    colorscale: 'Viridis',
+                    colorbar: {title: 'Gap (eV)'},
+                    line: {width: 1, color: 'white'}
+                },
+                line: {color: '#667eea', width: 1},
+                hovertemplate: 'Orbitals %{x}→%{x+1}<br>Gap: %{y:.3f} eV<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Orbital Energy Gap Landscape',
+                xaxis: {title: 'Orbital Index'},
+                yaxis: {title: 'Energy Gap (eV)'},
+                showlegend: false
+            };
+
+            // Highlight HOMO-LUMO gap if available
+            if (homoIdx >= 0 && homoIdx < gaps.length) {
+                layout.shapes = [{
+                    type: 'line',
+                    x0: homoIdx,
+                    y0: 0,
+                    x1: homoIdx,
+                    y1: Math.max(...gaps),
+                    line: {color: 'red', width: 2, dash: 'dash'}
+                }];
+                layout.annotations = [{
+                    x: homoIdx,
+                    y: gaps[homoIdx],
+                    text: `HOMO-LUMO<br>${gaps[homoIdx].toFixed(3)} eV`,
+                    showarrow: true,
+                    arrowhead: 2,
+                    ax: 40,
+                    ay: -40,
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                    bordercolor: 'red',
+                    borderwidth: 2
+                }];
+            }
+
+            Plotly.newPlot('orbital-gaps-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderModeClassification() {
+            if (!data || !data.frequencies || data.frequencies.length === 0) return;
+
+            // Classify modes
+            const bending = data.frequencies.filter(f => f < 800);
+            const stretching = data.frequencies.filter(f => f >= 800 && f < 1800);
+            const highFreq = data.frequencies.filter(f => f >= 1800);
+
+            const trace = {
+                x: ['Bending\n(<800)', 'Stretching\n(800-1800)', 'High-Frequency\n(>1800)'],
+                y: [bending.length, stretching.length, highFreq.length],
+                type: 'bar',
+                marker: {
+                    color: ['#3498db', '#2ecc71', '#e74c3c'],
+                    line: {width: 1, color: 'white'}
+                },
+                text: [
+                    `${bending.length} modes`,
+                    `${stretching.length} modes`,
+                    `${highFreq.length} modes`
+                ],
+                textposition: 'outside',
+                hovertemplate: '%{x}<br>Count: %{y} modes<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Vibrational Mode Classification',
+                xaxis: {title: 'Mode Type'},
+                yaxis: {title: 'Number of Modes'},
+                showlegend: false
+            };
+
+            Plotly.newPlot('mode-classification-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderNMRDistribution() {
+            if (!data || !data.nmr_shifts || data.nmr_shifts.length === 0) return;
+
+            // Group by nucleus type (assuming format like "1H", "13C")
+            const nucleusGroups = {};
+            data.nmr_shifts.forEach((shift, i) => {
+                const nucleus = data.coordinates_au && data.coordinates_au[i] ? data.coordinates_au[i][0] : 'Unknown';
+                if (!nucleusGroups[nucleus]) nucleusGroups[nucleus] = [];
+                nucleusGroups[nucleus].push(shift);
+            });
+
+            const nuclei = Object.keys(nucleusGroups).sort();
+            const traces = nuclei.map(nucleus => ({
+                y: nucleusGroups[nucleus],
+                type: 'box',
+                name: nucleus,
+                boxmean: 'sd',
+                hovertemplate: nucleus + '<br>Shift: %{y:.2f} ppm<extra></extra>'
+            }));
+
+            const layout = {
+                title: 'NMR Chemical Shift Distribution by Nucleus',
+                xaxis: {title: 'Nucleus Type'},
+                yaxis: {title: 'Chemical Shift (ppm)'},
+                showlegend: true
+            };
+
+            Plotly.newPlot('nmr-distribution-plot', traces, layout, {responsive: true});
+        }
+
+        function renderBondStrengthDistribution() {
+            if (!data || !data.mayer_bond_orders || data.mayer_bond_orders.length === 0) return;
+
+            // Extract bond order values > 0.1
+            const bondOrders = data.mayer_bond_orders.filter(b => b[2] > 0.1).map(b => b[2]);
+
+            if (bondOrders.length === 0) return;
+
+            const trace = {
+                x: bondOrders,
+                type: 'histogram',
+                nbinsx: 30,
+                marker: {
+                    color: '#667eea',
+                    line: {width: 1, color: 'white'}
+                },
+                hovertemplate: 'Bond Order: %{x:.2f}<br>Count: %{y}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Bond Strength Distribution (Mayer Bond Orders)',
+                xaxis: {title: 'Bond Order'},
+                yaxis: {title: 'Frequency'},
+                showlegend: false,
+                shapes: [
+                    {type: 'line', x0: 1, y0: 0, x1: 1, y1: 1, yref: 'paper', line: {color: 'red', dash: 'dash'}, opacity: 0.5},
+                    {type: 'line', x0: 2, y0: 0, x1: 2, y1: 1, yref: 'paper', line: {color: 'green', dash: 'dash'}, opacity: 0.5},
+                    {type: 'line', x0: 3, y0: 0, x1: 3, y1: 1, yref: 'paper', line: {color: 'blue', dash: 'dash'}, opacity: 0.5}
+                ],
+                annotations: [
+                    {x: 1, y: 1, yref: 'paper', text: 'Single', showarrow: false, yshift: 10},
+                    {x: 2, y: 1, yref: 'paper', text: 'Double', showarrow: false, yshift: 10},
+                    {x: 3, y: 1, yref: 'paper', text: 'Triple', showarrow: false, yshift: 10}
+                ]
+            };
+
+            Plotly.newPlot('bond-strength-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderTimingEfficiency() {
+            if (!data || !data.timing_data || data.timing_data.length === 0) return;
+
+            // Sort by time (descending)
+            const sorted = [...data.timing_data].sort((a, b) => b[1] - a[1]);
+            const modules = sorted.map(t => t[0]);
+            const times = sorted.map(t => t[1]);
+
+            const trace = {
+                x: times,
+                y: modules,
+                type: 'bar',
+                orientation: 'h',
+                marker: {
+                    color: times,
+                    colorscale: 'Viridis',
+                    line: {width: 1, color: 'white'}
+                },
+                hovertemplate: '%{y}<br>Time: %{x:.2f} s<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Computational Time by Module (Sorted)',
+                xaxis: {title: 'Time (seconds)'},
+                yaxis: {title: 'Module'},
+                showlegend: false,
+                margin: {l: 150}
+            };
+
+            Plotly.newPlot('timing-efficiency-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderPropertiesSummary() {
+            if (!data) return;
+
+            const summaryDiv = document.getElementById('summary-content');
+            if (!summaryDiv) return;
+
+            const cards = [];
+
+            // Helper to create card HTML
+            const createCard = (title, value, unit = '') => `
+                <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <div style="font-size: 12px; color: #888; margin-bottom: 5px;">${title}</div>
+                    <div style="font-size: 24px; font-weight: bold; color: #667eea;">${value}${unit}</div>
+                </div>
+            `;
+
+            // Molecular formula
+            if (data.coordinates_au) {
+                const elementCounts = {};
+                data.coordinates_au.forEach(c => {
+                    elementCounts[c[0]] = (elementCounts[c[0]] || 0) + 1;
+                });
+                const formula = Object.entries(elementCounts)
+                    .sort()
+                    .map(([el, count]) => `${el}${count > 1 ? count : ''}`)
+                    .join('');
+                cards.push(createCard('Molecular Formula', formula));
+            }
+
+            // Total atoms
+            if (data.coordinates_au) {
+                cards.push(createCard('Total Atoms', data.coordinates_au.length));
+            }
+
+            // Final energy
+            if (data.final_energy !== null) {
+                cards.push(createCard('Final Energy', data.final_energy.toFixed(6), ' Eh'));
+            }
+
+            // HOMO-LUMO gap
+            if (data.homo_energy !== null && data.lumo_energy !== null) {
+                const gap = ((data.lumo_energy - data.homo_energy) * 27.211).toFixed(3);
+                cards.push(createCard('HOMO-LUMO Gap', gap, ' eV'));
+            }
+
+            // Total dipole
+            if (data.dipole_moment_components && data.dipole_moment_components.length >= 3) {
+                const comps = data.dipole_moment_components.slice(0, 3);
+                const magnitude = Math.sqrt(comps.reduce((sum, v) => sum + v*v, 0));
+                cards.push(createCard('Dipole Moment', magnitude.toFixed(3), ' Debye'));
+            }
+
+            // SCF iterations
+            if (data.scf_energies) {
+                cards.push(createCard('SCF Iterations', data.scf_energies.length));
+            }
+
+            // Method
+            if (data.method) {
+                cards.push(createCard('Method', data.method));
+            }
+
+            // Basis set
+            if (data.basis_set) {
+                cards.push(createCard('Basis Set', data.basis_set));
+            }
+
+            // Number of frequencies
+            if (data.frequencies) {
+                cards.push(createCard('Vibrational Modes', data.frequencies.length));
+            }
+
+            // Runtime
+            if (data.total_run_time && data.total_run_time.total_seconds) {
+                const hours = Math.floor(data.total_run_time.total_seconds / 3600);
+                const mins = Math.floor((data.total_run_time.total_seconds % 3600) / 60);
+                const secs = Math.floor(data.total_run_time.total_seconds % 60);
+                const timeStr = hours > 0 ? `${hours}h ${mins}m ${secs}s` :
+                               mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                cards.push(createCard('Total Runtime', timeStr));
+            }
+
+            summaryDiv.innerHTML = cards.join('');
         }
     </script>
 </body>
