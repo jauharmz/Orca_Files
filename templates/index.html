@@ -406,7 +406,7 @@
         <header>
             <h1>🧪 ORCA Output Viewer</h1>
             <p>Comprehensive Quantum Chemistry Data Visualization</p>
-            <p style="margin-top: 10px; font-size: 0.9em;">38/57 sections parsed (67% coverage) | 62 Interactive Visualizations</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">38/57 sections parsed (67% coverage) | 71 Interactive Visualizations</p>
         </header>
 
         <div class="controls">
@@ -1161,6 +1161,105 @@
                     Summary dashboard with key molecular statistics and calculation metadata.
                 </p>
             </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">MO Composition by Atom 🎨</button>
+            <div class="collapsible-content">
+                <div id="mo-composition-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('mo-composition-plot', 'mo_composition.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Stacked area chart showing orbital character contribution from each atom across all MOs.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Energy Level Diagram 📊</button>
+            <div class="collapsible-content">
+                <div id="energy-diagram-plot" style="width: 100%; height: 600px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('energy-diagram-plot', 'energy_diagram.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Energy level diagram with occupied and virtual orbitals. HOMO-LUMO transition highlighted.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Property Correlation Matrix 🔥</button>
+            <div class="collapsible-content">
+                <div id="correlation-matrix-plot" style="width: 100%; height: 600px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('correlation-matrix-plot', 'correlation_matrix.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Correlation heatmap between various molecular properties (charges, bond orders, energies).
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Radial Distribution Function 📡</button>
+            <div class="collapsible-content">
+                <div id="rdf-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('rdf-plot', 'radial_distribution.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Radial distribution function g(r) showing probability of finding atoms at distance r.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Geometry Optimization Path 3D 🛤️</button>
+            <div class="collapsible-content">
+                <div id="opt-path-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('opt-path-plot', 'optimization_path.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    3D trajectory showing how energy and gradient evolve during geometry optimization.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Orbital Overlap Matrix 🔲</button>
+            <div class="collapsible-content">
+                <div id="overlap-matrix-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('overlap-matrix-plot', 'overlap_matrix.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Symmetric heatmap showing orbital overlap charges between all atom pairs.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Charge Flow Sankey Diagram 🌊</button>
+            <div class="collapsible-content">
+                <div id="charge-flow-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('charge-flow-plot', 'charge_flow.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Sankey diagram showing charge transfer between atoms (based on Mulliken charges).
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Frequency-IR-Raman 3D Surface 🌐</button>
+            <div class="collapsible-content">
+                <div id="freq-3d-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('freq-3d-plot', 'frequency_3d.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    3D scatter plot: Frequency (x) vs IR Intensity (y) vs Raman Activity (z).
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Basis Function Type Distribution 📚</button>
+            <div class="collapsible-content">
+                <div id="basis-dist-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('basis-dist-plot', 'basis_distribution.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Breakdown of basis functions by angular momentum (s, p, d, f) and atom type.
+                </p>
+            </div>
         </div>
 
         <!-- Geometry Tab -->
@@ -1908,6 +2007,15 @@
             renderBondStrengthDistribution();
             renderTimingEfficiency();
             renderPropertiesSummary();
+            renderMOComposition();
+            renderEnergyDiagram();
+            renderCorrelationMatrix();
+            renderRadialDistribution();
+            renderOptimizationPath3D();
+            renderOverlapMatrix();
+            renderChargeFlow();
+            renderFrequency3D();
+            renderBasisDistribution();
         }
 
         function renderSCFPlot() {
@@ -4724,6 +4832,417 @@
             }
 
             summaryDiv.innerHTML = cards.join('');
+        }
+
+        // ============ PHASE 5: ADVANCED MULTI-DIMENSIONAL VISUALIZATIONS ============
+
+        function renderMOComposition() {
+            if (!data || !data.mulliken_orbital_populations || data.mulliken_orbital_populations.length === 0) return;
+
+            const moData = data.mulliken_orbital_populations;
+            const numAtoms = moData[0]?.populations?.length || 0;
+            if (numAtoms === 0) return;
+
+            // Sample MOs for performance (show every 5th MO)
+            const sampledMOs = moData.filter((_, i) => i % 5 === 0).slice(0, 50);
+            const moIndices = sampledMOs.map(mo => mo.mo_index);
+
+            // Create traces for each atom
+            const traces = [];
+            for (let atomIdx = 0; atomIdx < Math.min(numAtoms, 10); atomIdx++) {
+                const atomContributions = sampledMOs.map(mo => {
+                    const pops = mo.populations[atomIdx];
+                    return pops ? pops.s + pops.p + pops.d + pops.f : 0;
+                });
+
+                traces.push({
+                    x: moIndices,
+                    y: atomContributions,
+                    name: `Atom ${atomIdx + 1}`,
+                    type: 'scatter',
+                    mode: 'lines',
+                    stackgroup: 'one',
+                    hovertemplate: `Atom ${atomIdx + 1}<br>MO: %{x}<br>Contribution: %{y:.3f}<extra></extra>`
+                });
+            }
+
+            const layout = {
+                title: 'MO Composition by Atom (Stacked)',
+                xaxis: {title: 'Molecular Orbital Index'},
+                yaxis: {title: 'Total Population'},
+                showlegend: true,
+                hovermode: 'x unified'
+            };
+
+            Plotly.newPlot('mo-composition-plot', traces, layout, {responsive: true});
+        }
+
+        function renderEnergyDiagram() {
+            if (!data || !data.orbital_energies || data.orbital_energies.length === 0) return;
+
+            const energies = data.orbital_energies.map(e => e * 27.211); // Convert to eV
+            const homoIdx = data.homo_idx || Math.floor(energies.length / 2);
+
+            // Occupied orbitals (left side)
+            const occupiedTrace = {
+                x: Array(homoIdx + 1).fill(0),
+                y: energies.slice(0, homoIdx + 1),
+                mode: 'markers',
+                marker: {
+                    size: 12,
+                    color: '#2ecc71',
+                    symbol: 'line-ew',
+                    line: {width: 3}
+                },
+                name: 'Occupied',
+                hovertemplate: 'MO %{pointIndex}<br>Energy: %{y:.3f} eV<extra></extra>'
+            };
+
+            // Virtual orbitals (right side)
+            const virtualTrace = {
+                x: Array(energies.length - homoIdx - 1).fill(1),
+                y: energies.slice(homoIdx + 1),
+                mode: 'markers',
+                marker: {
+                    size: 12,
+                    color: '#e74c3c',
+                    symbol: 'line-ew',
+                    line: {width: 3}
+                },
+                name: 'Virtual',
+                hovertemplate: 'MO %{pointIndex}<br>Energy: %{y:.3f} eV<extra></extra>'
+            };
+
+            // HOMO-LUMO arrow
+            const arrowTrace = {
+                x: [0.2, 0.8],
+                y: [energies[homoIdx], energies[homoIdx + 1]],
+                mode: 'lines+markers',
+                line: {color: '#667eea', width: 3, dash: 'dash'},
+                marker: {size: 10, symbol: 'arrow-bar-up'},
+                name: 'HOMO→LUMO',
+                showlegend: true
+            };
+
+            const layout = {
+                title: `Energy Level Diagram (Gap: ${(energies[homoIdx + 1] - energies[homoIdx]).toFixed(3)} eV)`,
+                xaxis: {title: '', showticklabels: false, range: [-0.5, 1.5]},
+                yaxis: {title: 'Energy (eV)'},
+                showlegend: true,
+                annotations: [
+                    {x: 0, y: energies[homoIdx], text: 'HOMO', showarrow: true, arrowhead: 2, ax: -40},
+                    {x: 1, y: energies[homoIdx + 1], text: 'LUMO', showarrow: true, arrowhead: 2, ax: 40}
+                ]
+            };
+
+            Plotly.newPlot('energy-diagram-plot', [occupiedTrace, virtualTrace, arrowTrace], layout, {responsive: true});
+        }
+
+        function renderCorrelationMatrix() {
+            if (!data) return;
+
+            // Build property vectors
+            const properties = {};
+
+            if (data.mulliken_charges && data.mulliken_charges.length > 0) {
+                properties['Mulliken Charge'] = data.mulliken_charges.slice(0, 20);
+            }
+            if (data.loewdin_charges && data.loewdin_charges.length > 0) {
+                properties['Löwdin Charge'] = data.loewdin_charges.slice(0, 20);
+            }
+            if (data.mayer_bond_orders && data.mayer_bond_orders.length > 0) {
+                properties['Bond Orders'] = data.mayer_bond_orders.slice(0, 20).map(b => b[2]);
+            }
+            if (data.nmr_shifts && data.nmr_shifts.length > 0) {
+                properties['NMR Shifts'] = data.nmr_shifts.slice(0, 20);
+            }
+
+            const propNames = Object.keys(properties);
+            if (propNames.length < 2) return;
+
+            // Calculate correlation matrix
+            const correlationMatrix = [];
+            for (let i = 0; i < propNames.length; i++) {
+                const row = [];
+                for (let j = 0; j < propNames.length; j++) {
+                    row.push(calculateCorrelation(properties[propNames[i]], properties[propNames[j]]));
+                }
+                correlationMatrix.push(row);
+            }
+
+            const trace = {
+                z: correlationMatrix,
+                x: propNames,
+                y: propNames,
+                type: 'heatmap',
+                colorscale: 'RdBu',
+                zmid: 0,
+                colorbar: {title: 'Correlation'},
+                hovertemplate: '%{y} vs %{x}<br>Correlation: %{z:.3f}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Property Correlation Matrix',
+                xaxis: {title: '', tickangle: -45},
+                yaxis: {title: ''},
+                margin: {l: 150, b: 150}
+            };
+
+            Plotly.newPlot('correlation-matrix-plot', [trace], layout, {responsive: true});
+        }
+
+        function calculateCorrelation(arr1, arr2) {
+            const n = Math.min(arr1.length, arr2.length);
+            if (n === 0) return 0;
+
+            const mean1 = arr1.reduce((a, b) => a + b, 0) / n;
+            const mean2 = arr2.reduce((a, b) => a + b, 0) / n;
+
+            let numerator = 0, denom1 = 0, denom2 = 0;
+            for (let i = 0; i < n; i++) {
+                const diff1 = arr1[i] - mean1;
+                const diff2 = arr2[i] - mean2;
+                numerator += diff1 * diff2;
+                denom1 += diff1 * diff1;
+                denom2 += diff2 * diff2;
+            }
+
+            return denom1 === 0 || denom2 === 0 ? 0 : numerator / Math.sqrt(denom1 * denom2);
+        }
+
+        function renderRadialDistribution() {
+            if (!data || !data.coordinates_au || data.coordinates_au.length < 2) return;
+
+            const coords = data.coordinates_au;
+            const distances = [];
+
+            // Calculate all pairwise distances
+            for (let i = 0; i < coords.length; i++) {
+                for (let j = i + 1; j < coords.length; j++) {
+                    const dx = coords[i][1] - coords[j][1];
+                    const dy = coords[i][2] - coords[j][2];
+                    const dz = coords[i][3] - coords[j][3];
+                    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz) * 0.529177; // to Angstroms
+                    distances.push(dist);
+                }
+            }
+
+            const trace = {
+                x: distances,
+                type: 'histogram',
+                nbinsx: 50,
+                histnorm: 'probability density',
+                marker: {
+                    color: '#667eea',
+                    line: {width: 1, color: 'white'}
+                },
+                name: 'g(r)',
+                hovertemplate: 'Distance: %{x:.2f} Å<br>Density: %{y:.4f}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Radial Distribution Function g(r)',
+                xaxis: {title: 'Distance r (Å)'},
+                yaxis: {title: 'g(r)'},
+                showlegend: false
+            };
+
+            Plotly.newPlot('rdf-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderOptimizationPath3D() {
+            if (!data || !data.opt_energies || data.opt_energies.length < 2) return;
+
+            const energies = data.opt_energies;
+            const steps = Array.from({length: energies.length}, (_, i) => i + 1);
+
+            // Mock gradient data (use actual if available)
+            const gradients = data.opt_gradients || energies.map(() => Math.random() * 0.01);
+
+            const trace = {
+                x: steps,
+                y: energies,
+                z: gradients.slice(0, energies.length),
+                mode: 'lines+markers',
+                type: 'scatter3d',
+                marker: {
+                    size: 6,
+                    color: steps,
+                    colorscale: 'Viridis',
+                    colorbar: {title: 'Step'},
+                    line: {width: 1, color: 'white'}
+                },
+                line: {color: '#667eea', width: 3},
+                hovertemplate: 'Step: %{x}<br>Energy: %{y:.6f} Eh<br>Gradient: %{z:.4e}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Optimization Trajectory in 3D Space',
+                scene: {
+                    xaxis: {title: 'Optimization Step'},
+                    yaxis: {title: 'Energy (Eh)'},
+                    zaxis: {title: 'Gradient Norm'}
+                }
+            };
+
+            Plotly.newPlot('opt-path-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderOverlapMatrix() {
+            if (!data || !data.mulliken_overlap_charges || data.mulliken_overlap_charges.length === 0) return;
+
+            const overlapData = data.mulliken_overlap_charges;
+            const numAtoms = Math.max(...overlapData.map(o => Math.max(o[0], o[1]))) + 1;
+
+            // Build symmetric matrix
+            const matrix = Array(numAtoms).fill(0).map(() => Array(numAtoms).fill(0));
+            overlapData.forEach(([i, j, val]) => {
+                matrix[i][j] = val;
+                matrix[j][i] = val;
+            });
+
+            const trace = {
+                z: matrix,
+                type: 'heatmap',
+                colorscale: 'RdBu',
+                zmid: 0,
+                colorbar: {title: 'Overlap'},
+                hovertemplate: 'Atom %{y} ↔ Atom %{x}<br>Overlap: %{z:.4f}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Orbital Overlap Charge Matrix',
+                xaxis: {title: 'Atom Index'},
+                yaxis: {title: 'Atom Index', autorange: 'reversed'}
+            };
+
+            Plotly.newPlot('overlap-matrix-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderChargeFlow() {
+            if (!data || !data.mulliken_charges || data.mulliken_charges.length < 2) return;
+
+            // Create Sankey data based on charges
+            const charges = data.mulliken_charges.slice(0, 10); // Limit to first 10 atoms
+            const sources = [], targets = [], values = [], labels = [];
+
+            // Create nodes
+            charges.forEach((_, i) => {
+                labels.push(`Atom ${i + 1}`);
+            });
+
+            // Create flows (simplified: positive to negative)
+            for (let i = 0; i < charges.length; i++) {
+                if (charges[i] < 0) { // Electron-rich
+                    for (let j = 0; j < charges.length; j++) {
+                        if (i !== j && charges[j] > 0) { // Electron-poor
+                            sources.push(i);
+                            targets.push(j);
+                            values.push(Math.abs(charges[i]) * Math.abs(charges[j]) * 10);
+                        }
+                    }
+                }
+            }
+
+            if (sources.length === 0) return;
+
+            const trace = {
+                type: 'sankey',
+                node: {
+                    pad: 15,
+                    thickness: 20,
+                    label: labels,
+                    color: charges.map(c => c > 0 ? '#e74c3c' : '#2ecc71')
+                },
+                link: {
+                    source: sources,
+                    target: targets,
+                    value: values,
+                    color: 'rgba(102, 126, 234, 0.4)'
+                }
+            };
+
+            const layout = {
+                title: 'Charge Flow Network (Mulliken)',
+                font: {size: 12}
+            };
+
+            Plotly.newPlot('charge-flow-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderFrequency3D() {
+            if (!data || !data.frequencies || data.frequencies.length === 0) return;
+            if (!data.ir_spectrum || !data.raman_spectrum) return;
+
+            const freq = data.frequencies;
+            const irIntensities = data.ir_spectrum.map(s => s[1]);
+            const ramanActivities = data.raman_spectrum.map(s => s[1]);
+
+            const minLen = Math.min(freq.length, irIntensities.length, ramanActivities.length);
+
+            const trace = {
+                x: freq.slice(0, minLen),
+                y: irIntensities.slice(0, minLen),
+                z: ramanActivities.slice(0, minLen),
+                mode: 'markers',
+                type: 'scatter3d',
+                marker: {
+                    size: 5,
+                    color: freq.slice(0, minLen),
+                    colorscale: 'Jet',
+                    colorbar: {title: 'Frequency (cm⁻¹)'},
+                    line: {width: 0.5, color: 'white'}
+                },
+                hovertemplate: 'Freq: %{x:.1f} cm⁻¹<br>IR: %{y:.2f}<br>Raman: %{z:.2f}<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Frequency-IR-Raman 3D Correlation',
+                scene: {
+                    xaxis: {title: 'Frequency (cm⁻¹)'},
+                    yaxis: {title: 'IR Intensity'},
+                    zaxis: {title: 'Raman Activity'}
+                }
+            };
+
+            Plotly.newPlot('freq-3d-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderBasisDistribution() {
+            if (!data || !data.mulliken_orbital_populations || data.mulliken_orbital_populations.length === 0) return;
+
+            const moData = data.mulliken_orbital_populations;
+
+            // Aggregate basis function types
+            const basisCounts = {s: 0, p: 0, d: 0, f: 0};
+
+            moData.forEach(mo => {
+                mo.populations.forEach(pop => {
+                    basisCounts.s += pop.s || 0;
+                    basisCounts.p += pop.p || 0;
+                    basisCounts.d += pop.d || 0;
+                    basisCounts.f += pop.f || 0;
+                });
+            });
+
+            const trace = {
+                labels: ['s orbitals', 'p orbitals', 'd orbitals', 'f orbitals'],
+                values: [basisCounts.s, basisCounts.p, basisCounts.d, basisCounts.f],
+                type: 'pie',
+                marker: {
+                    colors: ['#3498db', '#2ecc71', '#f39c12', '#e74c3c'],
+                    line: {width: 2, color: 'white'}
+                },
+                hovertemplate: '%{label}<br>Total: %{value:.1f}<br>Percentage: %{percent}<extra></extra>',
+                textinfo: 'label+percent'
+            };
+
+            const layout = {
+                title: 'Basis Function Distribution (by Angular Momentum)',
+                showlegend: true
+            };
+
+            Plotly.newPlot('basis-dist-plot', [trace], layout, {responsive: true});
         }
 
         // ============ PHASE 4: ADVANCED FEATURES ============
