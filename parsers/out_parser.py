@@ -234,6 +234,7 @@ class OrcaOutput:
     final_energy: Optional[float] = None
     scf_energies: list[float] = field(default_factory=list)
     optimization_energies: list[float] = field(default_factory=list)
+    coordinates: list[tuple[str, float, float, float]] = field(default_factory=list)  # (element, x, y, z) in Angstrom
     dipole_moment: Optional[DipoleMoment] = None
     polarizability: Optional[Polarizability] = None
     orbital_energies: list[OrbitalEnergy] = field(default_factory=list)
@@ -270,6 +271,10 @@ class OrcaOutput:
             'final_energy': self.final_energy,
             'scf_energies': self.scf_energies,
             'optimization_energies': self.optimization_energies,
+            'coordinates': [
+                {'element': c[0], 'x': c[1], 'y': c[2], 'z': c[3]}
+                for c in self.coordinates
+            ],
             'dipole_moment': {
                 'x': self.dipole_moment.x,
                 'y': self.dipole_moment.y,
@@ -424,6 +429,7 @@ def parse_out_content(content: str) -> OrcaOutput:
     final_energy = parse_final_energy(content)
     scf_energies = parse_scf_energies(content)
     opt_energies = parse_optimization_energies(content)
+    coordinates = parse_coordinates(content)
     dipole = parse_dipole_moment(content)
     polarizability = parse_polarizability(content)
     orbitals = parse_orbital_energies(content)
@@ -454,6 +460,7 @@ def parse_out_content(content: str) -> OrcaOutput:
         final_energy=final_energy,
         scf_energies=scf_energies,
         optimization_energies=opt_energies,
+        coordinates=coordinates,
         dipole_moment=dipole,
         polarizability=polarizability,
         orbital_energies=orbitals,
@@ -476,6 +483,33 @@ def parse_out_content(content: str) -> OrcaOutput:
         thermochemistry=thermo,
         nmr_data=nmr
     )
+
+
+def parse_coordinates(content: str) -> list[tuple[str, float, float, float]]:
+    """Extract Cartesian coordinates in Angstrom."""
+    coordinates = []
+
+    # Find the first CARTESIAN COORDINATES (ANGSTROEM) section
+    coord_section = re.search(
+        r'CARTESIAN COORDINATES \(ANGSTROEM\)\s*-+\s*(.*?)(?:\n\n|$)',
+        content, re.DOTALL
+    )
+
+    if not coord_section:
+        return coordinates
+
+    section_text = coord_section.group(1)
+
+    # Parse each coordinate line: "  C      0.976427    4.012579   -0.068330"
+    coord_lines = re.findall(
+        r'^\s*([A-Z][a-z]?)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)',
+        section_text, re.MULTILINE
+    )
+
+    for element, x, y, z in coord_lines:
+        coordinates.append((element, float(x), float(y), float(z)))
+
+    return coordinates
 
 
 def parse_job_info(content: str) -> JobInfo:
@@ -1363,6 +1397,9 @@ if __name__ == '__main__':
         print(f"Basis: {result.job_info.basis_set}")
         print(f"Charge: {result.job_info.charge}, Mult: {result.job_info.multiplicity}")
         print(f"Final Energy: {result.final_energy:.6f} Eh")
+
+        if result.coordinates:
+            print(f"Coordinates: {len(result.coordinates)} atoms")
 
         if result.dipole_moment:
             print(f"Dipole: {result.dipole_moment.magnitude_debye:.3f} Debye")
