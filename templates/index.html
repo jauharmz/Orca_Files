@@ -284,7 +284,122 @@
             white-space: pre-wrap;
             word-wrap: break-word;
         }
+
+        /* File upload styles */
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+
+        .upload-area:hover {
+            border-color: #5568d3;
+            background: #e7f1ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #5568d3;
+            background: #e7f1ff;
+            transform: scale(1.02);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Visualization container */
+        .viz-container {
+            margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #molecule-viewer {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+
+        /* Collapsible sections */
+        .collapsible {
+            cursor: pointer;
+            padding: 15px;
+            background: #f8f9fa;
+            border: none;
+            text-align: left;
+            width: 100%;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 6px;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+
+        .collapsible:hover {
+            background: #e7f1ff;
+        }
+
+        .collapsible.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .collapsible:after {
+            content: '\002B';  /* + symbol */
+            float: right;
+            font-weight: bold;
+        }
+
+        .collapsible.active:after {
+            content: "\2212";  /* - symbol */
+        }
+
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            background: white;
+        }
+
+        .collapsible-content.active {
+            max-height: 2000px;
+            padding: 15px;
+        }
+
+        /* Export buttons */
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .btn-export {
+            padding: 8px 16px;
+            font-size: 12px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn-export:hover {
+            background: #218838;
+        }
     </style>
+
+    <!-- 3Dmol.js for 3D molecular visualization -->
+    <script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
+
+    <!-- Plotly.js for interactive charts -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -295,18 +410,26 @@
         </header>
 
         <div class="controls">
-            <button class="btn-primary" onclick="loadData()">📂 Load Data</button>
-            <button class="btn-secondary" onclick="exportJSON()">💾 Export JSON</button>
-            <button class="btn-secondary" onclick="refreshData()">🔄 Refresh</button>
-            <div class="status" id="status">Ready to load data</div>
+            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                <input type="file" id="fileInput" accept=".out,.txt" onchange="uploadFile(event)">
+                <p>📤 <strong>Upload ORCA Output File</strong></p>
+                <p style="font-size: 12px; margin-top: 5px;">Drag & drop or click to browse (.out, .txt)</p>
+            </div>
+            <div style="display: flex; gap: 10px; flex: 1; align-items: center;">
+                <button class="btn-primary" onclick="loadDefaultData()">📂 Load Example</button>
+                <button class="btn-secondary" onclick="exportJSON()">💾 Export JSON</button>
+                <div class="status" id="status">Upload a file or load example data</div>
+            </div>
         </div>
 
         <div class="tabs">
             <button class="tab active" onclick="showTab('summary')">📊 Summary</button>
-            <button class="tab" onclick="showTab('geometry')">🔬 Geometry</button>
+            <button class="tab" onclick="showTab('molecule')">🔬 3D Molecule</button>
+            <button class="tab" onclick="showTab('plots')">📈 Interactive Plots</button>
+            <button class="tab" onclick="showTab('geometry')">📍 Geometry</button>
             <button class="tab" onclick="showTab('energy')">⚡ Energy</button>
             <button class="tab" onclick="showTab('orbitals')">🌀 Orbitals</button>
-            <button class="tab" onclick="showTab('vibrations')">📈 Vibrations</button>
+            <button class="tab" onclick="showTab('vibrations')">🎵 Vibrations</button>
             <button class="tab" onclick="showTab('nmr')">🧲 NMR</button>
             <button class="tab" onclick="showTab('population')">👥 Population</button>
             <button class="tab" onclick="showTab('raw')">📄 Raw JSON</button>
@@ -317,6 +440,77 @@
             <h2 class="section-title">Summary Overview</h2>
             <div id="summary-content">
                 <p class="loading">Click "Load Data" to parse ORCA output file</p>
+            </div>
+        </div>
+
+        <!-- 3D Molecule Tab -->
+        <div id="molecule" class="tab-content">
+            <h2 class="section-title">🔬 3D Molecular Structure</h2>
+            <div class="viz-container">
+                <div id="molecule-viewer"></div>
+                <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn-secondary" onclick="setMoleculeStyle('stick')">Stick</button>
+                    <button class="btn-secondary" onclick="setMoleculeStyle('sphere')">Sphere</button>
+                    <button class="btn-secondary" onclick="setMoleculeStyle('cartoon')">Ball & Stick</button>
+                    <button class="btn-secondary" onclick="toggleLabels()">Toggle Labels</button>
+                    <button class="btn-export" onclick="exportMoleculeImage()">📷 Export PNG</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive Plots Tab -->
+        <div id="plots" class="tab-content">
+            <h2 class="section-title">📈 Interactive Data Visualization</h2>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">SCF Convergence Plot</button>
+            <div class="collapsible-content">
+                <div id="scf-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('scf-plot', 'scf_convergence.png')">📷 PNG</button>
+                    <button class="btn-export" onclick="exportPlot('scf-plot', 'scf_convergence.svg')">📄 SVG</button>
+                </div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">IR Spectrum</button>
+            <div class="collapsible-content">
+                <div id="ir-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('ir-plot', 'ir_spectrum.png')">📷 PNG</button>
+                    <button class="btn-export" onclick="exportPlot('ir-plot', 'ir_spectrum.svg')">📄 SVG</button>
+                </div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Raman Spectrum</button>
+            <div class="collapsible-content">
+                <div id="raman-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('raman-plot', 'raman_spectrum.png')">📷 PNG</button>
+                    <button class="btn-export" onclick="exportPlot('raman-plot', 'raman_spectrum.svg')">📄 SVG</button>
+                </div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Thermochemistry Energy Diagram</button>
+            <div class="collapsible-content">
+                <div id="thermo-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('thermo-plot', 'thermochemistry.png')">📷 PNG</button>
+                </div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Orbital Energy Diagram</button>
+            <div class="collapsible-content">
+                <div id="orbital-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('orbital-plot', 'orbital_energies.png')">📷 PNG</button>
+                </div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">NMR Spectrum</button>
+            <div class="collapsible-content">
+                <div id="nmr-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('nmr-plot', 'nmr_spectrum.png')">📷 PNG</button>
+                </div>
             </div>
         </div>
 
@@ -380,6 +574,8 @@
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script>
         let data = null;
+        let viewer3d = null;
+        let showLabels = false;
 
         function showTab(tabName) {
             // Hide all tabs
@@ -393,6 +589,11 @@
             // Show selected tab
             document.getElementById(tabName).classList.add('active');
             event.target.classList.add('active');
+
+            // Render 3D molecule when tab is shown
+            if (tabName === 'molecule' && data) {
+                setTimeout(() => render3DMolecule(), 100);
+            }
         }
 
         function setStatus(message, success = false) {
@@ -401,16 +602,63 @@
             status.className = success ? 'status success' : 'status';
         }
 
-        async function loadData() {
-            setStatus('Loading data...');
-            
+        // File upload handlers
+        function uploadFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            handleFileUpload(file);
+        }
+
+        async function handleFileUpload(file) {
+            setStatus(`Uploading ${file.name}...`);
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    data = result.data;
+                    setStatus(`✓ Parsed ${file.name} successfully`, true);
+                    renderAllTabs();
+                } else {
+                    setStatus(`✗ Error: ${result.message}`, false);
+                }
+            } catch (error) {
+                setStatus(`✗ Upload failed: ${error.message}`, false);
+            }
+        }
+
+        // Drag and drop
+        const uploadArea = document.getElementById('uploadArea');
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) handleFileUpload(file);
+        });
+
+        async function loadDefaultData() {
+            setStatus('Loading example data...');
+
             try {
                 const response = await fetch('/api/parse', { method: 'POST' });
                 const result = await response.json();
 
                 if (result.success) {
                     data = result.data;
-                    setStatus('✓ Data loaded successfully', true);
+                    setStatus('✓ Example data loaded successfully', true);
                     renderAllTabs();
                 } else {
                     setStatus('✗ Error: ' + result.message);
@@ -429,6 +677,8 @@
             renderNMR();
             renderPopulation();
             renderRawJSON();
+            // Visualization tabs - rendered on demand when tab is shown
+            renderAllPlots();
         }
 
         function renderSummary() {
@@ -629,6 +879,261 @@
 
         function refreshData() {
             location.reload();
+        }
+
+        // ===== 3D MOLECULAR VISUALIZATION =====
+        function render3DMolecule() {
+            if (!data || !data.coordinates) return;
+
+            const container = document.getElementById('molecule-viewer');
+            container.innerHTML = ''; // Clear previous viewer
+
+            viewer3d = $3Dmol.createViewer(container, {
+                backgroundColor: 'white'
+            });
+
+            // Convert coordinates to XYZ format
+            let xyzData = `${data.coordinates.length}\nORCA Molecule\n`;
+            data.coordinates.forEach(coord => {
+                const [element, x, y, z] = coord;
+                xyzData += `${element}  ${x}  ${y}  ${z}\n`;
+            });
+
+            viewer3d.addModel(xyzData, 'xyz');
+            viewer3d.setStyle({}, {stick: {radius: 0.15}, sphere: {scale: 0.3}});
+            viewer3d.zoomTo();
+            viewer3d.render();
+        }
+
+        function setMoleculeStyle(style) {
+            if (!viewer3d) return;
+            viewer3d.setStyle({}, {});
+
+            if (style === 'stick') {
+                viewer3d.setStyle({}, {stick: {radius: 0.15}});
+            } else if (style === 'sphere') {
+                viewer3d.setStyle({}, {sphere: {scale: 0.5}});
+            } else if (style === 'cartoon') {
+                viewer3d.setStyle({}, {stick: {radius: 0.15}, sphere: {scale: 0.3}});
+            }
+
+            viewer3d.render();
+        }
+
+        function toggleLabels() {
+            if (!viewer3d || !data) return;
+            showLabels = !showLabels;
+
+            viewer3d.removeAllLabels();
+            if (showLabels) {
+                data.coordinates.forEach((coord, i) => {
+                    viewer3d.addLabel(coord[0], {
+                        position: {x: coord[1], y: coord[2], z: coord[3]},
+                        backgroundColor: 'white',
+                        fontColor: 'black',
+                        fontSize: 12
+                    });
+                });
+            }
+            viewer3d.render();
+        }
+
+        function exportMoleculeImage() {
+            if (!viewer3d) return;
+            const imgData = viewer3d.pngURI();
+            const a = document.createElement('a');
+            a.href = imgData;
+            a.download = 'molecule_3d.png';
+            a.click();
+        }
+
+        // ===== PLOTLY VISUALIZATIONS =====
+        function renderAllPlots() {
+            if (!data) return;
+            renderSCFPlot();
+            renderIRPlot();
+            renderRamanPlot();
+            renderThermoPlot();
+            renderOrbitalPlot();
+            renderNMRPlot();
+        }
+
+        function renderSCFPlot() {
+            if (!data || !data.scf_energies || data.scf_energies.length === 0) return;
+
+            const trace = {
+                x: Array.from({length: data.scf_energies.length}, (_, i) => i + 1),
+                y: data.scf_energies,
+                mode: 'lines+markers',
+                name: 'SCF Energy',
+                line: {color: '#667eea', width: 2},
+                marker: {size: 6}
+            };
+
+            const layout = {
+                title: 'SCF Convergence',
+                xaxis: {title: 'Iteration'},
+                yaxis: {title: 'Energy (Eh)'},
+                hovermode: 'closest'
+            };
+
+            Plotly.newPlot('scf-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderIRPlot() {
+            if (!data || !data.ir_spectrum || data.ir_spectrum.length === 0) return;
+
+            const frequencies = data.ir_spectrum.map(d => d.frequency);
+            const intensities = data.ir_spectrum.map(d => d.intensity);
+
+            const trace = {
+                x: frequencies,
+                y: intensities,
+                type: 'bar',
+                marker: {color: '#28a745'},
+                name: 'IR Intensity'
+            };
+
+            const layout = {
+                title: 'IR Spectrum',
+                xaxis: {title: 'Frequency (cm⁻¹)'},
+                yaxis: {title: 'Intensity (km/mol)'},
+                hovermode: 'closest'
+            };
+
+            Plotly.newPlot('ir-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderRamanPlot() {
+            if (!data || !data.raman_spectrum || data.raman_spectrum.length === 0) return;
+
+            const frequencies = data.raman_spectrum.map(d => d.frequency);
+            const activities = data.raman_spectrum.map(d => d.activity);
+
+            const trace = {
+                x: frequencies,
+                y: activities,
+                type: 'bar',
+                marker: {color: '#dc3545'},
+                name: 'Raman Activity'
+            };
+
+            const layout = {
+                title: 'Raman Spectrum',
+                xaxis: {title: 'Frequency (cm⁻¹)'},
+                yaxis: {title: 'Raman Activity'},
+                hovermode: 'closest'
+            };
+
+            Plotly.newPlot('raman-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderThermoPlot() {
+            if (!data || !data.thermochemistry) return;
+
+            const thermo = data.thermochemistry;
+            const labels = ['Electronic', 'ZPE', 'Thermal', 'Enthalpy', 'Gibbs Free'];
+            const values = [
+                data.final_energy || 0,
+                thermo.zero_point_energy || 0,
+                thermo.total_enthalpy || 0,
+                thermo.total_enthalpy || 0,
+                thermo.gibbs_free_energy || 0
+            ];
+
+            const trace = {
+                x: labels,
+                y: values,
+                type: 'bar',
+                marker: {color: ['#667eea', '#764ba2', '#28a745', '#ffc107', '#dc3545']}
+            };
+
+            const layout = {
+                title: 'Thermochemistry Energy Diagram',
+                yaxis: {title: 'Energy (Eh)'},
+                hovermode: 'closest'
+            };
+
+            Plotly.newPlot('thermo-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderOrbitalPlot() {
+            if (!data || !data.orbital_energies || data.orbital_energies.length === 0) return;
+
+            // Show orbitals around HOMO-LUMO (e.g., HOMO-10 to LUMO+10)
+            const orbitals = data.orbital_energies.slice(Math.max(0, data.orbital_energies.length / 2 - 20), data.orbital_energies.length / 2 + 20);
+
+            const occupied = orbitals.filter(o => o.occupation > 0.5);
+            const virtual = orbitals.filter(o => o.occupation <= 0.5);
+
+            const trace1 = {
+                x: occupied.map(o => o.index),
+                y: occupied.map(o => o.energy_ev),
+                mode: 'markers',
+                name: 'Occupied',
+                marker: {size: 8, color: '#28a745'}
+            };
+
+            const trace2 = {
+                x: virtual.map(o => o.index),
+                y: virtual.map(o => o.energy_ev),
+                mode: 'markers',
+                name: 'Virtual',
+                marker: {size: 8, color: '#dc3545'}
+            };
+
+            const layout = {
+                title: 'Molecular Orbital Energy Diagram',
+                xaxis: {title: 'MO Index'},
+                yaxis: {title: 'Energy (eV)'},
+                hovermode: 'closest'
+            };
+
+            Plotly.newPlot('orbital-plot', [trace1, trace2], layout, {responsive: true});
+        }
+
+        function renderNMRPlot() {
+            if (!data || !data.nmr_data || !data.nmr_data.chemical_shifts || data.nmr_data.chemical_shifts.length === 0) return;
+
+            const shifts = data.nmr_data.chemical_shifts;
+            const x = shifts.map(s => s.isotropic);
+            const y = Array(shifts.length).fill(1); // Height of peaks
+            const labels = shifts.map(s => `${s.element}${s.nucleus}`);
+
+            const trace = {
+                x: x,
+                y: y,
+                mode: 'markers',
+                marker: {size: 12, color: '#667eea'},
+                text: labels,
+                hoverinfo: 'text+x'
+            };
+
+            const layout = {
+                title: 'NMR Chemical Shifts',
+                xaxis: {title: 'Chemical Shift (ppm)', autorange: 'reversed'},
+                yaxis: {title: 'Intensity', showticklabels: false},
+                hovermode: 'closest'
+            };
+
+            Plotly.newPlot('nmr-plot', [trace], layout, {responsive: true});
+        }
+
+        // ===== COLLAPSIBLE SECTIONS =====
+        function toggleCollapsible(element) {
+            element.classList.toggle('active');
+            const content = element.nextElementSibling;
+            content.classList.toggle('active');
+        }
+
+        // ===== EXPORT FUNCTIONS =====
+        function exportPlot(plotId, filename) {
+            Plotly.downloadImage(plotId, {
+                format: filename.endsWith('.svg') ? 'svg' : 'png',
+                filename: filename.replace(/\.(png|svg)$/, ''),
+                width: 1200,
+                height: 800
+            });
         }
     </script>
 </body>

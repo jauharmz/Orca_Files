@@ -953,29 +953,130 @@ function App() {
 - `.opt`, `.densitiesinfo`, `.cis`, `.ges` - Proprietary ORCA binary format without public documentation
 
 ### Phase 2: Data Preview Components
-- [x] **2.1** 3D Molecular viewer (using py3Dmol)
-- [x] **2.2** Energy plot viewer
-- [x] **2.3** Spectrum plot viewer (UV-Vis, IR)
-- [x] **2.4** Table viewer for properties
+- [x] **2.1** Basic table viewer for all data sections
+- [x] **2.2** JSON export functionality
+- [ ] **2.3** File upload interface (manual upload support)
+- [ ] **2.4** Auto-detect and parse uploaded files
 
-### Phase 3: Web UI Integration
-- [x] **3.1** File upload interface
-- [x] **3.2** Automatic file type detection
-- [x] **3.3** Unified dashboard for all previews
-- [x] **3.4** Export parsed data (JSON)
+### Phase 3: Interactive Data Visualization
+**3D Molecular Visualization:**
+- [ ] **3.1** 3D molecular structure viewer using **3Dmol.js**
+  - Interactive rotation, zoom, pan
+  - Multiple rendering styles (stick, ball-and-stick, sphere, surface)
+  - Atom labels and measurements
+  - Export as image/video
+- [ ] **3.2** Molecular orbital visualization
+  - HOMO/LUMO isosurfaces
+  - Electron density maps
+  - Orbital phase coloring
+- [ ] **3.3** Vibrational mode animation
+  - Animated normal modes (vibrations)
+  - Adjustable animation speed
+  - Vector arrows for displacement
+
+**Energy & Convergence Plots:**
+- [ ] **3.4** SCF convergence plot using **Plotly**
+  - Interactive line chart with zoom/pan
+  - Energy vs iteration
+  - Highlight convergence threshold
+- [ ] **3.5** Geometry optimization trajectory
+  - Energy vs optimization step
+  - Interactive markers for each geometry
+  - 3D structure viewer synced with plot (click point → view structure)
+- [ ] **3.6** Thermochemistry energy diagram
+  - Bar chart: Electronic, ZPE, Thermal, Enthalpy, Gibbs
+  - Energy level diagram with transitions
+
+**Spectroscopy Visualization:**
+- [ ] **3.7** IR spectrum plot
+  - Interactive line/bar chart
+  - Frequency (cm⁻¹) vs Intensity (km/mol)
+  - Peak picking and annotation
+  - Export as CSV/image
+- [ ] **3.8** Raman spectrum plot
+  - Frequency vs Raman activity
+  - Depolarization ratio overlay
+- [ ] **3.9** NMR spectrum simulation
+  - Chemical shift (ppm) peaks
+  - Coupling patterns (if available)
+  - Splitting visualization
+
+**Orbital & Electronic Structure:**
+- [ ] **3.10** Molecular orbital energy diagram
+  - Energy levels with occupation
+  - HOMO-LUMO gap visualization
+  - Interactive selection (click → view orbital)
+- [ ] **3.11** DOS (Density of States) plot
+  - Energy vs number of states
+  - Highlight occupied/virtual regions
+
+**Population Analysis:**
+- [ ] **3.12** Charge distribution heatmap
+  - Color-coded atoms by Mulliken/Loewdin charge
+  - 3D structure with charge coloring
+- [ ] **3.13** Bond order visualization
+  - Bond thickness proportional to bond order
+  - Interactive bond selection
+
+### Phase 4: Advanced Features
+- [ ] **4.1** Multi-file comparison
+  - Side-by-side structure viewer
+  - Overlay energy plots from multiple calculations
+  - Difference maps (charge, density)
+- [ ] **4.2** Animation export
+  - GIF/MP4 export for vibrations
+  - Optimization trajectory movies
+- [ ] **4.3** Report generation
+  - PDF export with all visualizations
+  - Publication-ready figures
+- [ ] **4.4** Collaborative features
+  - Share visualizations via URL
+  - Embed in Jupyter notebooks
+
+### Phase 5: Web UI Enhancement
+- [x] **5.1** Flask backend with REST API
+- [x] **5.2** Basic HTML/CSS/JS frontend
+- [ ] **5.3** File upload drag-and-drop
+- [ ] **5.4** Expandable/collapsible table sections
+- [ ] **5.5** Data export buttons (CSV, JSON, Excel)
+- [ ] **5.6** Real-time parsing progress indicator
+- [ ] **5.7** Multiple file tabs (switch between uploaded files)
+- [ ] **5.8** Dark mode toggle
 
 ---
 
 ## Tech Stack
 
-- **Backend:** Python 3.10+
-- **Web Framework:** Flask or Streamlit (for quick prototyping)
-- **Parsing:** Custom parsers with regex
-- **Visualization:**
-  - Plotly (for spectra and energy plots)
-  - py3Dmol (for 3D molecular structures)
-- **Testing:** pytest
-- **Frontend:** Streamlit (single-page app) or Flask + HTML/JS
+**Backend:**
+- **Python 3.10+** - Core language with dataclasses
+- **Flask 3.0.0** - Web framework for REST API
+- **Werkzeug 3.0.1** - WSGI utilities
+- **pytest 7.4.3** - Testing framework
+
+**Parsing:**
+- **Custom regex parsers** - Fast, no dependencies
+- **Python stdlib** - re, json, dataclasses (no external deps for parsing)
+
+**Frontend:**
+- **HTML5/CSS3/JavaScript** - Core web technologies
+- **Vanilla JS** - No heavy frameworks, fast loading
+
+**Visualization Libraries:**
+- **3Dmol.js** - WebGL-based 3D molecular viewer
+  - Why: Lightweight (no dependencies), perfect for chemistry
+  - Use: Molecular structures, orbitals, animations
+  - Features: Multiple rendering styles, interactive rotation
+- **Plotly.js** - Interactive plotting library
+  - Why: Publication-quality, highly interactive (zoom/pan/export)
+  - Use: Energy plots, spectra (IR/Raman/NMR), orbital diagrams
+  - Features: SVG/PNG export, hover tooltips, responsive
+- **Chart.js** *(alternative)* - Lightweight charting
+  - Why: Faster loading for simple plots
+  - Use: Quick overview charts
+
+**Deployment:**
+- **localtunnel** - Public tunnel for Colab (no signup)
+- **ngrok** *(alternative)* - Stable tunnel with auth token
 
 ---
 
