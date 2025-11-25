@@ -254,6 +254,7 @@ class OrcaOutput:
     mulliken_orbital_populations: list[OrbitalPopulation] = field(default_factory=list)
     loewdin_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     mayer_bond_orders: list[tuple[int, int, float]] = field(default_factory=list)
+    loewdin_bond_orders: list[tuple[int, int, float]] = field(default_factory=list)
     thermochemistry: Optional[Thermochemistry] = None
     nmr_data: Optional[NMRData] = None
 
@@ -388,6 +389,10 @@ class OrcaOutput:
                 {'atom1': b[0], 'atom2': b[1], 'order': b[2]}
                 for b in self.mayer_bond_orders
             ],
+            'loewdin_bond_orders': [
+                {'atom1': b[0], 'atom2': b[1], 'order': b[2]}
+                for b in self.loewdin_bond_orders
+            ],
             'thermochemistry': {
                 'temperature': self.thermochemistry.temperature,
                 'pressure': self.thermochemistry.pressure,
@@ -440,6 +445,7 @@ def parse_out_content(content: str) -> OrcaOutput:
     mulliken = parse_mulliken_charges(content)
     loewdin = parse_loewdin_charges(content)
     bond_orders = parse_mayer_bond_orders(content)
+    loewdin_bond_orders = parse_loewdin_bond_orders(content)
     thermo = parse_thermochemistry(content)
     nmr = parse_nmr_data(content)
     scf_iterations = parse_scf_iterations(content)
@@ -480,6 +486,7 @@ def parse_out_content(content: str) -> OrcaOutput:
         mulliken_orbital_populations=mulliken_orb_pop,
         loewdin_charges=loewdin,
         mayer_bond_orders=bond_orders,
+        loewdin_bond_orders=loewdin_bond_orders,
         thermochemistry=thermo,
         nmr_data=nmr
     )
@@ -782,6 +789,33 @@ def parse_mayer_bond_orders(content: str) -> list[tuple[int, int, float]]:
         if key not in seen and order > 0.1:  # Filter weak bonds
             seen.add(key)
             bond_orders.append((atom1, atom2, order))
+
+    return bond_orders
+
+
+def parse_loewdin_bond_orders(content: str) -> list[tuple[int, int, float]]:
+    """Extract Loewdin bond orders."""
+    bond_orders = []
+
+    # Find the Loewdin bond orders section
+    loewdin_section = re.search(
+        r'LOEWDIN BOND ORDERS.*?-+\s*(.*?)(?:\n\n|--+)',
+        content, re.DOTALL
+    )
+
+    if loewdin_section:
+        # Find all bond order entries in the Loewdin section only
+        matches = re.findall(
+            r'B\(\s*(\d+)-\w+\s*,\s*(\d+)-\w+\s*\)\s*:\s+(\d+\.?\d*)',
+            loewdin_section.group(1)
+        )
+
+        for match in matches:
+            atom1 = int(match[0])
+            atom2 = int(match[1])
+            order = float(match[2])
+            if order > 0.05:  # Loewdin uses 0.05 threshold
+                bond_orders.append((atom1, atom2, order))
 
     return bond_orders
 
@@ -1431,7 +1465,10 @@ if __name__ == '__main__':
             print(f"  Strongest: {strongest.frequency:.1f} cm^-1 ({strongest.intensity:.1f} km/mol)")
 
         if result.mayer_bond_orders:
-            print(f"Bond Orders: {len(result.mayer_bond_orders)} bonds")
+            print(f"Mayer Bond Orders: {len(result.mayer_bond_orders)} bonds")
+
+        if result.loewdin_bond_orders:
+            print(f"Loewdin Bond Orders: {len(result.loewdin_bond_orders)} bonds")
 
         if result.mulliken_orbital_populations:
             print(f"Mulliken Orbital Populations: {len(result.mulliken_orbital_populations)} atoms")
