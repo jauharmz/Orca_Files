@@ -958,65 +958,161 @@ function App() {
 - [ ] **2.3** File upload interface (manual upload support)
 - [ ] **2.4** Auto-detect and parse uploaded files
 
-### Phase 3: Interactive Data Visualization
+### Phase 3A: Core Interactive Visualizations (COMPLETED ✓)
 **3D Molecular Visualization:**
-- [ ] **3.1** 3D molecular structure viewer using **3Dmol.js**
-  - Interactive rotation, zoom, pan
-  - Multiple rendering styles (stick, ball-and-stick, sphere, surface)
-  - Atom labels and measurements
-  - Export as image/video
-- [ ] **3.2** Molecular orbital visualization
-  - HOMO/LUMO isosurfaces
-  - Electron density maps
-  - Orbital phase coloring
-- [ ] **3.3** Vibrational mode animation
-  - Animated normal modes (vibrations)
-  - Adjustable animation speed
-  - Vector arrows for displacement
+- [x] **3A.1** 3D molecular structure viewer using **3Dmol.js**
+  - ✓ Interactive rotation, zoom, pan
+  - ✓ Multiple rendering styles (stick, ball-and-stick, sphere)
+  - ✓ Atom labels toggle
+  - ✓ Export as PNG image
+  - Status: **DONE** - Basic viewer working
 
-**Energy & Convergence Plots:**
-- [ ] **3.4** SCF convergence plot using **Plotly**
-  - Interactive line chart with zoom/pan
-  - Energy vs iteration
-  - Highlight convergence threshold
-- [ ] **3.5** Geometry optimization trajectory
-  - Energy vs optimization step
-  - Interactive markers for each geometry
-  - 3D structure viewer synced with plot (click point → view structure)
-- [ ] **3.6** Thermochemistry energy diagram
-  - Bar chart: Electronic, ZPE, Thermal, Enthalpy, Gibbs
-  - Energy level diagram with transitions
+**Basic Spectroscopy Plots:**
+- [x] **3A.2** SCF convergence plot using **Plotly**
+  - ✓ Interactive line chart with zoom/pan
+  - ✓ Energy vs iteration
+  - Status: **DONE**
+- [x] **3A.3** IR spectrum plot
+  - ✓ Interactive bar chart
+  - ✓ Frequency (cm⁻¹) vs Intensity (km/mol)
+  - ✓ Export as PNG/SVG
+  - Status: **DONE**
+- [x] **3A.4** Raman spectrum plot
+  - ✓ Frequency vs Raman activity
+  - ✓ Export as PNG/SVG
+  - Status: **DONE**
+- [x] **3A.5** NMR chemical shift plot
+  - ✓ Chemical shift (ppm) peaks
+  - ✓ Labeled by nucleus
+  - Status: **DONE**
+- [x] **3A.6** Thermochemistry energy diagram
+  - ✓ Bar chart: Electronic, ZPE, Enthalpy, Gibbs
+  - Status: **DONE**
+- [x] **3A.7** Molecular orbital energy diagram
+  - ✓ Energy levels with occupation
+  - ✓ HOMO-LUMO gap visualization
+  - ✓ Color-coded occupied/virtual
+  - Status: **DONE**
 
-**Spectroscopy Visualization:**
-- [ ] **3.7** IR spectrum plot
-  - Interactive line/bar chart
-  - Frequency (cm⁻¹) vs Intensity (km/mol)
-  - Peak picking and annotation
-  - Export as CSV/image
-- [ ] **3.8** Raman spectrum plot
-  - Frequency vs Raman activity
-  - Depolarization ratio overlay
-- [ ] **3.9** NMR spectrum simulation
-  - Chemical shift (ppm) peaks
-  - Coupling patterns (if available)
-  - Splitting visualization
+**UI Features:**
+- [x] **3A.8** Collapsible plot sections
+- [x] **3A.9** Export buttons for all plots
+- [x] **3A.10** File upload with drag-and-drop
 
-**Orbital & Electronic Structure:**
-- [ ] **3.10** Molecular orbital energy diagram
-  - Energy levels with occupation
-  - HOMO-LUMO gap visualization
-  - Interactive selection (click → view orbital)
-- [ ] **3.11** DOS (Density of States) plot
-  - Energy vs number of states
-  - Highlight occupied/virtual regions
-
-**Population Analysis:**
-- [ ] **3.12** Charge distribution heatmap
-  - Color-coded atoms by Mulliken/Loewdin charge
-  - 3D structure with charge coloring
-- [ ] **3.13** Bond order visualization
+### Phase 3B: Enhanced 3D Molecular Visualizations (HIGH PRIORITY)
+**Charge & Electronic Properties:**
+- [ ] **3B.1** Charge-colored atoms
+  - Color atoms by Mulliken/Loewdin charge
+  - Red (negative) → White (neutral) → Blue (positive)
+  - Toggle between charge types
+  - Color scale legend
+  - Data: `mulliken_charges`, `loewdin_charges`
+- [ ] **3B.2** Bond order visualization
   - Bond thickness proportional to bond order
-  - Interactive bond selection
+  - Color gradient for bond strength
+  - Show bond order values on hover
+  - Filter by threshold
+  - Data: `mayer_bond_orders`, `loewdin_bond_orders`
+- [ ] **3B.3** Dipole moment vector
+  - 3D arrow showing dipole direction
+  - Length proportional to magnitude
+  - Component breakdown (x, y, z)
+  - Toggle on/off
+  - Data: `dipole_moment`
+
+**Geometry Evolution:**
+- [ ] **3B.4** Geometry optimization trajectory overlay
+  - Show multiple geometries as ghost images
+  - Slider to step through optimization
+  - Energy label for each step
+  - Animate transition between steps
+  - Data: `optimization_energies` + geometry snapshots
+- [ ] **3B.5** Vibrational mode animation
+  - Animate atomic displacements
+  - Arrows showing motion vectors
+  - Frequency selector
+  - Play/pause controls
+  - Amplitude adjustment
+  - Data: `frequencies` + normal modes
+
+### Phase 3C: Advanced Spectroscopy (MEDIUM PRIORITY)
+**Combined Spectra:**
+- [ ] **3C.1** IR + Raman overlay
+  - Dual y-axes (IR intensity, Raman activity)
+  - Color-coded traces
+  - Synchronized x-axis zoom
+  - Peak comparison mode
+- [ ] **3C.2** NMR with J-coupling network
+  - Show coupling constants between nuclei
+  - Network graph visualization
+  - Coupling strength as edge thickness
+  - Data: `nmr_data` with J-coupling
+- [ ] **3C.3** Chemical shielding tensor visualization
+  - Interactive table with all 18 nuclei
+  - 3×3 matrix display
+  - Eigenvalue/eigenvector breakdown
+  - Anisotropy bars
+  - Data: `chemical_shielding_tensors`
+
+### Phase 3D: Electronic Structure Analysis (MEDIUM PRIORITY)
+**Orbital Analysis:**
+- [ ] **3D.1** Orbital charge contribution heatmap
+  - 2D heatmap: MOs (rows) × Atoms (columns)
+  - Color intensity = charge contribution
+  - Interactive: Click to highlight
+  - Zoom to HOMO/LUMO region
+  - Data: `mulliken_orbital_charges` (371 MOs)
+- [ ] **3D.2** SCF convergence details (multi-line)
+  - Energy convergence
+  - Density convergence
+  - DIIS error
+  - Three traces on same plot
+  - Convergence thresholds
+  - Data: `scf_iterations`
+- [ ] **3D.3** HOMO-LUMO gap tracker
+  - Gap value vs geometry step
+  - Highlight where gap changes significantly
+  - Useful for optimization
+- [ ] **3D.4** Density of States (DOS)
+  - Histogram of orbital energies
+  - Gaussian broadening
+  - Occupied vs virtual regions
+
+### Phase 3E: Network & Correlation Analysis (ADVANCED)
+**Bonding Analysis:**
+- [ ] **3E.1** Mulliken overlap network
+  - Network graph: atoms as nodes
+  - Edge thickness = overlap charge
+  - 3D or 2D force-directed layout
+  - Interactive: drag nodes
+  - Data: `mulliken_overlap_charges` (105 pairs)
+- [ ] **3E.2** Polarizability ellipsoid
+  - 3D ellipsoid overlay on molecule
+  - Axes show polarizability directions
+  - Size proportional to eigenvalues
+  - Data: `polarizability` tensor
+
+### Phase 3F: Performance & Diagnostics (UTILITY)
+**Computation Analysis:**
+- [ ] **3F.1** Timing breakdown pie chart
+  - Time spent in each module
+  - Percentage labels
+  - Interactive tooltips
+  - Bar chart alternative
+  - Data: `timing_data`
+- [ ] **3F.2** Basis set composition
+  - Pie chart: s, p, d, f functions
+  - Bar chart per atom type
+  - Statistics table
+  - Data: `basis_set_info`
+- [ ] **3F.3** DFT grid statistics
+  - Grid points per atom
+  - Accuracy levels
+  - COSX grid details
+  - Data: `dft_grid_info`, `cosx_grids`
+- [ ] **3F.4** Memory usage tracking
+  - Peak memory per module
+  - Memory trend during calculation
 
 ### Phase 4: Advanced Features
 - [ ] **4.1** Multi-file comparison
@@ -1034,14 +1130,16 @@ function App() {
   - Embed in Jupyter notebooks
 
 ### Phase 5: Web UI Enhancement
-- [x] **5.1** Flask backend with REST API
-- [x] **5.2** Basic HTML/CSS/JS frontend
-- [ ] **5.3** File upload drag-and-drop
-- [ ] **5.4** Expandable/collapsible table sections
-- [ ] **5.5** Data export buttons (CSV, JSON, Excel)
+- [x] **5.1** Flask backend with REST API - **DONE**
+- [x] **5.2** Basic HTML/CSS/JS frontend - **DONE**
+- [x] **5.3** File upload drag-and-drop - **DONE**
+- [x] **5.4** Expandable/collapsible sections - **DONE**
+- [x] **5.5** Data export buttons (JSON, PNG, SVG) - **DONE**
 - [ ] **5.6** Real-time parsing progress indicator
 - [ ] **5.7** Multiple file tabs (switch between uploaded files)
 - [ ] **5.8** Dark mode toggle
+- [ ] **5.9** CSV/Excel export for tables
+- [ ] **5.10** Search/filter in tables
 
 ---
 
