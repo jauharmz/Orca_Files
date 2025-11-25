@@ -215,6 +215,19 @@ class SCFConvergence:
 
 
 @dataclass
+class OrbitalPopulation:
+    """Orbital population breakdown for an atom."""
+    atom_index: int
+    element: str
+    s_total: float = 0.0
+    p_total: float = 0.0
+    d_total: float = 0.0
+    f_total: float = 0.0
+    g_total: float = 0.0
+    orbital_details: dict[str, float] = field(default_factory=dict)  # e.g., {'px': 0.885, 'py': 1.012, ...}
+
+
+@dataclass
 class OrcaOutput:
     """Complete parsed ORCA output."""
     job_info: JobInfo
@@ -237,6 +250,7 @@ class OrcaOutput:
     cpcm_solvation: Optional[CPCMSolvation] = None
     scf_convergence: Optional[SCFConvergence] = None
     mulliken_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
+    mulliken_orbital_populations: list[OrbitalPopulation] = field(default_factory=list)
     loewdin_charges: dict[int, tuple[str, float]] = field(default_factory=dict)
     mayer_bond_orders: list[tuple[int, int, float]] = field(default_factory=list)
     thermochemistry: Optional[Thermochemistry] = None
@@ -348,6 +362,19 @@ class OrcaOutput:
                 str(k): {'element': v[0], 'charge': v[1]}
                 for k, v in self.mulliken_charges.items()
             },
+            'mulliken_orbital_populations': [
+                {
+                    'atom_index': pop.atom_index,
+                    'element': pop.element,
+                    's': pop.s_total,
+                    'p': pop.p_total,
+                    'd': pop.d_total,
+                    'f': pop.f_total,
+                    'g': pop.g_total,
+                    'orbital_details': pop.orbital_details
+                }
+                for pop in self.mulliken_orbital_populations
+            ],
             'loewdin_charges': {
                 str(k): {'element': v[0], 'charge': v[1]}
                 for k, v in self.loewdin_charges.items()
@@ -416,6 +443,7 @@ def parse_out_content(content: str) -> OrcaOutput:
     energy_comp = parse_energy_components(content)
     cpcm_solv = parse_cpcm_solvation(content)
     scf_conv = parse_scf_convergence(content)
+    mulliken_orb_pop = parse_mulliken_orbital_populations(content)
 
     # Get number of atoms for normal modes parsing
     num_atoms = len(mulliken) if mulliken else 0
@@ -442,6 +470,7 @@ def parse_out_content(content: str) -> OrcaOutput:
         cpcm_solvation=cpcm_solv,
         scf_convergence=scf_conv,
         mulliken_charges=mulliken,
+        mulliken_orbital_populations=mulliken_orb_pop,
         loewdin_charges=loewdin,
         mayer_bond_orders=bond_orders,
         thermochemistry=thermo,
@@ -1206,6 +1235,79 @@ def parse_scf_convergence(content: str) -> Optional[SCFConvergence]:
     return None
 
 
+def parse_mulliken_orbital_populations(content: str) -> list[OrbitalPopulation]:
+    """Extract Mulliken reduced orbital charges (orbital population analysis)."""
+    populations = []
+
+    # Find the MULLIKEN REDUCED ORBITAL CHARGES section
+    section_match = re.search(
+        r'MULLIKEN REDUCED ORBITAL CHARGES\s*-+\s*(.*?)(?:\n\n\n)',
+        content, re.DOTALL
+    )
+
+    if not section_match:
+        return populations
+
+    section_text = section_match.group(1)
+    lines = section_text.strip().split('\n')
+
+    current_pop = None
+
+    for line in lines:
+        # Check if this line starts a new atom: "  0 C s       :     3.171400  s :     3.171400"
+        atom_match = re.match(r'^\s*(\d+)\s+(\w+)\s+', line)
+        if atom_match:
+            # Save previous atom if any
+            if current_pop:
+                populations.append(current_pop)
+
+            # Start new atom
+            atom_idx = int(atom_match.group(1))
+            element = atom_match.group(2)
+            current_pop = OrbitalPopulation(atom_index=atom_idx, element=element)
+
+            # Also process the rest of this line (contains first orbital data)
+            # Extract totals from the same line
+            for orbital_type in ['s', 'p', 'd', 'f', 'g']:
+                match = re.search(rf'{orbital_type}\s*:\s*(\d+\.?\d+)', line)
+                if match:
+                    setattr(current_pop, f'{orbital_type}_total', float(match.group(1)))
+
+        elif current_pop:
+            # This is a continuation line for the current atom
+            # Extract orbital details and totals
+            # Format: "      pz      :     0.990710  p :     2.888037"
+            # or just: "      px      :     0.885174"
+
+            # Check if line has both individual orbital and total
+            # Pattern: "orbital_name : value  orbital_type : total"
+            combined_match = re.match(r'([a-z][a-z0-9+\-]*)\s*:\s*(\d+\.?\d+)\s+([a-z])\s*:\s*(\d+\.?\d+)', line.strip())
+            if combined_match:
+                # Has both individual orbital and total
+                orb_name = combined_match.group(1)
+                orb_value = float(combined_match.group(2))
+                orb_type = combined_match.group(3)
+                orb_total = float(combined_match.group(4))
+
+                if orb_name not in ['s', 'p', 'd', 'f', 'g']:
+                    current_pop.orbital_details[orb_name] = orb_value
+                setattr(current_pop, f'{orb_type}_total', orb_total)
+            else:
+                # Just has individual orbital
+                orb_match = re.match(r'([a-z][a-z0-9+\-]*)\s*:\s*(\d+\.?\d+)', line.strip())
+                if orb_match:
+                    orb_name = orb_match.group(1)
+                    orb_value = float(orb_match.group(2))
+                    if orb_name not in ['s', 'p', 'd', 'f', 'g']:
+                        current_pop.orbital_details[orb_name] = orb_value
+
+    # Don't forget the last atom
+    if current_pop:
+        populations.append(current_pop)
+
+    return populations
+
+
 def parse_timing_data(content: str) -> Optional[TimingData]:
     """Extract computational timing breakdown."""
     timing = TimingData()
@@ -1293,6 +1395,19 @@ if __name__ == '__main__':
 
         if result.mayer_bond_orders:
             print(f"Bond Orders: {len(result.mayer_bond_orders)} bonds")
+
+        if result.mulliken_orbital_populations:
+            print(f"Mulliken Orbital Populations: {len(result.mulliken_orbital_populations)} atoms")
+            # Show first few atoms as example
+            for pop in result.mulliken_orbital_populations[:3]:
+                orb_str = f"s={pop.s_total:.2f}, p={pop.p_total:.2f}"
+                if pop.d_total > 0.01:
+                    orb_str += f", d={pop.d_total:.2f}"
+                if pop.f_total > 0.001:
+                    orb_str += f", f={pop.f_total:.3f}"
+                print(f"  {pop.atom_index} {pop.element}: {orb_str}")
+            if len(result.mulliken_orbital_populations) > 3:
+                print(f"  ... and {len(result.mulliken_orbital_populations) - 3} more")
 
         if result.thermochemistry:
             print(f"Gibbs Free Energy: {result.thermochemistry.gibbs_free_energy:.6f} Eh")
