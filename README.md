@@ -1131,6 +1131,61 @@ function App() {
   - Peak memory per module
   - Memory trend during calculation
 
+### Phase 3G: Comparison & Analysis Visualizations (NEW!)
+**Method Comparison:**
+- [x] **3G.1** Bond order comparison - **DONE** ✓
+  - ✓ Side-by-side grouped bar chart (Mayer vs Loewdin)
+  - ✓ Color-coded bars for each method
+  - ✓ Bond labels with atom indices
+  - ✓ Filter weak bonds (>0.1 threshold)
+  - ✓ Hover tooltips with 3-decimal precision
+  - Data: `mayer_bond_orders`, `loewdin_bond_orders`
+- [x] **3G.2** Charge analysis comparison - **DONE** ✓
+  - ✓ Scatter plot: Mulliken vs Loewdin charges
+  - ✓ Color-coded by charge magnitude (RdBu colorscale)
+  - ✓ Diagonal line showing perfect agreement
+  - ✓ Atom labels at each point
+  - ✓ Interactive hover with both charge values
+  - Data: `mulliken_charges`, `loewdin_charges`
+
+**Energy Analysis:**
+- [x] **3G.3** Energy components breakdown - **DONE** ✓
+  - ✓ Pie chart showing |energy| components
+  - ✓ Nuclear repulsion, electronic, 1e, 2e, XC
+  - ✓ Detailed table with signed values
+  - ✓ Color-coded segments
+  - ✓ Hover with 4-decimal precision
+  - Data: `energy_components`
+- [x] **3G.4** Dispersion correction (DFTD3) - **DONE** ✓
+  - ✓ Bar chart: E6, E8, Total contributions
+  - ✓ Detailed parameters table (s6, s8)
+  - ✓ 8-decimal precision for small values
+  - ✓ Color-coded bars
+  - Data: `dispersion_correction`
+
+**Orbital & Geometry Analysis:**
+- [x] **3G.5** Orbital population by element - **DONE** ✓
+  - ✓ Stacked bar chart (s, p, d, f, g orbitals)
+  - ✓ Per-atom breakdown
+  - ✓ Color-coded by orbital type
+  - ✓ Auto-filter empty orbital types
+  - ✓ Atom labels on x-axis
+  - Data: `mulliken_orbital_populations`
+- [x] **3G.6** Internal coordinates distribution - **DONE** ✓
+  - ✓ Dual histogram (bond lengths + angles)
+  - ✓ Independent subplots (grid layout)
+  - ✓ Bond lengths in Angstroms
+  - ✓ Angles in degrees
+  - ✓ Hover with counts
+  - Data: `internal_coords`
+- [x] **3G.7** SCF iteration efficiency - **DONE** ✓
+  - ✓ Line plot of energy reduction per iteration
+  - ✓ Log scale y-axis for convergence visualization
+  - ✓ Markers at each iteration
+  - ✓ Scientific notation hover (6 digits)
+  - ✓ Shows ΔE between consecutive steps
+  - Data: `scf_iterations`
+
 ### Phase 4: Advanced Features
 - [ ] **4.1** Multi-file comparison
   - Side-by-side structure viewer
@@ -1240,11 +1295,11 @@ streamlit run app.py
 
 ## Current Progress
 
-**Status:** Phase 3 visualizations - **28/30+ planned features implemented** 🎉
+**Status:** Phase 3 visualizations - **35/36 features implemented** 🎉 (97% complete!)
 
-**Latest Session (2025-11-25):** Added **9 new advanced visualizations** across multiple phases:
+**Latest Session (2025-11-25):** Added **16 new advanced visualizations** across multiple phases!
 
-**First Wave (7 visualizations):**
+**First Wave (7 visualizations) - Advanced Chemistry:**
 - ✅ Geometry optimization trajectory with animation controls
 - ✅ Vibrational mode selector with property display
 - ✅ Orbital charge heatmap (371 MOs × 23 atoms)
@@ -1253,9 +1308,18 @@ streamlit run app.py
 - ✅ HOMO-LUMO gap tracker
 - ✅ Density of States (DOS) with Gaussian broadening
 
-**Second Wave (2 visualizations):**
+**Second Wave (2 visualizations) - Network Analysis:**
 - ✅ Mulliken overlap network with dual layout modes
 - ✅ Polarizability tensor visualization with eigenvalues
+
+**Third Wave (7 visualizations) - Comparison & Analysis:**
+- ✅ Bond order comparison (Mayer vs Loewdin)
+- ✅ Charge analysis scatter (Mulliken vs Loewdin)
+- ✅ Energy components breakdown pie chart
+- ✅ Dispersion correction (DFTD3) visualization
+- ✅ Orbital population by element (stacked bars)
+- ✅ Internal coordinates distribution (dual histograms)
+- ✅ SCF iteration efficiency (log scale)
 
 **Completion Status:**
 - **Phase 3A:** 10/10 features (100% DONE) ✓
@@ -1264,9 +1328,12 @@ streamlit run app.py
 - **Phase 3D:** 4/4 features (100% DONE) ✓
 - **Phase 3E:** 2/2 features (100% DONE) ✓
 - **Phase 3F:** 3/4 features (75% DONE)
+- **Phase 3G:** 7/7 features (100% DONE) ✓ **NEW!**
+
+**Total: 35 Interactive Visualizations | 38/57 sections parsed (67%)**
 
 **Next steps:**
-- Phase 3F.4: Memory usage tracking (final Phase 3 feature)
+- Phase 3F.4: Memory usage tracking (final Phase 3F feature)
 - Additional parser sections (19 remaining)
 - Phase 4: Multi-file comparison, animation export, report generation
 
