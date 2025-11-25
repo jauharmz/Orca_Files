@@ -72,34 +72,80 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 **Format:** ORCA text output with multiple sections
 
-**Data Contains (52+ sections):**
-- **Job Info:** Method, basis set, charge, multiplicity
-- **Energy:** Final SCF energy, optimization energies
-- **Orbital Energies:** HOMO, LUMO, all occupied/virtual orbitals
-- **Dipole Moment:** X, Y, Z components in a.u. and Debye
-- **Polarizability:** Static polarizability tensor (3x3 matrix)
-- **Mulliken Charges:** Atomic partial charges
-- **Loewdin Charges:** Alternative charge analysis
-- **Mayer Bond Orders:** Covalent bond strengths
-- **Vibrational Frequencies:** All normal modes in cm⁻¹
-- **IR Spectrum:** Frequencies with intensities (km/mol)
-- **Thermochemistry:**
-  - Zero-point energy (ZPE)
-  - Thermal corrections
-  - Enthalpy
-  - Entropy (electronic, vibrational, rotational, translational)
-  - Gibbs free energy
-- **NMR Data:**
-  - Chemical shielding/shifts (ppm)
-  - J-coupling constants (Hz)
+**Currently Parsed (27 sections):**
+1. **Job Info:** Method, basis set, charge, multiplicity
+2. **Final Energy:** Total SCF energy
+3. **SCF Energies:** Energy at each SCF iteration
+4. **Optimization Energies:** Energy at each geometry step
+5. **Coordinates:** Cartesian coordinates (Angstrom)
+6. **Dipole Moment:** X, Y, Z components (a.u. and Debye)
+7. **Polarizability:** Static polarizability tensor + eigenvalues
+8. **Orbital Energies:** HOMO, LUMO, all occupied/virtual orbitals
+9. **Vibrational Frequencies:** All normal modes (cm⁻¹)
+10. **IR Spectrum:** Frequencies with intensities (km/mol)
+11. **Raman Spectrum:** Frequencies with activities and depolarization
+12. **Dispersion Correction:** DFTD3 (E6, E8 components)
+13. **Mulliken Charges:** Atomic partial charges
+14. **Loewdin Charges:** Alternative charge analysis
+15. **Mayer Bond Orders:** Covalent bond strengths
+16. **Thermochemistry:**
+    - Zero-point energy (ZPE)
+    - Thermal corrections
+    - Enthalpy, Entropy (electronic/vibrational/rotational/translational)
+    - Gibbs free energy
+17. **NMR Chemical Shifts:** Isotropic shielding (ppm)
+18. **NMR J-Couplings:** Isotropic coupling constants (Hz)
+19. **Normal Modes:** Vibrational displacement vectors (partial)
+20. **SCF Iterations:** Detailed convergence data per iteration
+21. **Timing Data:** Computational timing breakdown
+22. **DFT Grid Info:** Integration grid parameters
+23. **Basis Set Info:** Basis set name, functions, primitives
+24. **Energy Components:** Nuclear/electronic/kinetic/potential/virial/XC
+25. **CPCM Solvation:** Surface charge, dielectric energy
+26. **SCF Convergence:** Final convergence metrics
+27. **Mulliken Orbital Populations:** s,p,d,f,g breakdown per atom
+
+**Unparsed Sections Available (30 more):**
+
+**HIGH PRIORITY (11 sections):**
+- Mulliken/Loewdin Orbital Populations Per MO (~11k MOs - HUGE dataset)
+- Mulliken Overlap Charges
+- Loewdin Bond Orders
+- Mulliken/Loewdin Orbital Charges
+- J-Coupling Tensor Components (DSO/PSO/FC/SD/SD-FC)
+- Chemical Shielding Tensors (full anisotropic)
+- Chemical Shielding Summary
+
+**MEDIUM PRIORITY (12 sections):**
+- Internal Coordinates (bond lengths/angles/dihedrals)
+- Cartesian Coordinates (atomic units)
+- Geometric Perturbations
+- Basis Set Details (contractions, exponents)
+- SHARK Integral Package
+- COSX Grid Generation
+- Initial Guess Orbitals
+- DIIS/SOSCF Details
+- CPCM Detailed Parameters
+
+**LOW PRIORITY (7 sections):**
+- Normal Modes (complete all 63 modes)
+- SCF Hessian Matrix
+- MO Coefficients (MASSIVE dataset)
+- Pople Linear Equation Solver
+- SCF Settings (detailed)
+- Citations
+- Total Runtime
+
+See `ORCA_SECTIONS_ROADMAP.md` for complete analysis.
 
 **Preview:**
 - Energy convergence plots
 - Orbital energy diagrams
-- IR spectrum stick plots
+- IR/Raman spectrum plots
 - Atomic charge bar charts
 - NMR shift tables
 - Thermochemistry summary
+- Orbital population analysis
 
 ---
 
