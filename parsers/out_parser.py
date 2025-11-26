@@ -314,6 +314,63 @@ class MOCharge:
 
 
 @dataclass
+class TDDFTState:
+    """TD-DFT excited state data."""
+    state: int
+    energy_au: float
+    energy_ev: float
+    energy_cm1: float
+    homo: Optional[int] = None  # HOMO index relative (e.g., -1 for HOMO-1)
+    lumo: Optional[int] = None  # LUMO index relative (e.g., 0 for LUMO, 1 for LUMO+1)
+    weight: float = 0.0
+    coeff: float = 0.0
+    from_orb: int = 0
+    to_orb: int = 0
+
+
+@dataclass
+class ElectricDipoleTransition:
+    """Electric dipole absorption spectrum transition."""
+    transition: str  # e.g., "0 -> 1"
+    energy_ev: float
+    energy_cm1: float
+    wavelength_nm: float
+    fosc_d2: float  # Oscillator strength
+    d2: float  # Dipole strength
+    dx: float
+    dy: float
+    dz: float
+
+
+@dataclass
+class VelocityDipoleTransition:
+    """Velocity dipole absorption spectrum transition."""
+    transition: str
+    energy_ev: float
+    energy_cm1: float
+    wavelength_nm: float
+    fosc_p2: float  # Oscillator strength
+    p2: float  # Velocity dipole strength
+    px: float
+    py: float
+    pz: float
+
+
+@dataclass
+class AbsorptionSpectra:
+    """Absorption spectra data (regular and SOC-corrected)."""
+    regular: list[ElectricDipoleTransition] = field(default_factory=list)
+    soc_corrected: list[ElectricDipoleTransition] = field(default_factory=list)
+
+
+@dataclass
+class VelocityAbsorptionSpectra:
+    """Velocity dipole absorption spectra data."""
+    regular: list[VelocityDipoleTransition] = field(default_factory=list)
+    soc_corrected: list[VelocityDipoleTransition] = field(default_factory=list)
+
+
+@dataclass
 class OrcaOutput:
     """Complete parsed ORCA output."""
     job_info: JobInfo
@@ -353,6 +410,10 @@ class OrcaOutput:
     geometric_perturbations: Optional[GeometricPerturbations] = None
     shark_integrals: Optional[SharkIntegrals] = None
     cosx_grids: list[COSXGrid] = field(default_factory=list)
+    # TD-DFT and UV-Vis spectroscopy
+    tddft_states: list[TDDFTState] = field(default_factory=list)
+    electric_dipole_spectrum: Optional[AbsorptionSpectra] = None
+    velocity_dipole_spectrum: Optional[VelocityAbsorptionSpectra] = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
