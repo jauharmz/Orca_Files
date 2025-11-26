@@ -805,6 +805,30 @@
                 </div>
             </div>
 
+            <button class="collapsible" onclick="toggleCollapsible(this)">UV-Vis Absorption Spectrum (Electric Dipole) 🌈</button>
+            <div class="collapsible-content">
+                <div id="uv-vis-electric-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('uv-vis-electric-plot', 'uv_vis_electric.png')">📷 PNG</button>
+                    <button class="btn-export" onclick="exportPlot('uv-vis-electric-plot', 'uv_vis_electric.svg')">📄 SVG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    TD-DFT excited states with Gaussian broadening. Stick spectrum shows transitions with oscillator strengths.
+                </p>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">UV-Vis Absorption Spectrum (Velocity Dipole) 🔬</button>
+            <div class="collapsible-content">
+                <div id="uv-vis-velocity-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('uv-vis-velocity-plot', 'uv_vis_velocity.png')">📷 PNG</button>
+                    <button class="btn-export" onclick="exportPlot('uv-vis-velocity-plot', 'uv_vis_velocity.svg')">📄 SVG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Alternative formulation using velocity representation. Compare with electric dipole spectrum.
+                </p>
+            </div>
+
             <button class="collapsible" onclick="toggleCollapsible(this)">Computation Timing Breakdown ⏱️</button>
             <div class="collapsible-content">
                 <div id="timing-plot" style="width: 100%; height: 400px;"></div>
@@ -2384,6 +2408,8 @@
             renderOrbitalPlot();
             renderNMRPlot();
             renderCombinedSpectrum();
+            renderUVVisElectric();
+            renderUVVisVelocity();
             renderTimingBreakdown();
             renderSCFDetails();
             renderBasisComposition();
@@ -2468,49 +2494,279 @@
         function renderIRPlot() {
             if (!data || !data.ir_spectrum || data.ir_spectrum.length === 0) return;
 
-            const frequencies = data.ir_spectrum.map(d => d.frequency);
-            const intensities = data.ir_spectrum.map(d => d.intensity);
+            // === Parameters ===
+            const fwhm = 20.0;  // Full width at half maximum (cm⁻¹)
+            const sigma = fwhm / (2 * Math.sqrt(2 * Math.log(2)));
 
-            const trace = {
-                x: frequencies,
-                y: intensities,
-                type: 'bar',
-                marker: {color: '#28a745'},
-                name: 'IR Intensity'
+            // Beer-Lambert law parameters
+            const concentration = 0.01;  // mol/L
+            const pathLength = 1.0;      // cm
+
+            // Regional boundaries (cm⁻¹)
+            const regionBoundaries = [3000, 2400, 2000, 1600, 1400, 1000, 600];
+
+            // === Create wavenumber grid ===
+            const minFreq = Math.min(...data.ir_spectrum.map(d => d.frequency));
+            const maxFreq = Math.max(...data.ir_spectrum.map(d => d.frequency));
+            const gridPoints = 5000;
+            const wavenumbers = Array.from({length: gridPoints}, (_, i) =>
+                minFreq + (maxFreq - minFreq) * i / (gridPoints - 1)
+            );
+
+            // === Calculate absorbance: A = ε × c × l ===
+            const absorbanceData = data.ir_spectrum.map(peak => {
+                const epsilon = peak.intensity;  // Molar absorptivity (already in km/mol which works as L/(mol·cm))
+                const absorbance = epsilon * concentration * pathLength;
+                return {
+                    frequency: peak.frequency,
+                    absorbance: absorbance,
+                    epsilon: epsilon
+                };
+            });
+
+            // === Apply Gaussian broadening to absorbance ===
+            const broadenedAbsorbance = wavenumbers.map(x => {
+                let absorbance = 0;
+                absorbanceData.forEach(peak => {
+                    const exponent = -0.5 * Math.pow((x - peak.frequency) / sigma, 2);
+                    absorbance += peak.absorbance * Math.exp(exponent);
+                });
+                return absorbance;
+            });
+
+            // Normalize absorbance
+            const maxAbsorbance = Math.max(...broadenedAbsorbance);
+            const normalizedAbsorbance = broadenedAbsorbance.map(val =>
+                maxAbsorbance > 0 ? val / maxAbsorbance : 0
+            );
+
+            // === Convert to transmittance: T = 10^(-A) × 100% ===
+            const transmittance = normalizedAbsorbance.map(A =>
+                Math.pow(10, -A) * 100
+            );
+
+            // Normalize transmittance to 0-100 range
+            const minT = Math.min(...transmittance);
+            const maxT = Math.max(...transmittance);
+            const normalizedTransmittance = transmittance.map(t =>
+                (maxT > minT) ? (t - minT) / (maxT - minT) * 100 : 100
+            );
+
+            // === Create traces ===
+            // Continuous transmittance spectrum
+            const continuousTrace = {
+                x: wavenumbers,
+                y: normalizedTransmittance,
+                type: 'scatter',
+                mode: 'lines',
+                line: {color: '#28a745', width: 1.5},
+                name: 'Transmittance',
+                hovertemplate: 'Wavenumber: %{x:.1f} cm⁻¹<br>Transmittance: %{y:.1f}%<extra></extra>'
             };
+
+            // Stick spectrum (above 100% baseline)
+            const stickHeight = 10;  // 10% above baseline
+            const stickTrace = {
+                x: data.ir_spectrum.map(d => d.frequency),
+                y: data.ir_spectrum.map(() => 100 + stickHeight),
+                type: 'bar',
+                base: data.ir_spectrum.map(() => 100),
+                marker: {color: '#28a745', line: {width: 0}},
+                width: data.ir_spectrum.map(() => 3),
+                name: 'Discrete Peaks',
+                hovertemplate: 'Wavenumber: %{x:.1f} cm⁻¹<br>Intensity: %{base:.1f} km/mol<extra></extra>',
+                showlegend: false
+            };
+
+            // === Layout with regional boundaries ===
+            const shapes = regionBoundaries.map(boundary => ({
+                type: 'line',
+                x0: boundary,
+                x1: boundary,
+                y0: 0,
+                y1: 100 + stickHeight * 1.2,
+                line: {
+                    color: 'gray',
+                    width: 1,
+                    dash: 'dash'
+                },
+                opacity: 0.6
+            }));
 
             const layout = {
-                title: 'IR Spectrum',
-                xaxis: {title: 'Frequency (cm⁻¹)'},
-                yaxis: {title: 'Intensity (km/mol)'},
-                hovermode: 'closest'
+                title: {
+                    text: 'Publication-Quality IR Spectrum<br><sub>Transmittance with Beer-Lambert law (A = εcl)</sub>',
+                    font: {size: 16}
+                },
+                xaxis: {
+                    title: 'Wavenumber (cm⁻¹)',
+                    autorange: 'reversed',  // High to low (IR convention)
+                    showgrid: true,
+                    gridcolor: '#e0e0e0'
+                },
+                yaxis: {
+                    title: 'Transmittance (%)',
+                    range: [0, 100 + stickHeight * 1.3],
+                    showticklabels: false,
+                    showgrid: false
+                },
+                shapes: shapes,
+                hovermode: 'closest',
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white',
+                showlegend: false,
+                annotations: [{
+                    x: 0.5,
+                    y: -0.15,
+                    xref: 'paper',
+                    yref: 'paper',
+                    text: 'Dips indicate absorption | Regional boundaries: 3000 (O-H/N-H), 2000 (C=O), 1600 (C=C), 1000 (C-O) cm⁻¹',
+                    showarrow: false,
+                    font: {size: 10, color: '#666'}
+                }]
             };
 
-            Plotly.newPlot('ir-plot', [trace], layout, {responsive: true});
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
+            };
+
+            Plotly.newPlot('ir-plot', [continuousTrace, stickTrace], layout, config);
         }
 
         function renderRamanPlot() {
             if (!data || !data.raman_spectrum || data.raman_spectrum.length === 0) return;
 
-            const frequencies = data.raman_spectrum.map(d => d.frequency);
-            const activities = data.raman_spectrum.map(d => d.activity);
+            // === Parameters ===
+            const fwhm = 17;  // Full width at half maximum (cm⁻¹)
+            const sigma = fwhm / (2 * Math.sqrt(2 * Math.log(2)));
 
-            const trace = {
-                x: frequencies,
-                y: activities,
-                type: 'bar',
-                marker: {color: '#dc3545'},
-                name: 'Raman Activity'
+            // Temperature-dependent intensity parameters
+            const h = 6.62607015e-34;  // Planck constant (J·s)
+            const c = 2.99792458e10;   // Speed of light (cm/s)
+            const kB = 1.380649e-23;   // Boltzmann constant (J/K)
+            const T = 298.15;          // Temperature (K)
+            const laserWavelength = 532;  // nm
+            const laserWavenumber = 1e7 / laserWavelength;  // cm⁻¹
+
+            // Regional boundaries (cm⁻¹)
+            const regionBoundaries = [500, 1000, 1800, 2800, 3200];
+
+            // === Create frequency grid ===
+            const minFreq = Math.min(...data.raman_spectrum.map(d => d.frequency));
+            const maxFreq = Math.max(...data.raman_spectrum.map(d => d.frequency));
+            const gridPoints = 8000;
+            const shifts = Array.from({length: gridPoints}, (_, i) =>
+                minFreq + (maxFreq - minFreq) * i / (gridPoints - 1)
+            );
+
+            // === Calculate temperature-dependent intensity ===
+            const intensitySpectrum = data.raman_spectrum.map(peak => {
+                const freq = peak.frequency;
+                const activity = peak.activity;
+
+                // Skip very low frequencies to avoid numerical issues
+                if (freq < 50) return {frequency: freq, intensity: 0, activity: activity};
+
+                // Temperature-dependent Raman intensity formula
+                const intensity = Math.pow(laserWavenumber - freq, 4) * activity /
+                    (freq * (1 - Math.exp(-h * c * freq / (kB * T))));
+
+                return {
+                    frequency: freq,
+                    intensity: intensity,
+                    activity: activity
+                };
+            });
+
+            // === Apply Gaussian broadening ===
+            const broadenedSpectrum = shifts.map(x => {
+                let intensity = 0;
+                intensitySpectrum.forEach(peak => {
+                    const exponent = -0.5 * Math.pow((x - peak.frequency) / sigma, 2);
+                    intensity += peak.intensity * Math.exp(exponent);
+                });
+                return intensity;
+            });
+
+            // Normalize
+            const maxIntensity = Math.max(...broadenedSpectrum);
+            const normalizedSpectrum = broadenedSpectrum.map(val => val / maxIntensity);
+
+            // === Create traces ===
+            // Continuous spectrum
+            const continuousTrace = {
+                x: shifts,
+                y: normalizedSpectrum,
+                type: 'scatter',
+                mode: 'lines',
+                line: {color: 'black', width: 1.5},
+                name: 'Raman Spectrum',
+                hovertemplate: 'Frequency: %{x:.1f} cm⁻¹<br>Intensity: %{y:.3f}<extra></extra>'
             };
+
+            // Stick spectrum (below baseline)
+            const stickHeight = 0.1;  // 10% of max
+            const stickTrace = {
+                x: intensitySpectrum.map(p => p.frequency),
+                y: intensitySpectrum.map(() => -stickHeight),
+                type: 'bar',
+                marker: {color: 'black', line: {width: 0}},
+                width: intensitySpectrum.map(() => 2),
+                name: 'Stick Spectrum',
+                hovertemplate: 'Frequency: %{x:.1f} cm⁻¹<extra></extra>',
+                showlegend: false
+            };
+
+            // === Layout with regional boundaries ===
+            const shapes = regionBoundaries.map(boundary => ({
+                type: 'line',
+                x0: boundary,
+                x1: boundary,
+                y0: -stickHeight,
+                y1: 1.05,
+                line: {
+                    color: 'gray',
+                    width: 1,
+                    dash: 'dash'
+                },
+                opacity: 0.5
+            }));
 
             const layout = {
-                title: 'Raman Spectrum',
-                xaxis: {title: 'Frequency (cm⁻¹)'},
-                yaxis: {title: 'Raman Activity'},
-                hovermode: 'closest'
+                title: {
+                    text: 'Publication-Quality Raman Spectrum<br><sub>Temperature-corrected intensity with Gaussian broadening</sub>',
+                    font: {size: 16}
+                },
+                xaxis: {
+                    title: 'Raman Shift (cm⁻¹)',
+                    autorange: 'reversed',  // High to low
+                    showgrid: true,
+                    gridcolor: '#e0e0e0'
+                },
+                yaxis: {
+                    title: 'Normalized Intensity (a.u.)',
+                    range: [-stickHeight * 1.2, 1.1],
+                    showticklabels: false,
+                    showgrid: false
+                },
+                shapes: shapes,
+                hovermode: 'closest',
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white',
+                showlegend: false
             };
 
-            Plotly.newPlot('raman-plot', [trace], layout, {responsive: true});
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
+            };
+
+            Plotly.newPlot('raman-plot', [continuousTrace, stickTrace], layout, config);
         }
 
         function renderThermoPlot() {
@@ -2602,6 +2858,224 @@
             };
 
             Plotly.newPlot('nmr-plot', [trace], layout, {responsive: true});
+        }
+
+        function renderUVVisElectric() {
+            if (!data || !data.electric_dipole_spectrum ||
+                (!data.electric_dipole_spectrum.regular || data.electric_dipole_spectrum.regular.length === 0)) {
+                return;
+            }
+
+            // === Parameters ===
+            const fwhm = 0.3;  // eV
+            const sigma = fwhm / (2 * Math.sqrt(2 * Math.log(2)));
+
+            const transitions = data.electric_dipole_spectrum.regular;
+
+            // === Create wavelength grid ===
+            const minWavelength = Math.min(...transitions.map(t => t.wavelength_nm));
+            const maxWavelength = Math.max(...transitions.map(t => t.wavelength_nm));
+            const gridPoints = 2000;
+            const wavelengths = Array.from({length: gridPoints}, (_, i) =>
+                minWavelength + (maxWavelength - minWavelength) * i / (gridPoints - 1)
+            );
+
+            // === Apply Gaussian broadening ===
+            const broadenedSpectrum = wavelengths.map(lambda => {
+                let intensity = 0;
+                transitions.forEach(trans => {
+                    const exponent = -0.5 * Math.pow((lambda - trans.wavelength_nm) / sigma, 2);
+                    intensity += trans.fosc_d2 * Math.exp(exponent);
+                });
+                return intensity;
+            });
+
+            // Normalize
+            const maxIntensity = Math.max(...broadenedSpectrum);
+            const normalizedSpectrum = broadenedSpectrum.map(val =>
+                maxIntensity > 0 ? val / maxIntensity : 0
+            );
+
+            // === Create traces ===
+            // Continuous spectrum
+            const continuousTrace = {
+                x: wavelengths,
+                y: normalizedSpectrum,
+                type: 'scatter',
+                mode: 'lines',
+                line: {color: '#667eea', width: 2},
+                name: 'Absorption Spectrum',
+                fill: 'tozeroy',
+                fillcolor: 'rgba(102, 126, 234, 0.2)',
+                hovertemplate: 'Wavelength: %{x:.1f} nm<br>Intensity: %{y:.3f}<extra></extra>'
+            };
+
+            // Stick spectrum
+            const stickTrace = {
+                x: transitions.map(t => t.wavelength_nm),
+                y: transitions.map(t => t.fosc_d2 / maxIntensity),
+                type: 'bar',
+                marker: {
+                    color: transitions.map(t => t.fosc_d2),
+                    colorscale: 'Viridis',
+                    showscale: true,
+                    colorbar: {
+                        title: 'Oscillator<br>Strength',
+                        titleside: 'right'
+                    },
+                    line: {width: 0}
+                },
+                width: transitions.map(() => 3),
+                name: 'Transitions',
+                hovertemplate: 'λ: %{x:.1f} nm<br>f: %{y:.4f}<extra></extra>',
+                showlegend: false
+            };
+
+            const layout = {
+                title: {
+                    text: 'UV-Vis Absorption Spectrum (Electric Dipole)<br><sub>TD-DFT excited states with Gaussian broadening</sub>',
+                    font: {size: 16}
+                },
+                xaxis: {
+                    title: 'Wavelength (nm)',
+                    showgrid: true,
+                    gridcolor: '#e0e0e0'
+                },
+                yaxis: {
+                    title: 'Normalized Intensity',
+                    showgrid: false
+                },
+                hovermode: 'closest',
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white',
+                annotations: [{
+                    x: 0.5,
+                    y: -0.15,
+                    xref: 'paper',
+                    yref: 'paper',
+                    text: `Number of transitions: ${transitions.length} | FWHM: ${fwhm} eV | Stick height proportional to oscillator strength`,
+                    showarrow: false,
+                    font: {size: 10, color: '#666'}
+                }]
+            };
+
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
+            };
+
+            Plotly.newPlot('uv-vis-electric-plot', [continuousTrace, stickTrace], layout, config);
+        }
+
+        function renderUVVisVelocity() {
+            if (!data || !data.velocity_dipole_spectrum ||
+                (!data.velocity_dipole_spectrum.regular || data.velocity_dipole_spectrum.regular.length === 0)) {
+                return;
+            }
+
+            // === Parameters ===
+            const fwhm = 0.3;  // eV
+            const sigma = fwhm / (2 * Math.sqrt(2 * Math.log(2)));
+
+            const transitions = data.velocity_dipole_spectrum.regular;
+
+            // === Create wavelength grid ===
+            const minWavelength = Math.min(...transitions.map(t => t.wavelength_nm));
+            const maxWavelength = Math.max(...transitions.map(t => t.wavelength_nm));
+            const gridPoints = 2000;
+            const wavelengths = Array.from({length: gridPoints}, (_, i) =>
+                minWavelength + (maxWavelength - minWavelength) * i / (gridPoints - 1)
+            );
+
+            // === Apply Gaussian broadening ===
+            const broadenedSpectrum = wavelengths.map(lambda => {
+                let intensity = 0;
+                transitions.forEach(trans => {
+                    const exponent = -0.5 * Math.pow((lambda - trans.wavelength_nm) / sigma, 2);
+                    intensity += trans.fosc_p2 * Math.exp(exponent);
+                });
+                return intensity;
+            });
+
+            // Normalize
+            const maxIntensity = Math.max(...broadenedSpectrum);
+            const normalizedSpectrum = broadenedSpectrum.map(val =>
+                maxIntensity > 0 ? val / maxIntensity : 0
+            );
+
+            // === Create traces ===
+            // Continuous spectrum
+            const continuousTrace = {
+                x: wavelengths,
+                y: normalizedSpectrum,
+                type: 'scatter',
+                mode: 'lines',
+                line: {color: '#764ba2', width: 2},
+                name: 'Velocity Dipole',
+                fill: 'tozeroy',
+                fillcolor: 'rgba(118, 75, 162, 0.2)',
+                hovertemplate: 'Wavelength: %{x:.1f} nm<br>Intensity: %{y:.3f}<extra></extra>'
+            };
+
+            // Stick spectrum
+            const stickTrace = {
+                x: transitions.map(t => t.wavelength_nm),
+                y: transitions.map(t => t.fosc_p2 / maxIntensity),
+                type: 'bar',
+                marker: {
+                    color: transitions.map(t => t.fosc_p2),
+                    colorscale: 'Plasma',
+                    showscale: true,
+                    colorbar: {
+                        title: 'Oscillator<br>Strength',
+                        titleside: 'right'
+                    },
+                    line: {width: 0}
+                },
+                width: transitions.map(() => 3),
+                name: 'Transitions',
+                hovertemplate: 'λ: %{x:.1f} nm<br>f: %{y:.4f}<extra></extra>',
+                showlegend: false
+            };
+
+            const layout = {
+                title: {
+                    text: 'UV-Vis Absorption Spectrum (Velocity Dipole)<br><sub>Alternative formulation via velocity representation</sub>',
+                    font: {size: 16}
+                },
+                xaxis: {
+                    title: 'Wavelength (nm)',
+                    showgrid: true,
+                    gridcolor: '#e0e0e0'
+                },
+                yaxis: {
+                    title: 'Normalized Intensity',
+                    showgrid: false
+                },
+                hovermode: 'closest',
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white',
+                annotations: [{
+                    x: 0.5,
+                    y: -0.15,
+                    xref: 'paper',
+                    yref: 'paper',
+                    text: `Number of transitions: ${transitions.length} | Compare with electric dipole for theoretical validation`,
+                    showarrow: false,
+                    font: {size: 10, color: '#666'}
+                }]
+            };
+
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
+            };
+
+            Plotly.newPlot('uv-vis-velocity-plot', [continuousTrace, stickTrace], layout, config);
         }
 
         function renderCombinedSpectrum() {
