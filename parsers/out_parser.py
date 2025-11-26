@@ -14,8 +14,16 @@ Parses the main ORCA output file to extract:
 """
 
 import re
+import logging
 from dataclasses import dataclass, field
 from typing import Optional
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 
 @dataclass
@@ -687,13 +695,29 @@ class OrcaOutput:
 
 def parse_out_file(filepath: str) -> OrcaOutput:
     """Parse ORCA output file."""
-    with open(filepath, 'r') as f:
-        content = f.read()
-    return parse_out_content(content)
+    logger.info(f"Starting to parse ORCA output file: {filepath}")
+    try:
+        with open(filepath, 'r') as f:
+            content = f.read()
+        logger.debug(f"Successfully read file {filepath}, size: {len(content)} bytes")
+        result = parse_out_content(content)
+        logger.info(f"Successfully parsed {filepath}")
+        return result
+    except FileNotFoundError:
+        logger.error(f"File not found: {filepath}")
+        raise
+    except IOError as e:
+        logger.error(f"Error reading file {filepath}: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error parsing {filepath}: {e}", exc_info=True)
+        raise
 
 
 def parse_out_content(content: str) -> OrcaOutput:
     """Parse ORCA output content from string."""
+    logger.debug("Starting content parsing...")
+    logger.debug("Parsing job information...")
     job_info = parse_job_info(content)
     final_energy = parse_final_energy(content)
     scf_energies = parse_scf_energies(content)
@@ -1678,8 +1702,9 @@ def parse_normal_modes(content: str, num_atoms: int) -> list[NormalMode]:
                             mode_data[mode_id][atom_idx][1] = value
                         else:  # Z
                             mode_data[mode_id][atom_idx][2] = value
-                    except (ValueError, IndexError):
-                        pass
+                    except (ValueError, IndexError) as e:
+                        logger.warning(f"Failed to parse normal mode displacement for mode {mode_id}, "
+                                     f"atom {atom_idx}, coord {coord_idx}: {e}")
 
             line_idx += 1
 
@@ -1696,8 +1721,8 @@ def parse_normal_modes(content: str, num_atoms: int) -> list[NormalMode]:
                     mode_num = int(parts[0].strip())
                     freq_str = parts[1].strip().split()[0]
                     frequencies[mode_num] = float(freq_str)
-                except (ValueError, IndexError):
-                    pass
+                except (ValueError, IndexError) as e:
+                    logger.warning(f"Failed to parse frequency from line '{line.strip()}': {e}")
 
     for mode_id in mode_indices:
         if mode_id in mode_data:
@@ -1739,8 +1764,8 @@ def parse_scf_iterations(content: str) -> list[SCFIteration]:
                     maxdp=float(match[4]),
                     diis_error=float(match[5])
                 ))
-            except ValueError:
-                pass
+            except ValueError as e:
+                logger.warning(f"Failed to parse SCF iteration data from match {match}: {e}")
 
     return iterations
 

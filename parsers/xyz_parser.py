@@ -9,8 +9,16 @@ Format:
 """
 
 import re
+import logging
 from dataclasses import dataclass
 from typing import Optional
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 
 @dataclass
@@ -53,10 +61,23 @@ def parse_xyz_file(filepath: str) -> MoleculeGeometry:
     Returns:
         MoleculeGeometry object with parsed data
     """
-    with open(filepath, 'r') as f:
-        content = f.read()
-
-    return parse_xyz_content(content)
+    logger.info(f"Parsing XYZ file: {filepath}")
+    try:
+        with open(filepath, 'r') as f:
+            content = f.read()
+        logger.debug(f"Successfully read file {filepath}, size: {len(content)} bytes")
+        result = parse_xyz_content(content)
+        logger.info(f"Successfully parsed {result.num_atoms} atoms from {filepath}")
+        return result
+    except FileNotFoundError:
+        logger.error(f"File not found: {filepath}")
+        raise
+    except IOError as e:
+        logger.error(f"Error reading file {filepath}: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error parsing {filepath}: {e}", exc_info=True)
+        raise
 
 
 def parse_xyz_content(content: str) -> MoleculeGeometry:
@@ -69,33 +90,58 @@ def parse_xyz_content(content: str) -> MoleculeGeometry:
     Returns:
         MoleculeGeometry object with parsed data
     """
-    lines = content.strip().split('\n')
+    try:
+        lines = content.strip().split('\n')
 
-    # Line 1: Number of atoms
-    num_atoms = int(lines[0].strip())
+        if len(lines) < 3:
+            raise ValueError(f"Invalid XYZ format: expected at least 3 lines, got {len(lines)}")
 
-    # Line 2: Comment (may contain energy)
-    comment = lines[1].strip()
-    energy = extract_energy(comment)
+        # Line 1: Number of atoms
+        try:
+            num_atoms = int(lines[0].strip())
+            logger.debug(f"Parsing XYZ with {num_atoms} atoms")
+        except ValueError as e:
+            logger.error(f"Failed to parse number of atoms from line 1: '{lines[0]}': {e}")
+            raise
 
-    # Lines 3+: Atom coordinates
-    atoms = []
-    for i in range(2, 2 + num_atoms):
-        parts = lines[i].split()
-        atom = Atom(
-            symbol=parts[0],
-            x=float(parts[1]),
-            y=float(parts[2]),
-            z=float(parts[3])
+        # Line 2: Comment (may contain energy)
+        comment = lines[1].strip()
+        energy = extract_energy(comment)
+
+        # Lines 3+: Atom coordinates
+        atoms = []
+        expected_lines = 2 + num_atoms
+        if len(lines) < expected_lines:
+            logger.warning(f"Expected {expected_lines} lines for {num_atoms} atoms, got {len(lines)}")
+
+        for i in range(2, min(2 + num_atoms, len(lines))):
+            try:
+                parts = lines[i].split()
+                if len(parts) < 4:
+                    logger.warning(f"Line {i+1} has insufficient data: '{lines[i]}' (expected: element x y z)")
+                    continue
+                atom = Atom(
+                    symbol=parts[0],
+                    x=float(parts[1]),
+                    y=float(parts[2]),
+                    z=float(parts[3])
+                )
+                atoms.append(atom)
+            except (ValueError, IndexError) as e:
+                logger.warning(f"Failed to parse atom at line {i+1}: '{lines[i]}': {e}")
+
+        if len(atoms) != num_atoms:
+            logger.warning(f"Expected {num_atoms} atoms, but parsed {len(atoms)}")
+
+        return MoleculeGeometry(
+            num_atoms=num_atoms,
+            comment=comment,
+            atoms=atoms,
+            energy=energy
         )
-        atoms.append(atom)
-
-    return MoleculeGeometry(
-        num_atoms=num_atoms,
-        comment=comment,
-        atoms=atoms,
-        energy=energy
-    )
+    except Exception as e:
+        logger.error(f"Error parsing XYZ content: {e}", exc_info=True)
+        raise
 
 
 def parse_trajectory_xyz(filepath: str) -> list[MoleculeGeometry]:
@@ -108,26 +154,52 @@ def parse_trajectory_xyz(filepath: str) -> list[MoleculeGeometry]:
     Returns:
         List of MoleculeGeometry objects, one per frame
     """
-    with open(filepath, 'r') as f:
-        content = f.read()
+    logger.info(f"Parsing trajectory XYZ file: {filepath}")
+    try:
+        with open(filepath, 'r') as f:
+            content = f.read()
+    except FileNotFoundError:
+        logger.error(f"File not found: {filepath}")
+        raise
+    except IOError as e:
+        logger.error(f"Error reading file {filepath}: {e}")
+        raise
 
     frames = []
     lines = content.strip().split('\n')
 
     i = 0
+    frame_num = 0
     while i < len(lines):
-        # Read number of atoms
-        num_atoms = int(lines[i].strip())
+        try:
+            # Read number of atoms
+            if i >= len(lines):
+                logger.warning(f"Reached end of file while parsing frame {frame_num}")
+                break
 
-        # Extract this frame's content
-        frame_lines = lines[i:i + num_atoms + 2]
-        frame_content = '\n'.join(frame_lines)
+            num_atoms = int(lines[i].strip())
+            frame_num += 1
+            logger.debug(f"Parsing frame {frame_num} with {num_atoms} atoms")
 
-        frame = parse_xyz_content(frame_content)
-        frames.append(frame)
+            # Extract this frame's content
+            frame_end = i + num_atoms + 2
+            if frame_end > len(lines):
+                logger.warning(f"Frame {frame_num} incomplete: expected {num_atoms + 2} lines, "
+                             f"only {len(lines) - i} remaining")
+                break
 
-        i += num_atoms + 2
+            frame_lines = lines[i:frame_end]
+            frame_content = '\n'.join(frame_lines)
 
+            frame = parse_xyz_content(frame_content)
+            frames.append(frame)
+
+            i += num_atoms + 2
+        except (ValueError, IndexError) as e:
+            logger.error(f"Error parsing frame {frame_num} at line {i}: {e}")
+            break
+
+    logger.info(f"Successfully parsed {len(frames)} frames from {filepath}")
     return frames
 
 
