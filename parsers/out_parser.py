@@ -980,15 +980,15 @@ def parse_ir_spectrum(content: str) -> list[IRMode]:
     modes = []
 
     ir_section = re.search(
-        r'IR SPECTRUM\s*-+\s*(.*?)(?=-{20,}|\Z)',
+        r'IR SPECTRUM\s*-+\s*Mode.*?-+\s*(.*?)(?:\n\s*\n|\Z)',
         content, re.DOTALL
     )
 
     if ir_section:
         # Match: Mode, freq (cm^-1), eps, Int (km/mol), T^2, TX, TY, TZ
         matches = re.findall(
-            r'^\s*(\d+):\s+(-?\d+\.?\d*)\s+\d+\.?\d*\s+(\d+\.?\d*)\s+\d+\.?\d*\s*'
-            r'\(\s*(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\)',
+            r'^\s*(\d+):\s+([0-9.]+)\s+[0-9.]+\s+([0-9.]+)\s+[0-9.]+\s*'
+            r'\(\s*(-?[0-9.]+)\s+(-?[0-9.]+)\s+(-?[0-9.]+)\)',
             ir_section.group(1), re.MULTILINE
         )
         for match in matches:
