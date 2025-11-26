@@ -2801,63 +2801,262 @@
         function renderOrbitalPlot() {
             if (!data || !data.orbital_energies || data.orbital_energies.length === 0) return;
 
-            // Show orbitals around HOMO-LUMO (e.g., HOMO-10 to LUMO+10)
-            const orbitals = data.orbital_energies.slice(Math.max(0, data.orbital_energies.length / 2 - 20), data.orbital_energies.length / 2 + 20);
+            // Find HOMO and LUMO
+            const occupied = data.orbital_energies.filter(o => o.occupation > 0.5);
+            const virtual = data.orbital_energies.filter(o => o.occupation <= 0.5);
 
-            const occupied = orbitals.filter(o => o.occupation > 0.5);
-            const virtual = orbitals.filter(o => o.occupation <= 0.5);
+            if (occupied.length === 0 || virtual.length === 0) return;
 
-            const trace1 = {
-                x: occupied.map(o => o.index),
-                y: occupied.map(o => o.energy_ev),
-                mode: 'markers',
-                name: 'Occupied',
-                marker: {size: 8, color: '#28a745'}
-            };
+            const homoIndex = occupied[occupied.length - 1].index;
+            const lumoIndex = virtual[0].index;
+            const homoEnergy = occupied[occupied.length - 1].energy_ev;
+            const lumoEnergy = virtual[0].energy_ev;
+            const gap = lumoEnergy - homoEnergy;
 
-            const trace2 = {
-                x: virtual.map(o => o.index),
-                y: virtual.map(o => o.energy_ev),
-                mode: 'markers',
-                name: 'Virtual',
-                marker: {size: 8, color: '#dc3545'}
-            };
+            // Show orbitals around gap (HOMO-10 to LUMO+10)
+            const rangeOcc = 10;
+            const rangeVirt = 10;
+            const selectedOccupied = occupied.slice(Math.max(0, occupied.length - rangeOcc));
+            const selectedVirtual = virtual.slice(0, Math.min(rangeVirt, virtual.length));
+
+            const traces = [];
+
+            // Occupied orbitals as horizontal bars
+            selectedOccupied.forEach(orb => {
+                const isHOMO = orb.index === homoIndex;
+                traces.push({
+                    x: [orb.index - 0.4, orb.index + 0.4],
+                    y: [orb.energy_ev, orb.energy_ev],
+                    mode: 'lines',
+                    line: {
+                        color: isHOMO ? '#1e7e34' : '#28a745',
+                        width: isHOMO ? 4 : 3
+                    },
+                    name: isHOMO ? `HOMO (${orb.index})` : undefined,
+                    showlegend: isHOMO,
+                    hovertemplate: `MO ${orb.index}<br>Energy: ${orb.energy_ev.toFixed(3)} eV<br>Occ: ${orb.occupation.toFixed(2)}<extra></extra>`
+                });
+            });
+
+            // Virtual orbitals as horizontal bars
+            selectedVirtual.forEach(orb => {
+                const isLUMO = orb.index === lumoIndex;
+                traces.push({
+                    x: [orb.index - 0.4, orb.index + 0.4],
+                    y: [orb.energy_ev, orb.energy_ev],
+                    mode: 'lines',
+                    line: {
+                        color: isLUMO ? '#bd2130' : '#dc3545',
+                        width: isLUMO ? 4 : 3
+                    },
+                    name: isLUMO ? `LUMO (${orb.index})` : undefined,
+                    showlegend: isLUMO,
+                    hovertemplate: `MO ${orb.index}<br>Energy: ${orb.energy_ev.toFixed(3)} eV<br>Occ: ${orb.occupation.toFixed(2)}<extra></extra>`
+                });
+            });
+
+            // HOMO-LUMO gap arrow
+            const arrowX = homoIndex + (lumoIndex - homoIndex) / 2;
+            const annotations = [{
+                x: arrowX,
+                y: (homoEnergy + lumoEnergy) / 2,
+                text: `Gap: ${gap.toFixed(3)} eV`,
+                showarrow: false,
+                font: {
+                    size: 14,
+                    color: 'white'
+                },
+                bgcolor: '#667eea',
+                bordercolor: '#667eea',
+                borderwidth: 2,
+                borderpad: 4,
+                opacity: 0.9
+            }];
+
+            // Arrow shape for gap
+            const shapes = [{
+                type: 'line',
+                x0: arrowX,
+                y0: homoEnergy,
+                x1: arrowX,
+                y1: lumoEnergy,
+                line: {
+                    color: '#667eea',
+                    width: 2,
+                    dash: 'dash'
+                }
+            }, {
+                // Arrow head top
+                type: 'line',
+                x0: arrowX - 0.2,
+                y0: lumoEnergy - 0.1,
+                x1: arrowX,
+                y1: lumoEnergy,
+                line: {
+                    color: '#667eea',
+                    width: 2
+                }
+            }, {
+                type: 'line',
+                x0: arrowX + 0.2,
+                y0: lumoEnergy - 0.1,
+                x1: arrowX,
+                y1: lumoEnergy,
+                line: {
+                    color: '#667eea',
+                    width: 2
+                }
+            }];
 
             const layout = {
-                title: 'Molecular Orbital Energy Diagram',
-                xaxis: {title: 'MO Index'},
-                yaxis: {title: 'Energy (eV)'},
-                hovermode: 'closest'
+                title: {
+                    text: 'Enhanced Orbital Energy Diagram<br><sub>HOMO-LUMO gap with horizontal bar representation</sub>',
+                    font: {size: 16}
+                },
+                xaxis: {
+                    title: 'Molecular Orbital Index',
+                    showgrid: true,
+                    gridcolor: '#e0e0e0',
+                    zeroline: false
+                },
+                yaxis: {
+                    title: 'Energy (eV)',
+                    showgrid: true,
+                    gridcolor: '#e0e0e0',
+                    zeroline: true,
+                    zerolinewidth: 2,
+                    zerolinecolor: '#999'
+                },
+                shapes: shapes,
+                annotations: annotations,
+                hovermode: 'closest',
+                showlegend: true,
+                legend: {
+                    x: 0.02,
+                    y: 0.98,
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                    bordercolor: '#666',
+                    borderwidth: 1
+                },
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white'
             };
 
-            Plotly.newPlot('orbital-plot', [trace1, trace2], layout, {responsive: true});
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
+            };
+
+            Plotly.newPlot('orbital-plot', traces, layout, config);
         }
 
         function renderNMRPlot() {
             if (!data || !data.nmr_data || !data.nmr_data.chemical_shifts || data.nmr_data.chemical_shifts.length === 0) return;
 
             const shifts = data.nmr_data.chemical_shifts;
-            const x = shifts.map(s => s.isotropic);
-            const y = Array(shifts.length).fill(1); // Height of peaks
-            const labels = shifts.map(s => `${s.element}${s.nucleus}`);
 
-            const trace = {
-                x: x,
-                y: y,
-                mode: 'markers',
-                marker: {size: 12, color: '#667eea'},
-                text: labels,
-                hoverinfo: 'text+x'
+            // Group by element type
+            const grouped = {};
+            shifts.forEach(shift => {
+                const element = shift.element || 'Unknown';
+                if (!grouped[element]) grouped[element] = [];
+                grouped[element].push(shift);
+            });
+
+            const traces = [];
+            const colors = {
+                'H': '#667eea',   // Hydrogen - blue
+                'C': '#28a745',   // Carbon - green
+                'N': '#dc3545',   // Nitrogen - red
+                'O': '#ffc107',   // Oxygen - yellow
+                'P': '#e83e8c',   // Phosphorus - pink
+                'F': '#17a2b8'    // Fluorine - cyan
             };
+
+            // Create stick spectrum for each element type
+            Object.keys(grouped).forEach(element => {
+                const elementShifts = grouped[element];
+                const color = colors[element] || '#999';
+
+                // Stick trace
+                const stickTrace = {
+                    x: elementShifts.map(s => s.isotropic),
+                    y: elementShifts.map(() => 1),
+                    type: 'bar',
+                    name: `${element} (${elementShifts.length})`,
+                    marker: {
+                        color: color,
+                        line: {width: 0}
+                    },
+                    width: elementShifts.map(() => 1),
+                    hovertemplate: `<b>${element}</b><br>` +
+                                  'Chemical Shift: %{x:.2f} ppm<br>' +
+                                  `Atom: %{customdata}<extra></extra>`,
+                    customdata: elementShifts.map((s, idx) => `${element}${idx + 1}`)
+                };
+                traces.push(stickTrace);
+
+                // Peak labels (for fewer peaks, show labels)
+                if (elementShifts.length <= 20) {
+                    elementShifts.forEach((shift, idx) => {
+                        traces.push({
+                            x: [shift.isotropic],
+                            y: [1.05],
+                            mode: 'text',
+                            text: [`${element}${idx + 1}`],
+                            textposition: 'top',
+                            textfont: {
+                                size: 9,
+                                color: color
+                            },
+                            showlegend: false,
+                            hoverinfo: 'skip'
+                        });
+                    });
+                }
+            });
 
             const layout = {
-                title: 'NMR Chemical Shifts',
-                xaxis: {title: 'Chemical Shift (ppm)', autorange: 'reversed'},
-                yaxis: {title: 'Intensity', showticklabels: false},
-                hovermode: 'closest'
+                title: {
+                    text: 'Enhanced NMR Chemical Shifts Spectrum<br><sub>Grouped by nucleus type with stick representation</sub>',
+                    font: {size: 16}
+                },
+                xaxis: {
+                    title: 'Chemical Shift (ppm)',
+                    autorange: 'reversed',  // NMR convention (high to low)
+                    showgrid: true,
+                    gridcolor: '#e0e0e0'
+                },
+                yaxis: {
+                    title: 'Intensity (a.u.)',
+                    showticklabels: false,
+                    showgrid: false,
+                    range: [0, 1.2]
+                },
+                hovermode: 'closest',
+                showlegend: true,
+                legend: {
+                    x: 0.02,
+                    y: 0.98,
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                    bordercolor: '#666',
+                    borderwidth: 1
+                },
+                barmode: 'overlay',
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white'
             };
 
-            Plotly.newPlot('nmr-plot', [trace], layout, {responsive: true});
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
+            };
+
+            Plotly.newPlot('nmr-plot', traces, layout, config);
         }
 
         function renderUVVisElectric() {
@@ -3081,56 +3280,159 @@
         function renderCombinedSpectrum() {
             if (!data || (!data.ir_spectrum && !data.raman_spectrum)) return;
 
-            const traces = [];
+            // === Parameters ===
+            const fwhm = 15.0;  // cm⁻¹
+            const sigma = fwhm / (2 * Math.sqrt(2 * Math.log(2)));
+            const gridPoints = 4000;
 
-            // IR spectrum trace
+            const traces = [];
+            let minFreq = Infinity, maxFreq = -Infinity;
+
+            // Determine frequency range
             if (data.ir_spectrum && data.ir_spectrum.length > 0) {
+                const irFreqs = data.ir_spectrum.map(d => d.frequency);
+                minFreq = Math.min(minFreq, ...irFreqs);
+                maxFreq = Math.max(maxFreq, ...irFreqs);
+            }
+            if (data.raman_spectrum && data.raman_spectrum.length > 0) {
+                const ramanFreqs = data.raman_spectrum.map(d => d.frequency);
+                minFreq = Math.min(minFreq, ...ramanFreqs);
+                maxFreq = Math.max(maxFreq, ...ramanFreqs);
+            }
+
+            // Create unified frequency grid
+            const frequencies = Array.from({length: gridPoints}, (_, i) =>
+                minFreq + (maxFreq - minFreq) * i / (gridPoints - 1)
+            );
+
+            // === IR spectrum with Gaussian broadening ===
+            if (data.ir_spectrum && data.ir_spectrum.length > 0) {
+                const broadenedIR = frequencies.map(x => {
+                    let intensity = 0;
+                    data.ir_spectrum.forEach(peak => {
+                        const exponent = -0.5 * Math.pow((x - peak.frequency) / sigma, 2);
+                        intensity += peak.intensity * Math.exp(exponent);
+                    });
+                    return intensity;
+                });
+
+                // Continuous IR trace
                 const irTrace = {
+                    x: frequencies,
+                    y: broadenedIR,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'IR Spectrum',
+                    line: {color: '#28a745', width: 2},
+                    fill: 'tozeroy',
+                    fillcolor: 'rgba(40, 167, 69, 0.2)',
+                    yaxis: 'y',
+                    hovertemplate: 'Freq: %{x:.1f} cm⁻¹<br>IR: %{y:.2f}<extra></extra>'
+                };
+                traces.push(irTrace);
+
+                // IR stick spectrum
+                const irStickTrace = {
                     x: data.ir_spectrum.map(d => d.frequency),
                     y: data.ir_spectrum.map(d => d.intensity),
                     type: 'bar',
-                    name: 'IR Intensity',
-                    marker: {color: '#28a745'},
+                    name: 'IR Peaks',
+                    marker: {color: '#28a745', opacity: 0.4, line: {width: 0}},
+                    width: data.ir_spectrum.map(() => 2),
                     yaxis: 'y',
-                    opacity: 0.7
+                    showlegend: false,
+                    hovertemplate: 'Freq: %{x:.1f} cm⁻¹<br>Intensity: %{y:.2f}<extra></extra>'
                 };
-                traces.push(irTrace);
+                traces.push(irStickTrace);
             }
 
-            // Raman spectrum trace
+            // === Raman spectrum with Gaussian broadening ===
             if (data.raman_spectrum && data.raman_spectrum.length > 0) {
+                const broadenedRaman = frequencies.map(x => {
+                    let activity = 0;
+                    data.raman_spectrum.forEach(peak => {
+                        const exponent = -0.5 * Math.pow((x - peak.frequency) / sigma, 2);
+                        activity += peak.activity * Math.exp(exponent);
+                    });
+                    return activity;
+                });
+
+                // Continuous Raman trace
                 const ramanTrace = {
+                    x: frequencies,
+                    y: broadenedRaman,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Raman Spectrum',
+                    line: {color: '#dc3545', width: 2},
+                    fill: 'tozeroy',
+                    fillcolor: 'rgba(220, 53, 69, 0.2)',
+                    yaxis: 'y2',
+                    hovertemplate: 'Freq: %{x:.1f} cm⁻¹<br>Raman: %{y:.2f}<extra></extra>'
+                };
+                traces.push(ramanTrace);
+
+                // Raman stick spectrum
+                const ramanStickTrace = {
                     x: data.raman_spectrum.map(d => d.frequency),
                     y: data.raman_spectrum.map(d => d.activity),
                     type: 'bar',
-                    name: 'Raman Activity',
-                    marker: {color: '#dc3545'},
+                    name: 'Raman Peaks',
+                    marker: {color: '#dc3545', opacity: 0.4, line: {width: 0}},
+                    width: data.raman_spectrum.map(() => 2),
                     yaxis: 'y2',
-                    opacity: 0.7
+                    showlegend: false,
+                    hovertemplate: 'Freq: %{x:.1f} cm⁻¹<br>Activity: %{y:.2f}<extra></extra>'
                 };
-                traces.push(ramanTrace);
+                traces.push(ramanStickTrace);
             }
 
             const layout = {
-                title: 'IR + Raman Combined Spectrum',
-                xaxis: {title: 'Frequency (cm⁻¹)'},
+                title: {
+                    text: 'IR + Raman Combined Spectrum ✨<br><sub>Gaussian-broadened overlay with synchronized axes</sub>',
+                    font: {size: 16}
+                },
+                xaxis: {
+                    title: 'Frequency (cm⁻¹)',
+                    autorange: 'reversed',  // Spectroscopic convention
+                    showgrid: true,
+                    gridcolor: '#e0e0e0'
+                },
                 yaxis: {
                     title: 'IR Intensity (km/mol)',
                     titlefont: {color: '#28a745'},
-                    tickfont: {color: '#28a745'}
+                    tickfont: {color: '#28a745'},
+                    showgrid: false
                 },
                 yaxis2: {
-                    title: 'Raman Activity',
+                    title: 'Raman Activity (Å⁴/amu)',
                     titlefont: {color: '#dc3545'},
                     tickfont: {color: '#dc3545'},
                     overlaying: 'y',
-                    side: 'right'
+                    side: 'right',
+                    showgrid: false
                 },
                 hovermode: 'closest',
-                showlegend: true
+                showlegend: true,
+                legend: {
+                    x: 0.02,
+                    y: 0.98,
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                    bordercolor: '#666',
+                    borderwidth: 1
+                },
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white'
             };
 
-            Plotly.newPlot('combined-spectrum-plot', traces, layout, {responsive: true});
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
+            };
+
+            Plotly.newPlot('combined-spectrum-plot', traces, layout, config);
         }
 
         function renderTimingBreakdown() {
