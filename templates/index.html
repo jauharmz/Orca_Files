@@ -11,20 +11,51 @@
             box-sizing: border-box;
         }
 
+        :root {
+            --bg-gradient-start: #667eea;
+            --bg-gradient-end: #764ba2;
+            --container-bg: white;
+            --text-color: #333;
+            --text-secondary: #666;
+            --border-color: #e0e0e0;
+            --card-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --tab-bg: #f8f9fa;
+            --tab-hover: #e9ecef;
+            --input-bg: white;
+            --table-bg: white;
+        }
+
+        body.dark-mode {
+            --bg-gradient-start: #1a1a2e;
+            --bg-gradient-end: #16213e;
+            --container-bg: #0f1419;
+            --text-color: #e4e4e7;
+            --text-secondary: #a1a1aa;
+            --border-color: #27272a;
+            --card-bg: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            --tab-bg: #18181b;
+            --tab-hover: #27272a;
+            --input-bg: #18181b;
+            --table-bg: #18181b;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
             min-height: 100vh;
             padding: 20px;
+            color: var(--text-color);
+            transition: background 0.3s ease, color 0.3s ease;
         }
 
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            background: white;
+            background: var(--container-bg);
             border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             overflow: hidden;
+            transition: background 0.3s ease;
         }
 
         header {
@@ -46,11 +77,12 @@
 
         .controls {
             padding: 20px 30px;
-            background: #f8f9fa;
-            border-bottom: 1px solid #e0e0e0;
+            background: var(--tab-bg);
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             gap: 15px;
             align-items: center;
+            transition: background 0.3s ease;
         }
 
         button {
@@ -95,11 +127,132 @@
             font-weight: 600;
         }
 
+        .progress-container {
+            width: 100%;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            animation: progressShine 1.5s infinite;
+        }
+
+        @keyframes progressShine {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+
+        .dark-mode-toggle {
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .dark-mode-toggle:hover {
+            background: #e9ecef;
+        }
+
+        .table-controls {
+            margin: 15px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .table-search {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .table-search:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn-export-table {
+            padding: 8px 16px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-export-table:hover {
+            background: #218838;
+            transform: translateY(-1px);
+        }
+
+        .file-tabs {
+            display: flex;
+            gap: 5px;
+            padding: 10px 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+            overflow-x: auto;
+        }
+
+        .file-tab {
+            padding: 8px 16px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .file-tab:hover {
+            background: #f8f9fa;
+        }
+
+        .file-tab.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .file-tab .close-tab {
+            margin-left: 8px;
+            color: #999;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .file-tab.active .close-tab {
+            color: white;
+        }
+
         .tabs {
             display: flex;
-            background: #f8f9fa;
-            border-bottom: 2px solid #e0e0e0;
+            background: var(--tab-bg);
+            border-bottom: 2px solid var(--border-color);
             overflow-x: auto;
+            transition: background 0.3s ease;
         }
 
         .tab {
@@ -109,26 +262,28 @@
             background: transparent;
             font-size: 14px;
             font-weight: 500;
-            color: #666;
+            color: var(--text-secondary);
             transition: all 0.3s;
             border-bottom: 3px solid transparent;
             white-space: nowrap;
         }
 
         .tab:hover {
-            background: #e9ecef;
-            color: #333;
+            background: var(--tab-hover);
+            color: var(--text-color);
         }
 
         .tab.active {
             color: #667eea;
             border-bottom-color: #667eea;
-            background: white;
+            background: var(--container-bg);
         }
 
         .tab-content {
             display: none;
             padding: 30px;
+            background: var(--container-bg);
+            transition: background 0.3s ease;
         }
 
         .tab-content.active {
@@ -143,11 +298,12 @@
         }
 
         .card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--card-bg);
             color: white;
             padding: 25px;
             border-radius: 10px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: background 0.3s ease;
         }
 
         .card h3 {
@@ -173,10 +329,11 @@
             width: 100%;
             border-collapse: collapse;
             margin: 20px 0;
-            background: white;
+            background: var(--table-bg);
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             border-radius: 8px;
             overflow: hidden;
+            transition: background 0.3s ease;
         }
 
         thead {
@@ -187,30 +344,34 @@
         th, td {
             padding: 12px 15px;
             text-align: left;
+            color: var(--text-color);
+            border-bottom: 1px solid var(--border-color);
         }
 
         tbody tr:nth-child(even) {
-            background: #f8f9fa;
+            background: var(--tab-bg);
         }
 
         tbody tr:hover {
-            background: #e9ecef;
+            background: var(--tab-hover);
         }
 
         .section-title {
             font-size: 1.5em;
             margin-bottom: 20px;
-            color: #333;
+            color: var(--text-color);
             border-bottom: 2px solid #667eea;
             padding-bottom: 10px;
+            transition: color 0.3s ease;
         }
 
         .info-box {
-            background: #f8f9fa;
+            background: var(--tab-bg);
             border-left: 4px solid #667eea;
             padding: 20px;
             margin: 20px 0;
             border-radius: 4px;
+            transition: background 0.3s ease;
         }
 
         .info-box h4 {
@@ -420,12 +581,21 @@
                 <button class="btn-secondary" onclick="exportJSON()">💾 Export JSON</button>
                 <button class="btn-secondary" onclick="generatePDFReport()">📄 PDF Report</button>
                 <button class="btn-secondary" onclick="shareViaURL()">🔗 Share URL</button>
+                <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">🌓</button>
                 <select id="fileSelector" onchange="switchFile()" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd; display: none;">
                     <option value="0">File 1</option>
                 </select>
-                <div class="status" id="status">Upload a file or load example data</div>
+                <div style="flex: 1; min-width: 200px;">
+                    <div class="status" id="status">Upload a file or load example data</div>
+                    <div class="progress-container" id="progressContainer">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <!-- File Tabs (Multiple Files) -->
+        <div class="file-tabs" id="fileTabs" style="display: none;"></div>
 
         <div class="tabs">
             <button class="tab active" onclick="showTab('summary')">📊 Summary</button>
@@ -1365,15 +1535,20 @@
 
         async function handleFileUpload(file) {
             setStatus(`Uploading ${file.name}...`);
+            showProgress(0);
             const formData = new FormData();
             formData.append('file', file);
 
             try {
+                // Simulate progress during upload
+                showProgress(30);
                 const response = await fetch('/api/upload', {
                     method: 'POST',
                     body: formData
                 });
+                showProgress(60);
                 const result = await response.json();
+                showProgress(90);
 
                 if (result.success) {
                     allFiles.push({name: file.name, data: result.data});
@@ -1381,7 +1556,11 @@
                     currentFileIndex = allFiles.length - 1;
 
                     setStatus(`✓ Parsed ${file.name} successfully (${allFiles.length} file(s) loaded)`, true);
+                    showProgress(100);
+                    setTimeout(hideProgress, 500);
+
                     updateFileSelector();
+                    updateFileTabs();
                     renderAllTabs();
 
                     // Show comparison tab if multiple files
@@ -1391,9 +1570,85 @@
                     }
                 } else {
                     setStatus(`✗ Error: ${result.message}`, false);
+                    hideProgress();
                 }
             } catch (error) {
                 setStatus(`✗ Upload failed: ${error.message}`, false);
+                hideProgress();
+            }
+        }
+
+        // Progress bar functions
+        function showProgress(percent) {
+            const container = document.getElementById('progressContainer');
+            const bar = document.getElementById('progressBar');
+            container.style.display = 'block';
+            bar.style.width = percent + '%';
+        }
+
+        function hideProgress() {
+            const container = document.getElementById('progressContainer');
+            const bar = document.getElementById('progressBar');
+            container.style.display = 'none';
+            bar.style.width = '0%';
+        }
+
+        // Dark mode toggle
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            localStorage.setItem('darkMode', isDark ? 'enabled' : 'disabled');
+        }
+
+        // Load dark mode preference on page load
+        if (localStorage.getItem('darkMode') === 'enabled') {
+            document.body.classList.add('dark-mode');
+        }
+
+        // File tabs management
+        function updateFileTabs() {
+            const fileTabs = document.getElementById('fileTabs');
+            if (allFiles.length <= 1) {
+                fileTabs.style.display = 'none';
+                return;
+            }
+
+            fileTabs.style.display = 'flex';
+            fileTabs.innerHTML = allFiles.map((file, idx) => `
+                <div class="file-tab ${idx === currentFileIndex ? 'active' : ''}" onclick="switchToFileTab(${idx})">
+                    ${file.name}
+                    <span class="close-tab" onclick="event.stopPropagation(); closeFileTab(${idx})">×</span>
+                </div>
+            `).join('');
+        }
+
+        function switchToFileTab(index) {
+            currentFileIndex = index;
+            data = allFiles[currentFileIndex].data;
+            setStatus(`✓ Viewing ${allFiles[currentFileIndex].name}`, true);
+            updateFileTabs();
+            updateFileSelector();
+            renderAllTabs();
+        }
+
+        function closeFileTab(index) {
+            if (allFiles.length === 1) return;
+
+            allFiles.splice(index, 1);
+
+            if (currentFileIndex >= allFiles.length) {
+                currentFileIndex = allFiles.length - 1;
+            }
+
+            data = allFiles[currentFileIndex].data;
+            updateFileTabs();
+            updateFileSelector();
+            updateComparisonSelectors();
+            renderAllTabs();
+            setStatus(`✓ File closed. Viewing ${allFiles[currentFileIndex].name}`, true);
+
+            if (allFiles.length <= 1) {
+                document.getElementById('comparisonTab').style.display = 'none';
             }
         }
 
@@ -1529,8 +1784,8 @@
         function renderGeometry() {
             if (!data || !data.coordinates) return;
 
-            let html = '<table><thead><tr><th>Atom</th><th>Element</th><th>X (Å)</th><th>Y (Å)</th><th>Z (Å)</th></tr></thead><tbody>';
-            
+            let html = '<table id="geometry-table"><thead><tr><th>Atom</th><th>Element</th><th>X (Å)</th><th>Y (Å)</th><th>Z (Å)</th></tr></thead><tbody>';
+
             data.coordinates.forEach((coord, i) => {
                 html += `<tr>
                     <td>${i}</td>
@@ -1543,6 +1798,7 @@
 
             html += '</tbody></table>';
             document.getElementById('geometry-content').innerHTML = html;
+            setTimeout(() => addTableControls('geometry-table', 'geometry_coordinates'), 0);
         }
 
         function renderEnergy() {
@@ -1577,8 +1833,8 @@
 
             const orbitals = data.orbital_energies.slice(0, 50); // Show first 50
 
-            let html = '<table><thead><tr><th>MO</th><th>Occupation</th><th>Energy (eV)</th><th>Energy (Eh)</th></tr></thead><tbody>';
-            
+            let html = '<table id="orbitals-table"><thead><tr><th>MO</th><th>Occupation</th><th>Energy (eV)</th><th>Energy (Eh)</th></tr></thead><tbody>';
+
             orbitals.forEach(orb => {
                 const highlight = orb.occupation > 0.5 && orb.occupation < 2.0 ? 'style="background: #ffffcc;"' : '';
                 html += `<tr ${highlight}>
@@ -1591,15 +1847,16 @@
 
             html += '</tbody></table>';
             html += `<p style="margin-top: 20px; color: #666;">Showing first 50 of ${data.orbital_energies.length} molecular orbitals</p>`;
-            
+
             document.getElementById('orbitals-content').innerHTML = html;
+            setTimeout(() => addTableControls('orbitals-table', 'orbital_energies'), 0);
         }
 
         function renderVibrations() {
             if (!data || !data.frequencies) return;
 
-            let html = '<table><thead><tr><th>Mode</th><th>Frequency (cm⁻¹)</th><th>Raman Activity</th></tr></thead><tbody>';
-            
+            let html = '<table id="vibrations-table"><thead><tr><th>Mode</th><th>Frequency (cm⁻¹)</th><th>Raman Activity</th></tr></thead><tbody>';
+
             data.frequencies.forEach((freq, i) => {
                 const raman = data.raman_spectrum?.[i]?.activity?.toFixed(2) || 'N/A';
                 html += `<tr>
@@ -1611,15 +1868,16 @@
 
             html += '</tbody></table>';
             document.getElementById('vibrations-content').innerHTML = html;
+            setTimeout(() => addTableControls('vibrations-table', 'vibrational_frequencies'), 0);
         }
 
         function renderNMR() {
             if (!data || !data.nmr_data) return;
 
             const shifts = data.nmr_data.chemical_shifts;
-            
-            let html = '<table><thead><tr><th>Nucleus</th><th>Element</th><th>Isotropic (ppm)</th><th>Anisotropy (ppm)</th></tr></thead><tbody>';
-            
+
+            let html = '<table id="nmr-table"><thead><tr><th>Nucleus</th><th>Element</th><th>Isotropic (ppm)</th><th>Anisotropy (ppm)</th></tr></thead><tbody>';
+
             shifts.forEach(shift => {
                 html += `<tr>
                     <td>${shift.nucleus || 'N/A'}</td>
@@ -1631,13 +1889,14 @@
 
             html += '</tbody></table>';
             document.getElementById('nmr-content').innerHTML = html;
+            setTimeout(() => addTableControls('nmr-table', 'nmr_chemical_shifts'), 0);
         }
 
         function renderPopulation() {
             if (!data) return;
 
-            let html = '<div class="info-box"><h4>Mulliken Charges</h4><table><thead><tr><th>Atom</th><th>Element</th><th>Charge</th></tr></thead><tbody>';
-            
+            let html = '<div class="info-box"><h4>Mulliken Charges</h4><table id="mulliken-table"><thead><tr><th>Atom</th><th>Element</th><th>Charge</th></tr></thead><tbody>';
+
             Object.entries(data.mulliken_charges).forEach(([atom, info]) => {
                 html += `<tr>
                     <td>${atom}</td>
@@ -1654,6 +1913,7 @@
             html += '</div>';
 
             document.getElementById('population-content').innerHTML = html;
+            setTimeout(() => addTableControls('mulliken-table', 'mulliken_charges'), 0);
         }
 
         function renderRawJSON() {
@@ -1674,6 +1934,117 @@
             a.download = 'orca_output_parsed.json';
             a.click();
             URL.revokeObjectURL(url);
+        }
+
+        // Export table to CSV
+        function exportTableToCSV(tableId, filename) {
+            const table = document.getElementById(tableId);
+            if (!table) {
+                alert('Table not found');
+                return;
+            }
+
+            let csv = [];
+            const rows = table.querySelectorAll('tr');
+
+            rows.forEach(row => {
+                const cols = row.querySelectorAll('td, th');
+                const rowData = Array.from(cols).map(col => {
+                    let text = col.textContent.trim();
+                    // Escape quotes and wrap in quotes if contains comma
+                    if (text.includes(',') || text.includes('"')) {
+                        text = '"' + text.replace(/"/g, '""') + '"';
+                    }
+                    return text;
+                });
+                csv.push(rowData.join(','));
+            });
+
+            const csvContent = csv.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || 'table_export.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Export table to Excel (CSV format that Excel can open)
+        function exportTableToExcel(tableId, filename) {
+            const table = document.getElementById(tableId);
+            if (!table) {
+                alert('Table not found');
+                return;
+            }
+
+            let csv = [];
+            const rows = table.querySelectorAll('tr');
+
+            rows.forEach(row => {
+                const cols = row.querySelectorAll('td, th');
+                const rowData = Array.from(cols).map(col => {
+                    let text = col.textContent.trim();
+                    // Excel-friendly CSV format
+                    if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+                        text = '"' + text.replace(/"/g, '""') + '"';
+                    }
+                    return text;
+                });
+                csv.push(rowData.join(','));
+            });
+
+            const csvContent = '\ufeff' + csv.join('\r\n'); // UTF-8 BOM for Excel
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || 'table_export.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Filter table rows based on search
+        function filterTable(tableId, searchValue) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+
+            const searchLower = searchValue.toLowerCase();
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                if (text.includes(searchLower)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        // Add table controls (search and export buttons) to a table
+        function addTableControls(tableId, tableName) {
+            const table = document.getElementById(tableId);
+            if (!table || table.previousElementSibling?.classList.contains('table-controls')) {
+                return; // Already has controls or table not found
+            }
+
+            const controls = document.createElement('div');
+            controls.className = 'table-controls';
+            controls.innerHTML = `
+                <input type="text" class="table-search" placeholder="Search in table..."
+                       onkeyup="filterTable('${tableId}', this.value)">
+                <button class="btn-export-table" onclick="exportTableToCSV('${tableId}', '${tableName}.csv')">
+                    💾 CSV
+                </button>
+                <button class="btn-export-table" onclick="exportTableToExcel('${tableId}', '${tableName}.csv')">
+                    📊 Excel
+                </button>
+            `;
+
+            table.parentNode.insertBefore(controls, table);
         }
 
         function refreshData() {
