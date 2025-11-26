@@ -479,6 +479,7 @@
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
         }
 
         #molecule-viewer {
@@ -486,6 +487,8 @@
             height: 500px;
             border: 1px solid #e0e0e0;
             border-radius: 8px;
+            position: relative;
+            overflow: hidden;
         }
 
         /* Collapsible sections */
@@ -2112,9 +2115,14 @@
             container.innerHTML = ''; // Clear previous viewer
 
             try {
+                // Get container dimensions
+                const width = container.clientWidth;
+                const height = container.clientHeight || 500;
+
                 viewer3d = $3Dmol.createViewer(container, {
                     backgroundColor: 'white',
-                    antialias: true
+                    antialias: true,
+                    cartoonQuality: 10
                 });
 
                 // Convert coordinates to XYZ format
@@ -2167,6 +2175,7 @@
                 });
 
                 viewer3d.zoomTo();
+                viewer3d.resize();
                 viewer3d.render();
 
                 console.log('3D molecule rendered successfully');
@@ -5236,10 +5245,17 @@
         }
 
         function renderTimingEfficiency() {
-            if (!data || !data.timing_data || data.timing_data.length === 0) return;
+            if (!data || !data.timing_data) return;
+
+            // Convert timing_data object to array of [module, time] pairs
+            const timingEntries = Object.entries(data.timing_data)
+                .filter(([key, value]) => typeof value === 'number' && value > 0 && key !== 'total_run_time' && key !== 'total_time')
+                .map(([key, value]) => [key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), value]);
+
+            if (timingEntries.length === 0) return;
 
             // Sort by time (descending)
-            const sorted = [...data.timing_data].sort((a, b) => b[1] - a[1]);
+            const sorted = timingEntries.sort((a, b) => b[1] - a[1]);
             const modules = sorted.map(t => t[0]);
             const times = sorted.map(t => t[1]);
 
