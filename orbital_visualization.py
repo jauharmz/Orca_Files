@@ -11,6 +11,8 @@ Features:
 - Support for flat and nested dataset lists
 - Color-coded occupied/virtual orbitals
 - Grouped comparisons (only connect within groups)
+- Orbital filtering by energy range
+- Orbital filtering by type (occupied/virtual/frontier)
 
 Based on implementation from 0cbz.ipynb.
 """
@@ -55,6 +57,70 @@ def find_homo_lumo(orbital_energies: List[Dict]) -> Tuple[int, int]:
     return homo_idx, lumo_idx
 
 
+def filter_orbitals_by_energy(
+    orbital_energies: List[Dict],
+    min_energy: Optional[float] = None,
+    max_energy: Optional[float] = None
+) -> List[Dict]:
+    """
+    Filter orbitals by energy range.
+
+    Args:
+        orbital_energies: List of orbital dicts
+        min_energy: Minimum energy in eV (None = no lower limit)
+        max_energy: Maximum energy in eV (None = no upper limit)
+
+    Returns:
+        Filtered list of orbitals
+    """
+    filtered = []
+    for orb in orbital_energies:
+        energy = orb.get('energy_ev', 0.0)
+        if min_energy is not None and energy < min_energy:
+            continue
+        if max_energy is not None and energy > max_energy:
+            continue
+        filtered.append(orb)
+
+    logger.debug(f"Filtered {len(orbital_energies)} orbitals to {len(filtered)} by energy range")
+    return filtered
+
+
+def filter_orbitals_by_type(
+    orbital_energies: List[Dict],
+    orbital_type: str = 'all'
+) -> List[Dict]:
+    """
+    Filter orbitals by occupation type.
+
+    Args:
+        orbital_energies: List of orbital dicts
+        orbital_type: 'all', 'occupied', 'virtual', or 'frontier'
+                     'frontier' returns HOMO-2 to LUMO+2
+
+    Returns:
+        Filtered list of orbitals
+    """
+    if orbital_type == 'all':
+        return orbital_energies
+
+    if orbital_type == 'occupied':
+        filtered = [orb for orb in orbital_energies if orb.get('occupation', 0.0) > 0.5]
+    elif orbital_type == 'virtual':
+        filtered = [orb for orb in orbital_energies if orb.get('occupation', 0.0) < 0.5]
+    elif orbital_type == 'frontier':
+        homo_idx, lumo_idx = find_homo_lumo(orbital_energies)
+        start_idx = max(0, homo_idx - 2)
+        end_idx = min(len(orbital_energies), lumo_idx + 3)
+        filtered = orbital_energies[start_idx:end_idx]
+    else:
+        logger.warning(f"Unknown orbital_type '{orbital_type}', returning all")
+        return orbital_energies
+
+    logger.debug(f"Filtered to {len(filtered)} {orbital_type} orbitals")
+    return filtered
+
+
 def create_orbital_comparison(
     datasets: Union[List[List[Dict]], List[Dict]],
     labels: List[str],
@@ -65,6 +131,8 @@ def create_orbital_comparison(
     connection_style: str = '--',
     connection_alpha: float = 0.4,
     show_gap_values: bool = True,
+    energy_range: Optional[Tuple[float, float]] = None,
+    orbital_filter: str = 'all',
     title: str = "Orbital Energy Comparison",
     save_path: Optional[str] = None
 ) -> plt.Figure:
@@ -84,6 +152,8 @@ def create_orbital_comparison(
         connection_style: Line style for connections
         connection_alpha: Transparency of connection lines
         show_gap_values: Show HOMO-LUMO gap values
+        energy_range: Optional (min_eV, max_eV) tuple to filter by energy
+        orbital_filter: 'all', 'occupied', 'virtual', or 'frontier' to filter orbital type
         title: Plot title
         save_path: Save path
 
@@ -121,6 +191,15 @@ def create_orbital_comparison(
             orbitals = dataset.get('orbital_energies', [])
             if not orbitals:
                 raise ValueError(f"No orbital_energies in dataset {i}")
+
+            # Apply filters if specified
+            if energy_range is not None:
+                orbitals = filter_orbitals_by_energy(orbitals, energy_range[0], energy_range[1])
+            if orbital_filter != 'all':
+                orbitals = filter_orbitals_by_type(orbitals, orbital_filter)
+
+            if not orbitals:
+                raise ValueError(f"No orbitals remaining after filtering in dataset {i}")
 
             homo_idx, lumo_idx = find_homo_lumo(orbitals)
 
@@ -344,4 +423,10 @@ def create_simple_orbital_diagram(
 
 
 # Export main functions
-__all__ = ['create_orbital_comparison', 'create_simple_orbital_diagram', 'find_homo_lumo']
+__all__ = [
+    'create_orbital_comparison',
+    'create_simple_orbital_diagram',
+    'find_homo_lumo',
+    'filter_orbitals_by_energy',
+    'filter_orbitals_by_type'
+]
