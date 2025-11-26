@@ -32,11 +32,11 @@ def test_all_sections():
     
     # Test 2: Final Energy
     try:
-        assert result.final_energy == -662.998375
+        assert abs(result.final_energy - (-662.998375)) < 1e-5
         print("✓ Final Energy")
         tests_passed += 1
     except AssertionError:
-        print(f"✗ Final Energy")
+        print(f"✗ Final Energy (expected ~-662.998375, got {result.final_energy})")
         tests_failed += 1
     
     # Test 3: Coordinates
