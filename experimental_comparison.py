@@ -12,7 +12,8 @@ Implements Item 15: Experimental vs DFT IR Comparison
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from typing import List, Dict, Optional, Tuple, Callable
 import logging
 
@@ -153,7 +154,7 @@ def create_exp_vs_dft_comparison(
     figsize: Tuple[float, float] = (14, 12),
     title: str = "Experimental vs DFT IR Comparison",
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create comprehensive experimental vs DFT IR comparison.
 
@@ -170,7 +171,7 @@ def create_exp_vs_dft_comparison(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        plotly Figure object
     """
     logger.info("Creating experimental vs DFT IR comparison")
 
@@ -190,22 +191,27 @@ def create_exp_vs_dft_comparison(
         scale_label = f"Manual: {scale_factor:.4f}"
 
     # Create figure with 4 panels
-    fig = plt.figure(figsize=figsize)
+    fig = make_subplots(
+        rows=4, cols=1,
+        row_heights=[1, 1, 1, 1],
+        vertical_spacing=0.08,
+        subplot_titles=(
+            f'{title} - Experimental',
+            f'DFT Calculated - Scale Factor: {scale_label}',
+            'Overlay',
+            'Difference (Exp - DFT)'
+        )
+    )
 
     # Panel 1: Experimental spectrum (top)
-    ax1 = plt.subplot(4, 1, 1)
     exp_y_norm = normalize_spectrum(exp_y)
-    ax1.plot(exp_x, exp_y_norm, 'k-', linewidth=1.5, label='Experimental')
-    ax1.invert_xaxis()
-    ax1.set_ylabel('Normalized Intensity', fontweight='bold')
-    ax1.set_title(f'{title} - Experimental', fontweight='bold')
-    ax1.legend(loc='upper right')
-    ax1.grid(True, alpha=0.3)
-    ax1.set_xlim(wavenumber_range)
+    fig.add_trace(go.Scatter(
+        x=exp_x, y=exp_y_norm,
+        mode='lines', name='Experimental',
+        line=dict(color='black', width=1.5)
+    ), row=1, col=1)
 
     # Panel 2: Calculated spectrum (second)
-    ax2 = plt.subplot(4, 1, 2)
-
     # Generate broadened calculated spectrum
     x_calc = np.linspace(wavenumber_range[0], wavenumber_range[1], 2000)
     scaled_freqs = calculated_frequencies * scale_factor
@@ -213,25 +219,25 @@ def create_exp_vs_dft_comparison(
     calc_spectrum = gaussian_broadening(x_calc, peaks, fwhm)
     calc_spectrum_norm = normalize_spectrum(calc_spectrum)
 
-    ax2.plot(x_calc, calc_spectrum_norm, 'b-', linewidth=1.5,
-            label=f'DFT (scaled: {scale_factor:.4f})')
+    fig.add_trace(go.Scatter(
+        x=x_calc, y=calc_spectrum_norm,
+        mode='lines', name=f'DFT (scaled: {scale_factor:.4f})',
+        line=dict(color='blue', width=1.5)
+    ), row=2, col=1)
 
     # Add stick spectrum
     for freq, inten in zip(scaled_freqs, calculated_intensities):
         if wavenumber_range[0] <= freq <= wavenumber_range[1]:
-            ax2.vlines(freq, 0, inten / calculated_intensities.max(),
-                      color='red', alpha=0.4, linewidth=1.0)
-
-    ax2.invert_xaxis()
-    ax2.set_ylabel('Normalized Intensity', fontweight='bold')
-    ax2.set_title(f'DFT Calculated - Scale Factor: {scale_label}', fontweight='bold')
-    ax2.legend(loc='upper right')
-    ax2.grid(True, alpha=0.3)
-    ax2.set_xlim(wavenumber_range)
+            fig.add_trace(go.Scatter(
+                x=[freq, freq], y=[0, inten / calculated_intensities.max()],
+                mode='lines',
+                line=dict(color='red', width=1.0),
+                opacity=0.4,
+                showlegend=False,
+                hoverinfo='skip'
+            ), row=2, col=1)
 
     # Panel 3: Overlay (third)
-    ax3 = plt.subplot(4, 1, 3)
-
     # Align spectra for direct comparison
     x_common, [exp_aligned, calc_aligned] = align_spectra_to_common_grid(
         [(exp_x, exp_y_norm), (x_calc, calc_spectrum_norm)],
@@ -247,42 +253,61 @@ def create_exp_vs_dft_comparison(
     rmse = calculate_spectrum_similarity(exp_aligned, calc_aligned, 'rmse')
     r2 = calculate_spectrum_similarity(exp_aligned, calc_aligned, 'r2')
 
-    ax3.plot(x_common, exp_aligned, 'k-', linewidth=1.5, alpha=0.7, label='Experimental')
-    ax3.plot(x_common, calc_aligned, 'b-', linewidth=1.5, alpha=0.7, label='DFT')
-    ax3.fill_between(x_common, exp_aligned, calc_aligned, alpha=0.2, color='gray')
+    fig.add_trace(go.Scatter(
+        x=x_common, y=exp_aligned,
+        mode='lines', name='Experimental',
+        line=dict(color='black', width=1.5),
+        opacity=0.7
+    ), row=3, col=1)
 
-    ax3.invert_xaxis()
-    ax3.set_ylabel('Normalized Intensity', fontweight='bold')
-    ax3.set_title(f'Overlay - Correlation: {correlation:.4f}, R²: {r2:.4f}, RMSE: {rmse:.4f}',
-                 fontweight='bold')
-    ax3.legend(loc='upper right')
-    ax3.grid(True, alpha=0.3)
-    ax3.set_xlim(wavenumber_range)
+    fig.add_trace(go.Scatter(
+        x=x_common, y=calc_aligned,
+        mode='lines', name='DFT',
+        line=dict(color='blue', width=1.5),
+        opacity=0.7
+    ), row=3, col=1)
+
+    # Update title with metrics
+    fig.layout.annotations[2].update(
+        text=f'Overlay - Correlation: {correlation:.4f}, R²: {r2:.4f}, RMSE: {rmse:.4f}'
+    )
 
     # Panel 4: Residuals (bottom)
-    ax4 = plt.subplot(4, 1, 4)
-
     residuals = exp_aligned - calc_aligned
-    ax4.plot(x_common, residuals, 'r-', linewidth=1.0)
-    ax4.axhline(0, color='k', linestyle='--', alpha=0.5)
-    ax4.fill_between(x_common, 0, residuals, alpha=0.3, color='red')
+    fig.add_trace(go.Scatter(
+        x=x_common, y=residuals,
+        mode='lines', name='Residuals',
+        line=dict(color='red', width=1.0),
+        fill='tozeroy',
+        fillcolor='rgba(255, 0, 0, 0.3)'
+    ), row=4, col=1)
 
-    ax4.invert_xaxis()
-    ax4.set_xlabel('Wavenumber (cm⁻¹)', fontweight='bold')
-    ax4.set_ylabel('Residuals', fontweight='bold')
-    ax4.set_title('Difference (Exp - DFT)', fontweight='bold')
-    ax4.grid(True, alpha=0.3)
-    ax4.set_xlim(wavenumber_range)
+    fig.add_hline(y=0, line=dict(color='black', dash='dash', width=1),
+                  opacity=0.5, row=4, col=1)
 
-    # Style all axes
-    for ax in [ax1, ax2, ax3, ax4]:
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
+    # Update all axes
+    for i in range(1, 5):
+        fig.update_xaxes(autorange='reversed', showgrid=True, row=i, col=1, range=wavenumber_range)
+        fig.update_yaxes(showgrid=True, row=i, col=1)
 
-    plt.tight_layout()
+    fig.update_yaxes(title_text='Normalized Intensity', row=1, col=1)
+    fig.update_yaxes(title_text='Normalized Intensity', row=2, col=1)
+    fig.update_yaxes(title_text='Normalized Intensity', row=3, col=1)
+    fig.update_yaxes(title_text='Residuals', row=4, col=1)
+    fig.update_xaxes(title_text='Wavenumber (cm⁻¹)', row=4, col=1)
+
+    fig.update_layout(
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        showlegend=False
+    )
 
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved figure to {save_path}")
 
     return fig
@@ -296,7 +321,7 @@ def create_peak_assignment_table(
     figsize: Tuple[float, float] = (12, 8),
     title: str = "Peak Assignment Table",
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create table showing experimental vs calculated peak assignments.
 
@@ -310,48 +335,32 @@ def create_peak_assignment_table(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        plotly Figure object
     """
     logger.info("Creating peak assignment table")
 
     # Match peaks
     matches = match_peaks(experimental_peaks, calculated_peaks, scale_factor, tolerance)
 
-    # Create figure
-    fig, ax = plt.subplots(figsize=figsize)
-    ax.axis('off')
+    # Prepare table data (limit to top 20 matches)
+    matches = matches[:20]
 
-    # Prepare table data
-    table_data = [['Exp. Freq.\n(cm⁻¹)', 'Exp. Inten.', 'Calc. Freq.\n(cm⁻¹)',
-                   'Calc. Inten.\n(km/mol)', 'Scaled Freq.\n(cm⁻¹)', 'Shift\n(cm⁻¹)']]
+    header = ['Exp. Freq.<br>(cm⁻¹)', 'Exp. Inten.', 'Calc. Freq.<br>(cm⁻¹)',
+              'Calc. Inten.<br>(km/mol)', 'Scaled Freq.<br>(cm⁻¹)', 'Shift<br>(cm⁻¹)']
 
-    for match in matches[:20]:  # Show top 20 matches
-        table_data.append([
-            f"{match['exp_freq']:.1f}",
-            f"{match['exp_intensity']:.2f}",
-            f"{match['calc_freq']:.1f}",
-            f"{match['calc_intensity']:.1f}",
-            f"{match['calc_freq_scaled']:.1f}",
-            f"{match['shift']:+.1f}"
-        ])
-
-    # Create table
-    table = ax.table(cellText=table_data, cellLoc='center',
-                    loc='center',
-                    colWidths=[0.15, 0.15, 0.15, 0.18, 0.17, 0.15])
-
-    table.auto_set_font_size(False)
-    table.set_fontsize(9)
-    table.scale(1, 2.5)
-
-    # Style header row
-    for i in range(6):
-        cell = table[(0, i)]
-        cell.set_facecolor('#4472C4')
-        cell.set_text_props(weight='bold', color='white')
+    # Create cell values
+    cell_values = [
+        [f"{m['exp_freq']:.1f}" for m in matches],
+        [f"{m['exp_intensity']:.2f}" for m in matches],
+        [f"{m['calc_freq']:.1f}" for m in matches],
+        [f"{m['calc_intensity']:.1f}" for m in matches],
+        [f"{m['calc_freq_scaled']:.1f}" for m in matches],
+        [f"{m['shift']:+.1f}" for m in matches]
+    ]
 
     # Color-code shifts
-    for i, match in enumerate(matches[:20], start=1):
+    shift_colors = []
+    for match in matches:
         shift_abs = abs(match['shift'])
         if shift_abs < 5:
             color = '#C6EFCE'  # Green - excellent match
@@ -361,16 +370,38 @@ def create_peak_assignment_table(
             color = '#FFC7CE'  # Red - acceptable match
         else:
             color = '#E0E0E0'  # Gray - poor match
+        shift_colors.append(color)
 
-        table[(i, 5)].set_facecolor(color)
+    # Create figure
+    fig = go.Figure(data=[go.Table(
+        header=dict(
+            values=header,
+            fill_color='#4472C4',
+            font=dict(color='white', size=11),
+            align='center',
+            height=40
+        ),
+        cells=dict(
+            values=cell_values,
+            fill_color=[['white'] * len(matches)] * 5 + [shift_colors],
+            align='center',
+            height=35,
+            font=dict(size=10)
+        )
+    )])
 
-    ax.set_title(f'{title}\nScale Factor: {scale_factor:.4f}, Tolerance: ±{tolerance} cm⁻¹',
-                fontsize=12, fontweight='bold', pad=20)
-
-    plt.tight_layout()
+    fig.update_layout(
+        title=f'{title}<br>Scale Factor: {scale_factor:.4f}, Tolerance: ±{tolerance} cm⁻¹',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        template='plotly_white'
+    )
 
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved figure to {save_path}")
 
     return fig

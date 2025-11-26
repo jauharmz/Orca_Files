@@ -14,7 +14,7 @@ Features:
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 from typing import List, Dict, Optional, Tuple
 import logging
 
@@ -49,7 +49,7 @@ def create_stacked_raman_plot(
     low_freq_cutoff: float = 0.0,
     title: str = "Stacked Raman Spectra",
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create stacked Raman spectra plot for multiple datasets.
 
@@ -71,7 +71,7 @@ def create_stacked_raman_plot(
         save_path: Path to save figure (optional)
 
     Returns:
-        matplotlib Figure object
+        Plotly Figure object
     """
     logger.info(f"Creating stacked Raman plot for {len(datasets)} datasets")
 
@@ -123,78 +123,88 @@ def create_stacked_raman_plot(
     y_offsets = calculate_stack_offsets(spectra, y_space=y_space)
 
     # Create figure
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = go.Figure()
 
     # Plot each spectrum with offset
     for i, (spectrum, offset, label, color) in enumerate(zip(spectra, y_offsets, labels, colors)):
         offset_spectrum = spectrum + offset
-        ax.plot(shifts, offset_spectrum, color=color, linewidth=1.5, label=label)
+
+        # Add main spectrum line
+        fig.add_trace(go.Scatter(
+            x=shifts,
+            y=offset_spectrum,
+            mode='lines',
+            name=label,
+            line=dict(color=color, width=1.5),
+            hovertemplate='Raman Shift: %{x:.1f} cm⁻¹<br>Intensity: %{y:.3f}<extra></extra>'
+        ))
 
         # Add stick spectrum below baseline
         if 'frequencies' in datasets[i]:
             freqs = datasets[i]['frequencies']
+            stick_x = []
+            stick_y = []
             for freq in freqs:
                 if shift_range[0] <= freq <= shift_range[1]:
                     stick_height = 0.05  # Relative to normalized spectrum
-                    ax.vlines(freq, offset - stick_height, offset,
-                            color=color, alpha=0.6, linewidth=0.8)
+                    stick_x.extend([freq, freq, None])
+                    stick_y.extend([offset - stick_height, offset, None])
+
+            if stick_x:
+                fig.add_trace(go.Scatter(
+                    x=stick_x,
+                    y=stick_y,
+                    mode='lines',
+                    line=dict(color=color, width=0.8),
+                    opacity=0.6,
+                    showlegend=False,
+                    hoverinfo='skip'
+                ))
 
     # Add regional boundaries
     if show_regions:
         boundaries = get_raman_region_boundaries()
-        y_min, y_max = ax.get_ylim()
         for boundary in boundaries:
             if shift_range[0] <= boundary <= shift_range[1]:
-                ax.axvline(boundary, color='gray', linestyle='--',
-                          alpha=0.5, linewidth=0.8, zorder=0)
-
-    # Add dataset labels
-    if show_labels:
-        if label_position_method == 'right':
-            # Use twin axis for right-side labels
-            ax2 = ax.twinx()
-            ax2.set_ylim(ax.get_ylim())
-            ax2.set_yticks(y_offsets)
-            ax2.set_yticklabels(labels, fontsize=10)
-            ax2.tick_params(axis='y', length=0)  # Hide tick marks
-        else:
-            # Use smart positioning
-            label_positions = find_optimal_label_positions(
-                spectra, y_offsets, shift_range, shifts, method=label_position_method
-            )
-
-            for label, (x_pos, y_pos), color in zip(labels, label_positions, colors):
-                ax.annotate(label, xy=(x_pos, y_pos),
-                           xytext=(10, 0), textcoords='offset points',
-                           fontsize=10, fontweight='bold',
-                           bbox=dict(boxstyle='round,pad=0.4',
-                                   facecolor='white', edgecolor=color, linewidth=2),
-                           arrowprops=dict(arrowstyle='->', color=color, lw=1.5))
+                fig.add_vline(
+                    x=boundary,
+                    line_dash="dash",
+                    line_color="gray",
+                    opacity=0.5,
+                    line_width=0.8
+                )
 
     # Formatting
-    ax.set_xlabel('Raman Shift (cm⁻¹)', fontsize=12, fontweight='bold')
-    ax.set_ylabel('Normalized Intensity (offset)', fontsize=12, fontweight='bold')
-    ax.set_title(title, fontsize=14, fontweight='bold')
-    ax.set_xlim(shift_range)
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=14, family='Arial Black')),
+        xaxis_title=dict(text='Raman Shift (cm⁻¹)', font=dict(size=12, family='Arial Black')),
+        yaxis_title=dict(text='Normalized Intensity (offset)', font=dict(size=12, family='Arial Black')),
+        template='plotly_white',
+        hovermode='closest',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        showlegend=True,
+        legend=dict(
+            yanchor="middle",
+            y=0.5,
+            xanchor="left",
+            x=1.02
+        )
+    )
 
     # Invert x-axis (high to low wavenumber - spectroscopy convention)
-    ax.invert_xaxis()
+    fig.update_xaxes(autorange='reversed', range=[shift_range[1], shift_range[0]])
 
-    # Hide left y-axis (arbitrary offsets)
-    ax.get_yaxis().set_visible(False)
-    ax.spines['left'].set_visible(False)
-
-    # Style
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.grid(False)
-
-    plt.tight_layout()
+    # Hide y-axis ticks (arbitrary offsets)
+    fig.update_yaxes(showticklabels=False)
 
     # Save if requested
     if save_path:
         logger.info(f"Saving figure to {save_path}")
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=1200, height=800, scale=3)
 
     logger.info("Stacked Raman plot created successfully")
     return fig
@@ -211,7 +221,7 @@ def create_single_raman_with_regions(
     use_temperature_correction: bool = True,
     title: str = "Raman Spectrum",
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create publication-quality Raman spectrum with regional annotations.
 
@@ -228,7 +238,7 @@ def create_single_raman_with_regions(
         save_path: Path to save figure
 
     Returns:
-        matplotlib Figure object
+        Plotly Figure object
     """
     # Generate grid
     shifts = np.linspace(shift_range[0], shift_range[1], 8000)
@@ -243,58 +253,94 @@ def create_single_raman_with_regions(
     peaks = list(zip(frequencies, intensities))
     spectrum = gaussian_broadening(shifts, peaks, fwhm)
 
+    max_spectrum = np.max(spectrum)
+
     # Create figure
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = go.Figure()
 
     # Plot continuous spectrum
-    ax.plot(shifts, spectrum, color='black', linewidth=1.5)
-    ax.fill_between(shifts, spectrum, alpha=0.2, color='blue')
+    fig.add_trace(go.Scatter(
+        x=shifts,
+        y=spectrum,
+        mode='lines',
+        line=dict(color='black', width=1.5),
+        fill='tozeroy',
+        fillcolor='rgba(0, 0, 255, 0.2)',
+        name='Raman Spectrum',
+        hovertemplate='Raman Shift: %{x:.1f} cm⁻¹<br>Intensity: %{y:.3f}<extra></extra>'
+    ))
 
     # Plot stick spectrum below
+    stick_x = []
+    stick_y = []
     for freq, inten in zip(frequencies, intensities):
         if shift_range[0] <= freq <= shift_range[1]:
-            max_spectrum = np.max(spectrum)
             stick_height = max_spectrum * 0.1
-            ax.vlines(freq, -stick_height, 0, color='red', alpha=0.7, linewidth=1.2)
+            stick_x.extend([freq, freq, None])
+            stick_y.extend([-stick_height, 0, None])
+
+    if stick_x:
+        fig.add_trace(go.Scatter(
+            x=stick_x,
+            y=stick_y,
+            mode='lines',
+            line=dict(color='red', width=1.2),
+            opacity=0.7,
+            showlegend=False,
+            hoverinfo='skip'
+        ))
 
     # Add regional boundaries
     if show_regions:
         boundaries = get_raman_region_boundaries()
-        y_max = np.max(spectrum) * 1.1
         for boundary in boundaries:
             if shift_range[0] <= boundary <= shift_range[1]:
-                ax.axvline(boundary, color='gray', linestyle='--',
-                          alpha=0.5, linewidth=0.8)
+                fig.add_vline(
+                    x=boundary,
+                    line_dash="dash",
+                    line_color="gray",
+                    opacity=0.5,
+                    line_width=0.8
+                )
 
     # Add region labels
     if show_labels:
         region_labels = get_raman_region_labels()
-        y_pos = np.max(spectrum) * 0.95
-        for shift, label in region_labels:
+        for shift, label_text in region_labels:
             if shift_range[0] <= shift <= shift_range[1]:
-                ax.text(shift, y_pos, label, fontsize=9, ha='center',
-                       bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
-                               edgecolor='gray', alpha=0.8))
+                fig.add_annotation(
+                    x=shift,
+                    y=max_spectrum * 0.95,
+                    text=label_text,
+                    showarrow=False,
+                    bgcolor='white',
+                    bordercolor='gray',
+                    borderwidth=1,
+                    borderpad=3,
+                    font=dict(size=9)
+                )
 
     # Formatting
-    ax.set_xlabel('Raman Shift (cm⁻¹)', fontsize=12, fontweight='bold')
-    ax.set_ylabel('Intensity (arb. units)', fontsize=12, fontweight='bold')
-    ax.set_title(title, fontsize=14, fontweight='bold')
-    ax.set_xlim(shift_range)
-    ax.set_ylim(bottom=-np.max(spectrum) * 0.15)
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=14, family='Arial Black')),
+        xaxis_title=dict(text='Raman Shift (cm⁻¹)', font=dict(size=12, family='Arial Black')),
+        yaxis_title=dict(text='Intensity (arb. units)', font=dict(size=12, family='Arial Black')),
+        template='plotly_white',
+        hovermode='closest',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        showlegend=False
+    )
 
     # Invert x-axis
-    ax.invert_xaxis()
-
-    # Style
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
+    fig.update_xaxes(autorange='reversed', range=[shift_range[1], shift_range[0]])
+    fig.update_yaxes(range=[-max_spectrum * 0.15, max_spectrum * 1.1])
 
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=1200, height=600, scale=3)
 
     return fig
 

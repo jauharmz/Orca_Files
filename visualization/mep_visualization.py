@@ -9,10 +9,8 @@ Create visualizations for MEP analysis including:
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import cm
-from matplotlib.colors import Normalize, TwoSlopeNorm
-from mpl_toolkits.mplot3d import Axes3D
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from typing import Optional, Tuple, List
 import logging
 
@@ -28,7 +26,7 @@ def create_mep_slice_plot(
     dpi: int = 300,
     cmap: str = 'RdBu_r',
     show_atoms: bool = True
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create 2D slice visualization through MEP grid.
 
@@ -43,7 +41,7 @@ def create_mep_slice_plot(
         show_atoms: Show atomic positions
 
     Returns:
-        Matplotlib figure object
+        Plotly figure object
     """
     if mep_data.potential_grid is None:
         raise ValueError("No MEP grid data available")
@@ -60,21 +58,18 @@ def create_mep_slice_plot(
         axis_origin = ox
         axis_spacing = dx
         extent_axes = ('y', 'z')
-        extent = [oy, oy + ny*dy, oz, oz + nz*dz]
     elif slice_axis.lower() == 'y':
         axis_idx = 1
         axis_size = ny
         axis_origin = oy
         axis_spacing = dy
         extent_axes = ('x', 'z')
-        extent = [ox, ox + nx*dx, oz, oz + nz*dz]
     elif slice_axis.lower() == 'z':
         axis_idx = 2
         axis_size = nz
         axis_origin = oz
         axis_spacing = dz
         extent_axes = ('x', 'y')
-        extent = [ox, ox + nx*dx, oy, oy + ny*dy]
     else:
         raise ValueError(f"Invalid slice_axis: {slice_axis}")
 
@@ -86,94 +81,113 @@ def create_mep_slice_plot(
 
     # Extract slice
     if axis_idx == 0:
-        slice_data = grid[slice_idx, :, :]
+        slice_data = grid[slice_idx, :, :].T
     elif axis_idx == 1:
-        slice_data = grid[:, slice_idx, :]
+        slice_data = grid[:, slice_idx, :].T
     else:
-        slice_data = grid[:, :, slice_idx]
+        slice_data = grid[:, :, slice_idx].T
 
-    # Transpose for correct orientation
-    slice_data = slice_data.T
+    # Create subplots
+    fig = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=(
+            f'MEP Slice ({slice_axis.upper()}-plane at {axis_origin + slice_idx * axis_spacing:.2f} Å)',
+            f'MEP Contours ({slice_axis.upper()}-plane)'
+        ),
+        horizontal_spacing=0.1
+    )
 
-    # Create figure
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
-
-    # Create symmetric colormap normalization centered at zero
+    # Create symmetric colormap centered at zero
     vmax = max(abs(mep_data.min_potential), abs(mep_data.max_potential))
-    norm = TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax)
 
-    # Plot 1: MEP slice
-    im1 = ax1.imshow(slice_data, cmap=cmap, norm=norm, origin='lower',
-                     extent=extent, aspect='auto', interpolation='bilinear')
-    ax1.set_xlabel(f'{extent_axes[0].upper()} (Å)', fontsize=11, fontweight='bold')
-    ax1.set_ylabel(f'{extent_axes[1].upper()} (Å)', fontsize=11, fontweight='bold')
-    ax1.set_title(f'MEP Slice ({slice_axis.upper()}-plane at '
-                  f'{axis_origin + slice_idx * axis_spacing:.2f} Å)',
-                  fontsize=12, fontweight='bold')
+    # Plot 1: MEP slice (heatmap)
+    fig.add_trace(go.Heatmap(
+        z=slice_data,
+        colorscale=cmap,
+        zmid=0,
+        zmin=-vmax,
+        zmax=vmax,
+        colorbar=dict(title='MEP (a.u.)', x=0.45)
+    ), row=1, col=1)
 
-    # Add colorbar
-    cbar1 = plt.colorbar(im1, ax=ax1, pad=0.02)
-    cbar1.set_label('MEP (a.u.)', rotation=270, labelpad=20, fontsize=10, fontweight='bold')
+    # Plot 2: Contour plot
+    fig.add_trace(go.Contour(
+        z=slice_data,
+        colorscale=cmap,
+        contours=dict(
+            coloring='fill',
+            showlabels=True
+        ),
+        line=dict(width=0.5),
+        zmid=0,
+        zmin=-vmax,
+        zmax=vmax,
+        colorbar=dict(title='MEP (a.u.)', x=1.0)
+    ), row=1, col=2)
 
-    # Show atomic positions if requested
+    # Show atoms on both plots if requested
     if show_atoms and mep_data.atoms:
         for element, x, y, z in mep_data.atoms:
             # Project onto slice plane
             if slice_axis.lower() == 'x':
                 if abs(x - (axis_origin + slice_idx * axis_spacing)) < 2.0:
-                    ax1.plot(y, z, 'o', color='white', markersize=8,
-                            markeredgecolor='black', markeredgewidth=1.5)
-                    ax1.text(y, z, element, ha='center', va='center',
-                            fontsize=7, fontweight='bold')
+                    # Add marker to both plots
+                    for col in [1, 2]:
+                        fig.add_trace(go.Scatter(
+                            x=[y], y=[z],
+                            mode='markers+text',
+                            marker=dict(size=8, color='white', line=dict(color='black', width=1.5)),
+                            text=element,
+                            textposition='middle center',
+                            textfont=dict(size=7, color='black'),
+                            showlegend=False,
+                            hoverinfo='skip'
+                        ), row=1, col=col)
             elif slice_axis.lower() == 'y':
                 if abs(y - (axis_origin + slice_idx * axis_spacing)) < 2.0:
-                    ax1.plot(x, z, 'o', color='white', markersize=8,
-                            markeredgecolor='black', markeredgewidth=1.5)
-                    ax1.text(x, z, element, ha='center', va='center',
-                            fontsize=7, fontweight='bold')
+                    for col in [1, 2]:
+                        fig.add_trace(go.Scatter(
+                            x=[x], y=[z],
+                            mode='markers+text',
+                            marker=dict(size=8, color='white', line=dict(color='black', width=1.5)),
+                            text=element,
+                            textposition='middle center',
+                            textfont=dict(size=7, color='black'),
+                            showlegend=False,
+                            hoverinfo='skip'
+                        ), row=1, col=col)
             elif slice_axis.lower() == 'z':
                 if abs(z - (axis_origin + slice_idx * axis_spacing)) < 2.0:
-                    ax1.plot(x, y, 'o', color='white', markersize=8,
-                            markeredgecolor='black', markeredgewidth=1.5)
-                    ax1.text(x, y, element, ha='center', va='center',
-                            fontsize=7, fontweight='bold')
+                    for col in [1, 2]:
+                        fig.add_trace(go.Scatter(
+                            x=[x], y=[y],
+                            mode='markers+text',
+                            marker=dict(size=8, color='white', line=dict(color='black', width=1.5)),
+                            text=element,
+                            textposition='middle center',
+                            textfont=dict(size=7, color='black'),
+                            showlegend=False,
+                            hoverinfo='skip'
+                        ), row=1, col=col)
 
-    # Plot 2: Contour plot
-    im2 = ax2.contourf(slice_data, levels=20, cmap=cmap, norm=norm,
-                       extent=extent, origin='lower')
-    ax2.contour(slice_data, levels=10, colors='black', alpha=0.3,
-                linewidths=0.5, extent=extent, origin='lower')
-    ax2.set_xlabel(f'{extent_axes[0].upper()} (Å)', fontsize=11, fontweight='bold')
-    ax2.set_ylabel(f'{extent_axes[1].upper()} (Å)', fontsize=11, fontweight='bold')
-    ax2.set_title(f'MEP Contours ({slice_axis.upper()}-plane)',
-                  fontsize=12, fontweight='bold')
+    # Update axes
+    fig.update_xaxes(title_text=f'{extent_axes[0].upper()} (Å)', row=1, col=1)
+    fig.update_yaxes(title_text=f'{extent_axes[1].upper()} (Å)', row=1, col=1)
+    fig.update_xaxes(title_text=f'{extent_axes[0].upper()} (Å)', row=1, col=2)
+    fig.update_yaxes(title_text=f'{extent_axes[1].upper()} (Å)', row=1, col=2)
 
-    # Add colorbar
-    cbar2 = plt.colorbar(im2, ax=ax2, pad=0.02)
-    cbar2.set_label('MEP (a.u.)', rotation=270, labelpad=20, fontsize=10, fontweight='bold')
-
-    # Show atoms on contour plot too
-    if show_atoms and mep_data.atoms:
-        for element, x, y, z in mep_data.atoms:
-            if slice_axis.lower() == 'x':
-                if abs(x - (axis_origin + slice_idx * axis_spacing)) < 2.0:
-                    ax2.plot(y, z, 'o', color='white', markersize=8,
-                            markeredgecolor='black', markeredgewidth=1.5)
-            elif slice_axis.lower() == 'y':
-                if abs(y - (axis_origin + slice_idx * axis_spacing)) < 2.0:
-                    ax2.plot(x, z, 'o', color='white', markersize=8,
-                            markeredgecolor='black', markeredgewidth=1.5)
-            elif slice_axis.lower() == 'z':
-                if abs(z - (axis_origin + slice_idx * axis_spacing)) < 2.0:
-                    ax2.plot(x, y, 'o', color='white', markersize=8,
-                            markeredgecolor='black', markeredgewidth=1.5)
-
-    plt.suptitle('Molecular Electrostatic Potential (MEP) Analysis',
-                 fontsize=14, fontweight='bold', y=0.98)
-    plt.tight_layout(rect=[0, 0, 1, 0.97])
+    fig.update_layout(
+        title_text='Molecular Electrostatic Potential (MEP) Analysis',
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80
+    )
 
     if output_file:
-        plt.savefig(output_file, dpi=dpi, bbox_inches='tight')
+        if output_file.endswith('.html'):
+            fig.write_html(output_file)
+        else:
+            fig.write_image(output_file, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved MEP slice plot to {output_file}")
 
     return fig
@@ -187,7 +201,7 @@ def create_mep_multi_slice_plot(
     figsize: Tuple[float, float] = (16, 10),
     dpi: int = 300,
     cmap: str = 'RdBu_r'
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create multiple slices through MEP grid.
 
@@ -201,7 +215,7 @@ def create_mep_multi_slice_plot(
         cmap: Colormap
 
     Returns:
-        Matplotlib figure object
+        Plotly figure object
     """
     if mep_data.potential_grid is None:
         raise ValueError("No MEP grid data available")
@@ -216,20 +230,14 @@ def create_mep_multi_slice_plot(
         axis_size = nx
         axis_origin = ox
         axis_spacing = dx
-        extent_axes = ('y', 'z')
-        extent = [oy, oy + ny*dy, oz, oz + nz*dz]
     elif axis.lower() == 'y':
         axis_size = ny
         axis_origin = oy
         axis_spacing = dy
-        extent_axes = ('x', 'z')
-        extent = [ox, ox + nx*dx, oz, oz + nz*dz]
     elif axis.lower() == 'z':
         axis_size = nz
         axis_origin = oz
         axis_spacing = dz
-        extent_axes = ('x', 'y')
-        extent = [ox, ox + nx*dx, oy, oy + ny*dy]
     else:
         raise ValueError(f"Invalid axis: {axis}")
 
@@ -238,17 +246,21 @@ def create_mep_multi_slice_plot(
 
     # Create symmetric colormap normalization
     vmax = max(abs(mep_data.min_potential), abs(mep_data.max_potential))
-    norm = TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax)
 
     # Create subplots
     ncols = min(n_slices, 4)
     nrows = (n_slices + ncols - 1) // ncols
-    fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
-    if n_slices == 1:
-        axes = np.array([axes])
-    axes = axes.flatten()
+
+    fig = make_subplots(
+        rows=nrows, cols=ncols,
+        subplot_titles=[f'{axis.upper()} = {axis_origin + idx * axis_spacing:.2f} Å'
+                       for idx in slice_indices]
+    )
 
     for i, idx in enumerate(slice_indices):
+        row = i // ncols + 1
+        col = i % ncols + 1
+
         if axis.lower() == 'x':
             slice_data = grid[idx, :, :].T
         elif axis.lower() == 'y':
@@ -256,26 +268,28 @@ def create_mep_multi_slice_plot(
         else:
             slice_data = grid[:, :, idx].T
 
-        im = axes[i].imshow(slice_data, cmap=cmap, norm=norm, origin='lower',
-                           extent=extent, aspect='auto', interpolation='bilinear')
-        axes[i].set_xlabel(f'{extent_axes[0].upper()} (Å)', fontsize=9)
-        axes[i].set_ylabel(f'{extent_axes[1].upper()} (Å)', fontsize=9)
-        position = axis_origin + idx * axis_spacing
-        axes[i].set_title(f'{axis.upper()} = {position:.2f} Å', fontsize=10, fontweight='bold')
+        fig.add_trace(go.Heatmap(
+            z=slice_data,
+            colorscale=cmap,
+            zmid=0,
+            zmin=-vmax,
+            zmax=vmax,
+            showscale=(i == 0),
+            colorbar=dict(title='MEP (a.u.)') if i == 0 else None
+        ), row=row, col=col)
 
-    # Hide extra subplots
-    for i in range(n_slices, len(axes)):
-        axes[i].axis('off')
-
-    # Add colorbar
-    fig.colorbar(im, ax=axes, label='MEP (a.u.)', pad=0.02, aspect=30)
-
-    plt.suptitle(f'MEP Multiple Slices ({axis.upper()}-axis)',
-                 fontsize=14, fontweight='bold')
-    plt.tight_layout(rect=[0, 0, 1, 0.97])
+    fig.update_layout(
+        title_text=f'MEP Multiple Slices ({axis.upper()}-axis)',
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80
+    )
 
     if output_file:
-        plt.savefig(output_file, dpi=dpi, bbox_inches='tight')
+        if output_file.endswith('.html'):
+            fig.write_html(output_file)
+        else:
+            fig.write_image(output_file, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved MEP multi-slice plot to {output_file}")
 
     return fig
@@ -289,7 +303,7 @@ def create_mep_3d_isosurface_plot(
     dpi: int = 300,
     show_atoms: bool = True,
     max_points: int = 5000
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create 3D visualization of MEP isosurfaces.
 
@@ -303,7 +317,7 @@ def create_mep_3d_isosurface_plot(
         max_points: Maximum points to plot (for performance)
 
     Returns:
-        Matplotlib figure object
+        Plotly figure object
     """
     if mep_data.potential_grid is None:
         raise ValueError("No MEP grid data available")
@@ -317,17 +331,6 @@ def create_mep_3d_isosurface_plot(
     x = np.linspace(ox, ox + (nx-1)*dx, nx)
     y = np.linspace(oy, oy + (ny-1)*dy, ny)
     z = np.linspace(oz, oz + (nz-1)*dz, nz)
-
-    # Default isovalues if not provided
-    if isovalues is None:
-        isovalues = [
-            mep_data.min_potential * 0.5,  # Negative (nucleophilic)
-            0.0,
-            mep_data.max_potential * 0.5   # Positive (electrophilic)
-        ]
-
-    fig = plt.figure(figsize=figsize)
-    ax = fig.add_subplot(111, projection='3d')
 
     # Sample grid points for visualization (for performance)
     step = max(1, int((nx * ny * nz / max_points) ** (1/3)))
@@ -345,38 +348,63 @@ def create_mep_3d_isosurface_plot(
     Z_flat = Z.flatten()
     V_flat = grid_sample.flatten()
 
-    # Color based on MEP value
-    norm = TwoSlopeNorm(vmin=mep_data.min_potential, vcenter=0, vmax=mep_data.max_potential)
-    colors = cm.RdBu_r(norm(V_flat))
+    fig = go.Figure()
 
-    # Plot points
-    scatter = ax.scatter(X_flat, Y_flat, Z_flat, c=V_flat, cmap='RdBu_r',
-                        norm=norm, s=10, alpha=0.3, marker='.')
+    # Plot points colored by MEP value
+    fig.add_trace(go.Scatter3d(
+        x=X_flat, y=Y_flat, z=Z_flat,
+        mode='markers',
+        marker=dict(
+            size=2,
+            color=V_flat,
+            colorscale='RdBu_r',
+            cmid=0,
+            cmin=mep_data.min_potential,
+            cmax=mep_data.max_potential,
+            colorbar=dict(title='MEP (a.u.)', x=1.0),
+            opacity=0.3
+        ),
+        showlegend=False,
+        hoverinfo='skip'
+    ))
 
     # Plot atoms
     if show_atoms and mep_data.atoms:
         atom_x = [atom[1] for atom in mep_data.atoms]
         atom_y = [atom[2] for atom in mep_data.atoms]
         atom_z = [atom[3] for atom in mep_data.atoms]
-        ax.scatter(atom_x, atom_y, atom_z, c='black', s=200, marker='o',
-                  edgecolors='white', linewidths=2, alpha=0.8)
+        atom_elements = [atom[0] for atom in mep_data.atoms]
 
-        # Label atoms
-        for element, x, y, z in mep_data.atoms:
-            ax.text(x, y, z, element, color='white', fontsize=8,
-                   fontweight='bold', ha='center', va='center')
+        fig.add_trace(go.Scatter3d(
+            x=atom_x, y=atom_y, z=atom_z,
+            mode='markers+text',
+            marker=dict(size=8, color='black', line=dict(color='white', width=2)),
+            text=atom_elements,
+            textposition='middle center',
+            textfont=dict(size=8, color='white'),
+            showlegend=False,
+            hoverinfo='text',
+            hovertext=[f'{elem}' for elem in atom_elements]
+        ))
 
-    ax.set_xlabel('X (Å)', fontsize=10, fontweight='bold')
-    ax.set_ylabel('Y (Å)', fontsize=10, fontweight='bold')
-    ax.set_zlabel('Z (Å)', fontsize=10, fontweight='bold')
-    ax.set_title('MEP 3D Isosurface Visualization', fontsize=12, fontweight='bold', pad=20)
-
-    # Add colorbar
-    cbar = plt.colorbar(scatter, ax=ax, pad=0.1, shrink=0.8)
-    cbar.set_label('MEP (a.u.)', rotation=270, labelpad=20, fontsize=10, fontweight='bold')
+    fig.update_layout(
+        title='MEP 3D Isosurface Visualization',
+        scene=dict(
+            xaxis_title='X (Å)',
+            yaxis_title='Y (Å)',
+            zaxis_title='Z (Å)',
+            aspectmode='data'
+        ),
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80
+    )
 
     if output_file:
-        plt.savefig(output_file, dpi=dpi, bbox_inches='tight')
+        if output_file.endswith('.html'):
+            fig.write_html(output_file)
+        else:
+            fig.write_image(output_file, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved MEP 3D isosurface plot to {output_file}")
 
     return fig
@@ -387,7 +415,7 @@ def create_mep_critical_points_plot(
     output_file: Optional[str] = None,
     figsize: Tuple[float, float] = (14, 6),
     dpi: int = 300
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create visualization of MEP critical points (reactive sites).
 
@@ -398,9 +426,13 @@ def create_mep_critical_points_plot(
         dpi: Resolution for saved figure
 
     Returns:
-        Matplotlib figure object
+        Plotly figure object
     """
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    fig = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=('Top Nucleophilic Sites (MEP Minima)',
+                       'Top Electrophilic Sites (MEP Maxima)')
+    )
 
     # Plot 1: Nucleophilic sites (minima)
     if mep_data.local_minima:
@@ -408,22 +440,25 @@ def create_mep_critical_points_plot(
         sites = [f"Site {i+1}" for i in range(len(minima_sorted))]
         potentials = [p[3] * 27.2114 for p in minima_sorted]  # Convert to eV
 
-        bars1 = ax1.barh(sites, potentials, color='#3498db', alpha=0.7, edgecolor='black')
-        ax1.set_xlabel('MEP (eV)', fontsize=11, fontweight='bold')
-        ax1.set_title('Top Nucleophilic Sites (MEP Minima)', fontsize=12, fontweight='bold')
-        ax1.axvline(x=0, color='gray', linestyle='--', linewidth=1)
-        ax1.grid(True, alpha=0.3, axis='x')
+        fig.add_trace(go.Bar(
+            y=sites, x=potentials,
+            orientation='h',
+            marker=dict(color='#3498db', line=dict(color='black', width=1)),
+            opacity=0.7,
+            text=[f'{v:.2f}' for v in potentials],
+            textposition='outside',
+            showlegend=False
+        ), row=1, col=1)
 
-        # Add value labels
-        for bar, val in zip(bars1, potentials):
-            width = bar.get_width()
-            ax1.text(width, bar.get_y() + bar.get_height()/2,
-                    f'{val:.2f}',
-                    ha='left' if width < 0 else 'left', va='center',
-                    fontsize=8, fontweight='bold', color='black')
+        fig.add_vline(x=0, line=dict(color='gray', dash='dash', width=1), row=1, col=1)
     else:
-        ax1.text(0.5, 0.5, 'No critical points calculated\nUse mep_data.find_critical_points()',
-                ha='center', va='center', transform=ax1.transAxes, fontsize=11)
+        fig.add_annotation(
+            x=0.25, y=0.5,
+            text='No critical points calculated<br>Use mep_data.find_critical_points()',
+            showarrow=False,
+            xref='paper', yref='paper',
+            font=dict(size=11)
+        )
 
     # Plot 2: Electrophilic sites (maxima)
     if mep_data.local_maxima:
@@ -431,28 +466,42 @@ def create_mep_critical_points_plot(
         sites = [f"Site {i+1}" for i in range(len(maxima_sorted))]
         potentials = [p[3] * 27.2114 for p in maxima_sorted]  # Convert to eV
 
-        bars2 = ax2.barh(sites, potentials, color='#e74c3c', alpha=0.7, edgecolor='black')
-        ax2.set_xlabel('MEP (eV)', fontsize=11, fontweight='bold')
-        ax2.set_title('Top Electrophilic Sites (MEP Maxima)', fontsize=12, fontweight='bold')
-        ax2.axvline(x=0, color='gray', linestyle='--', linewidth=1)
-        ax2.grid(True, alpha=0.3, axis='x')
+        fig.add_trace(go.Bar(
+            y=sites, x=potentials,
+            orientation='h',
+            marker=dict(color='#e74c3c', line=dict(color='black', width=1)),
+            opacity=0.7,
+            text=[f'{v:.2f}' for v in potentials],
+            textposition='outside',
+            showlegend=False
+        ), row=1, col=2)
 
-        # Add value labels
-        for bar, val in zip(bars2, potentials):
-            width = bar.get_width()
-            ax2.text(width, bar.get_y() + bar.get_height()/2,
-                    f'{val:.2f}',
-                    ha='left' if width > 0 else 'right', va='center',
-                    fontsize=8, fontweight='bold', color='black')
+        fig.add_vline(x=0, line=dict(color='gray', dash='dash', width=1), row=1, col=2)
     else:
-        ax2.text(0.5, 0.5, 'No critical points calculated\nUse mep_data.find_critical_points()',
-                ha='center', va='center', transform=ax2.transAxes, fontsize=11)
+        fig.add_annotation(
+            x=0.75, y=0.5,
+            text='No critical points calculated<br>Use mep_data.find_critical_points()',
+            showarrow=False,
+            xref='paper', yref='paper',
+            font=dict(size=11)
+        )
 
-    plt.suptitle('MEP Critical Points Analysis', fontsize=14, fontweight='bold')
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    # Update axes
+    fig.update_xaxes(title_text='MEP (eV)', showgrid=True, gridcolor='lightgray', row=1, col=1)
+    fig.update_xaxes(title_text='MEP (eV)', showgrid=True, gridcolor='lightgray', row=1, col=2)
+
+    fig.update_layout(
+        title_text='MEP Critical Points Analysis',
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80
+    )
 
     if output_file:
-        plt.savefig(output_file, dpi=dpi, bbox_inches='tight')
+        if output_file.endswith('.html'):
+            fig.write_html(output_file)
+        else:
+            fig.write_image(output_file, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved MEP critical points plot to {output_file}")
 
     return fig

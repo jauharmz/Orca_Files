@@ -18,7 +18,8 @@ Based on implementation from 0cbz.ipynb.
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from typing import List, Dict, Optional, Tuple, Union
 import logging
 
@@ -128,14 +129,14 @@ def create_orbital_comparison(
     figsize: Tuple[float, float] = (14, 8),
     bar_width: float = 0.6,
     connection_color: str = 'gray',
-    connection_style: str = '--',
+    connection_style: str = 'dash',
     connection_alpha: float = 0.4,
     show_gap_values: bool = True,
     energy_range: Optional[Tuple[float, float]] = None,
     orbital_filter: str = 'all',
     title: str = "Orbital Energy Comparison",
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create multi-dataset orbital energy comparison diagram.
 
@@ -158,7 +159,7 @@ def create_orbital_comparison(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        plotly Figure object
     """
     logger.info(f"Creating orbital comparison for {len(labels)} datasets")
 
@@ -237,7 +238,7 @@ def create_orbital_comparison(
             raise
 
     # Create figure
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = go.Figure()
 
     # X positions for datasets
     x_positions = np.arange(n_datasets) * 2  # Space them out
@@ -251,9 +252,16 @@ def create_orbital_comparison(
             # Color based on occupation
             color = 'blue' if occupation > 0.5 else 'red'
 
-            # Draw horizontal bar
-            ax.hlines(energy, x_pos - bar_width/2, x_pos + bar_width/2,
-                     colors=color, linewidth=2.5)
+            # Draw horizontal bar (simulated with scatter)
+            fig.add_trace(go.Scatter(
+                x=[x_pos - bar_width/2, x_pos + bar_width/2],
+                y=[energy, energy],
+                mode='lines',
+                line=dict(color=color, width=2.5),
+                showlegend=False,
+                hoverinfo='text',
+                hovertext=f'{label}<br>Energy: {energy:.3f} eV'
+            ))
 
         # Add HOMO-LUMO gap arrow and label
         if show_gap_values:
@@ -261,16 +269,22 @@ def create_orbital_comparison(
             homo_e = data['homo_energy']
             lumo_e = data['lumo_energy']
 
-            # Arrow
-            ax.annotate('', xy=(x_pos + bar_width/2 + 0.2, lumo_e),
-                       xytext=(x_pos + bar_width/2 + 0.2, homo_e),
-                       arrowprops=dict(arrowstyle='<->', color='black', lw=1.5))
-
-            # Gap value
-            gap_text = f'{gap:.2f} eV'
-            ax.text(x_pos + bar_width/2 + 0.5, (homo_e + lumo_e) / 2, gap_text,
-                   fontsize=9, va='center',
-                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='black'))
+            # Add annotation for gap
+            fig.add_annotation(
+                x=x_pos + bar_width/2 + 0.5,
+                y=(homo_e + lumo_e) / 2,
+                text=f'{gap:.2f} eV',
+                showarrow=True,
+                arrowhead=3,
+                arrowsize=1,
+                arrowwidth=1.5,
+                arrowcolor='black',
+                ax=0,
+                ay=(lumo_e - homo_e) * 30,
+                bgcolor='white',
+                bordercolor='black',
+                borderwidth=1
+            )
 
     # Draw connection lines between corresponding orbitals
     for group in groups:
@@ -291,39 +305,61 @@ def create_orbital_comparison(
                 e1 = data1['energies'][j]
                 e2 = data2['energies'][j]
 
-                ax.plot([x1 + bar_width/2, x2 - bar_width/2], [e1, e2],
-                       linestyle=connection_style, color=connection_color,
-                       alpha=connection_alpha, linewidth=1.0, zorder=0)
+                fig.add_trace(go.Scatter(
+                    x=[x1 + bar_width/2, x2 - bar_width/2],
+                    y=[e1, e2],
+                    mode='lines',
+                    line=dict(color=connection_color, dash=connection_style, width=1.0),
+                    opacity=connection_alpha,
+                    showlegend=False,
+                    hoverinfo='skip'
+                ))
 
-    # Formatting
-    ax.set_xlabel('Dataset', fontsize=12, fontweight='bold')
-    ax.set_ylabel('Orbital Energy (eV)', fontsize=12, fontweight='bold')
-    ax.set_title(title, fontsize=14, fontweight='bold')
+    # Add legend manually
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None],
+        mode='lines',
+        line=dict(color='blue', width=2.5),
+        name='Occupied'
+    ))
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None],
+        mode='lines',
+        line=dict(color='red', width=2.5),
+        name='Virtual'
+    ))
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None],
+        mode='lines',
+        line=dict(color=connection_color, dash=connection_style, width=1.0),
+        opacity=connection_alpha,
+        name='Connection'
+    ))
 
-    # Set x-axis labels
-    ax.set_xticks(x_positions)
-    ax.set_xticklabels(flat_labels, fontsize=10, rotation=45, ha='right')
-
-    # Add legend
-    from matplotlib.patches import Patch
-    legend_elements = [
-        Patch(facecolor='blue', label='Occupied'),
-        Patch(facecolor='red', label='Virtual'),
-        plt.Line2D([0], [0], linestyle=connection_style, color=connection_color,
-                   alpha=connection_alpha, label='Connection')
-    ]
-    ax.legend(handles=legend_elements, loc='best', fontsize=10)
-
-    # Style
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.grid(True, axis='y', alpha=0.3)
-
-    plt.tight_layout()
+    # Update layout
+    fig.update_layout(
+        title=title,
+        xaxis_title='Dataset',
+        yaxis_title='Orbital Energy (eV)',
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        xaxis=dict(
+            tickmode='array',
+            tickvals=x_positions,
+            ticktext=flat_labels,
+            tickangle=45
+        ),
+        yaxis=dict(showgrid=True, gridcolor='lightgray'),
+        showlegend=True
+    )
 
     if save_path:
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saving figure to {save_path}")
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
 
     logger.info("Orbital comparison created successfully")
     return fig
@@ -335,7 +371,7 @@ def create_simple_orbital_diagram(
     figsize: Tuple[float, float] = (6, 8),
     title: str = "Molecular Orbital Diagram",
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create a simple molecular orbital energy diagram for a single dataset.
 
@@ -347,7 +383,7 @@ def create_simple_orbital_diagram(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        plotly Figure object
     """
     # Find HOMO/LUMO
     homo_idx, lumo_idx = find_homo_lumo(orbital_energies)
@@ -367,57 +403,91 @@ def create_simple_orbital_diagram(
     indices = [orb.get('index', start_idx + i) for i, orb in enumerate(selected_orbitals)]
 
     # Create figure
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = go.Figure()
 
     # Plot orbital levels
     for i, (energy, occupation, idx) in enumerate(zip(energies, occupations, indices)):
         color = 'blue' if occupation > 0.5 else 'red'
-        ax.hlines(energy, 0.3, 0.7, colors=color, linewidth=3)
+
+        # Draw horizontal line
+        fig.add_trace(go.Scatter(
+            x=[0.3, 0.7],
+            y=[energy, energy],
+            mode='lines',
+            line=dict(color=color, width=3),
+            showlegend=False,
+            hoverinfo='text',
+            hovertext=f'MO {idx}<br>Energy: {energy:.3f} eV'
+        ))
 
         # Add orbital index
-        ax.text(0.75, energy, f'MO {idx}', fontsize=9, va='center')
+        fig.add_annotation(
+            x=0.75, y=energy,
+            text=f'MO {idx}',
+            showarrow=False,
+            xanchor='left',
+            font=dict(size=9)
+        )
 
     # Mark HOMO and LUMO
     homo_energy = orbital_energies[homo_idx].get('energy_ev', 0.0)
     lumo_energy = orbital_energies[lumo_idx].get('energy_ev', 0.0)
     gap = lumo_energy - homo_energy
 
-    ax.axhline(homo_energy, color='blue', linestyle='--', alpha=0.5, linewidth=1)
-    ax.axhline(lumo_energy, color='red', linestyle='--', alpha=0.5, linewidth=1)
+    fig.add_hline(y=homo_energy, line=dict(color='blue', dash='dash', width=1), opacity=0.5)
+    fig.add_hline(y=lumo_energy, line=dict(color='red', dash='dash', width=1), opacity=0.5)
 
-    ax.text(0.15, homo_energy, 'HOMO', fontsize=10, fontweight='bold', va='bottom')
-    ax.text(0.15, lumo_energy, 'LUMO', fontsize=10, fontweight='bold', va='top')
+    # Add HOMO/LUMO labels
+    fig.add_annotation(x=0.15, y=homo_energy, text='HOMO', showarrow=False,
+                      font=dict(size=10, color='blue'), yshift=-10)
+    fig.add_annotation(x=0.15, y=lumo_energy, text='LUMO', showarrow=False,
+                      font=dict(size=10, color='red'), yshift=10)
 
     # Add gap annotation
-    ax.annotate('', xy=(0.2, lumo_energy), xytext=(0.2, homo_energy),
-               arrowprops=dict(arrowstyle='<->', color='black', lw=1.5))
-    ax.text(0.1, (homo_energy + lumo_energy) / 2, f'{gap:.2f} eV',
-           fontsize=10, va='center', ha='right', fontweight='bold')
-
-    # Formatting
-    ax.set_ylabel('Orbital Energy (eV)', fontsize=12, fontweight='bold')
-    ax.set_title(title, fontsize=14, fontweight='bold')
-    ax.set_xlim(0, 1)
-    ax.set_xticks([])
+    fig.add_annotation(
+        x=0.1, y=(homo_energy + lumo_energy) / 2,
+        text=f'{gap:.2f} eV',
+        showarrow=True,
+        arrowhead=3,
+        arrowsize=1,
+        arrowwidth=1.5,
+        arrowcolor='black',
+        ax=0,
+        ay=(lumo_energy - homo_energy) * 30,
+        font=dict(size=10)
+    )
 
     # Add legend
-    from matplotlib.patches import Patch
-    legend_elements = [
-        Patch(facecolor='blue', label='Occupied'),
-        Patch(facecolor='red', label='Virtual')
-    ]
-    ax.legend(handles=legend_elements, loc='best')
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None],
+        mode='lines',
+        line=dict(color='blue', width=3),
+        name='Occupied'
+    ))
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None],
+        mode='lines',
+        line=dict(color='red', width=3),
+        name='Virtual'
+    ))
 
-    # Style
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
-    ax.grid(True, axis='y', alpha=0.3)
-
-    plt.tight_layout()
+    # Update layout
+    fig.update_layout(
+        title=title,
+        yaxis_title='Orbital Energy (eV)',
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        xaxis=dict(range=[0, 1], showticklabels=False, showgrid=False),
+        yaxis=dict(showgrid=True, gridcolor='lightgray'),
+        showlegend=True
+    )
 
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
 
     return fig
 

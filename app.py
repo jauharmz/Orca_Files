@@ -8,17 +8,25 @@ Usage:
     # Then open http://localhost:5000 in your browser
 """
 
-from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask import Flask, render_template, jsonify, request, send_from_directory, Response
 from pathlib import Path
 from werkzeug.utils import secure_filename
 import json
 import sys
 import os
 import tempfile
+import numpy as np
 
 # Add parsers to path
 sys.path.insert(0, str(Path(__file__).parent))
 from parsers.out_parser import parse_out_file
+
+# Import Plotly visualization modules
+from ir_visualization import create_stacked_ir_plot, create_dual_ir_plot
+from raman_visualization import create_stacked_raman_plot, create_single_raman_with_regions
+from absorption_visualization import create_absorption_comparison
+from emission_visualization import create_emission_spectrum, create_absorption_emission_mirror
+from orbital_visualization import create_orbital_comparison
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
@@ -186,7 +194,6 @@ def export_json():
     if parsed_data is None:
         return jsonify({'success': False, 'message': 'No data loaded'}), 404
 
-    from flask import Response
     filename = current_filename.replace('.out', '_parsed.json') if current_filename else 'orca_data.json'
 
     return Response(
@@ -194,6 +201,120 @@ def export_json():
         mimetype='application/json',
         headers={'Content-Disposition': f'attachment; filename={filename}'}
     )
+
+
+@app.route('/api/visualize/ir')
+def visualize_ir():
+    """Generate interactive IR spectrum visualization."""
+    if parsed_data is None:
+        return jsonify({'success': False, 'message': 'No data loaded'}), 404
+
+    try:
+        frequencies = parsed_data.get('frequencies', [])
+        ir_intensities = [mode.get('ir_intensity', 0) for mode in parsed_data.get('vibrational_modes', [])]
+
+        if not frequencies or not ir_intensities:
+            return jsonify({'success': False, 'message': 'No IR data available'}), 404
+
+        # Create IR visualization
+        fig = create_dual_ir_plot(
+            np.array(frequencies),
+            np.array(ir_intensities),
+            title=f"IR Spectrum - {current_filename}"
+        )
+
+        # Return as HTML
+        html = fig.to_html(full_html=False, include_plotlyjs='cdn')
+        return Response(html, mimetype='text/html')
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error creating visualization: {str(e)}'}), 500
+
+
+@app.route('/api/visualize/raman')
+def visualize_raman():
+    """Generate interactive Raman spectrum visualization."""
+    if parsed_data is None:
+        return jsonify({'success': False, 'message': 'No data loaded'}), 404
+
+    try:
+        raman_data = parsed_data.get('raman_spectrum', [])
+
+        if not raman_data:
+            return jsonify({'success': False, 'message': 'No Raman data available'}), 404
+
+        frequencies = np.array([mode['frequency'] for mode in raman_data])
+        activities = np.array([mode['raman_activity'] for mode in raman_data])
+
+        # Create Raman visualization
+        fig = create_single_raman_with_regions(
+            frequencies,
+            activities,
+            title=f"Raman Spectrum - {current_filename}"
+        )
+
+        # Return as HTML
+        html = fig.to_html(full_html=False, include_plotlyjs='cdn')
+        return Response(html, mimetype='text/html')
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error creating visualization: {str(e)}'}), 500
+
+
+@app.route('/api/visualize/orbitals')
+def visualize_orbitals():
+    """Generate interactive orbital energy diagram."""
+    if parsed_data is None:
+        return jsonify({'success': False, 'message': 'No data loaded'}), 404
+
+    try:
+        orbitals = parsed_data.get('orbital_energies', [])
+
+        if not orbitals:
+            return jsonify({'success': False, 'message': 'No orbital data available'}), 404
+
+        # Create orbital visualization
+        dataset = {'orbital_energies': orbitals}
+        fig = create_orbital_comparison(
+            [dataset],
+            [current_filename],
+            title=f"Orbital Energies - {current_filename}"
+        )
+
+        # Return as HTML
+        html = fig.to_html(full_html=False, include_plotlyjs='cdn')
+        return Response(html, mimetype='text/html')
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error creating visualization: {str(e)}'}), 500
+
+
+@app.route('/api/visualize/absorption')
+def visualize_absorption():
+    """Generate interactive absorption spectrum visualization."""
+    if parsed_data is None:
+        return jsonify({'success': False, 'message': 'No data loaded'}), 404
+
+    try:
+        transitions = parsed_data.get('tddft_transitions', [])
+
+        if not transitions:
+            return jsonify({'success': False, 'message': 'No absorption data available'}), 404
+
+        # Create absorption visualization
+        dataset = {'transitions': transitions}
+        fig = create_absorption_comparison(
+            [dataset],
+            [current_filename],
+            title=f"UV-Vis Absorption Spectrum - {current_filename}"
+        )
+
+        # Return as HTML
+        html = fig.to_html(full_html=False, include_plotlyjs='cdn')
+        return Response(html, mimetype='text/html')
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error creating visualization: {str(e)}'}), 500
 
 
 if __name__ == '__main__':

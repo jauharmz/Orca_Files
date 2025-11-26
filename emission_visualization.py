@@ -12,7 +12,8 @@ Implements Item 20: Fluorescence vs Phosphorescence
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from typing import List, Dict, Optional, Tuple, Union
 import logging
 
@@ -98,7 +99,7 @@ def create_fluorescence_phosphorescence_comparison(
     normalize: bool = True,
     title: str = "Fluorescence vs Phosphorescence",
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create fluorescence vs phosphorescence comparison.
 
@@ -115,7 +116,7 @@ def create_fluorescence_phosphorescence_comparison(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        plotly Figure object
     """
     logger.info("Creating fluorescence vs phosphorescence comparison")
 
@@ -146,69 +147,73 @@ def create_fluorescence_phosphorescence_comparison(
     phos_max_idx = np.argmax(phos_spectrum)
     phos_max_wl = wl_grid_p[phos_max_idx]
 
-    # Create figure with 2 subplots
-    fig = plt.figure(figsize=figsize)
-
-    # Main comparison (top 70%)
-    ax1 = plt.subplot2grid((10, 1), (0, 0), rowspan=7)
+    # Create figure with subplots
+    fig = make_subplots(
+        rows=2, cols=1,
+        row_heights=[0.7, 0.3],
+        vertical_spacing=0.15,
+        specs=[[{"secondary_y": False}], [{"type": "table"}]],
+        subplot_titles=(title, "")
+    )
 
     # Plot fluorescence
-    ax1.plot(wl_grid_f, fluor_spectrum, color='#00FF00', linewidth=2.5,
-            label=f'Fluorescence (max: {fluor_max_wl:.1f} nm)', alpha=0.7)
-    ax1.fill_between(wl_grid_f, 0, fluor_spectrum, color='#00FF00', alpha=0.2)
+    fig.add_trace(go.Scatter(
+        x=wl_grid_f, y=fluor_spectrum,
+        mode='lines', name=f'Fluorescence (max: {fluor_max_wl:.1f} nm)',
+        line=dict(color='#00FF00', width=2.5),
+        fill='tozeroy', fillcolor='rgba(0, 255, 0, 0.2)'
+    ), row=1, col=1)
 
     # Plot phosphorescence
-    ax1.plot(wl_grid_p, phos_spectrum, color='#FF4500', linewidth=2.5,
-            label=f'Phosphorescence (max: {phos_max_wl:.1f} nm)', alpha=0.7)
-    ax1.fill_between(wl_grid_p, 0, phos_spectrum, color='#FF4500', alpha=0.2)
+    fig.add_trace(go.Scatter(
+        x=wl_grid_p, y=phos_spectrum,
+        mode='lines', name=f'Phosphorescence (max: {phos_max_wl:.1f} nm)',
+        line=dict(color='#FF4500', width=2.5),
+        fill='tozeroy', fillcolor='rgba(255, 69, 0, 0.2)'
+    ), row=1, col=1)
 
     # Add stick spectra
     if show_sticks:
         for wl, intensity in zip(fluor_wl, fluor_int):
             if wavelength_range[0] <= wl <= wavelength_range[1]:
-                ax1.vlines(wl, 0, intensity * 0.15 if normalize else intensity,
-                          color='green', alpha=0.5, linewidth=1.5)
+                normalized_intensity = intensity * 0.15 if normalize else intensity
+                fig.add_trace(go.Scatter(
+                    x=[wl, wl], y=[0, normalized_intensity],
+                    mode='lines', line=dict(color='green', width=1.5),
+                    opacity=0.5, showlegend=False, hoverinfo='skip'
+                ), row=1, col=1)
 
         for wl, intensity in zip(phos_wl, phos_int):
             if wavelength_range[0] <= wl <= wavelength_range[1]:
-                ax1.vlines(wl, 0, intensity * 0.15 if normalize else intensity,
-                          color='red', alpha=0.5, linewidth=1.5)
+                normalized_intensity = intensity * 0.15 if normalize else intensity
+                fig.add_trace(go.Scatter(
+                    x=[wl, wl], y=[0, normalized_intensity],
+                    mode='lines', line=dict(color='red', width=1.5),
+                    opacity=0.5, showlegend=False, hoverinfo='skip'
+                ), row=1, col=1)
 
     # Mark maxima
-    ax1.axvline(fluor_max_wl, color='green', linestyle='--', alpha=0.5, linewidth=1)
-    ax1.axvline(phos_max_wl, color='red', linestyle='--', alpha=0.5, linewidth=1)
+    fig.add_vline(x=fluor_max_wl, line=dict(color='green', dash='dash', width=1),
+                  opacity=0.5, row=1, col=1)
+    fig.add_vline(x=phos_max_wl, line=dict(color='red', dash='dash', width=1),
+                  opacity=0.5, row=1, col=1)
 
     # Add wavelength difference annotation
     red_shift = phos_max_wl - fluor_max_wl
     if red_shift > 0:
-        ax1.annotate('', xy=(phos_max_wl, 0.9), xytext=(fluor_max_wl, 0.9),
-                    arrowprops=dict(arrowstyle='<->', color='black', lw=2))
-        ax1.text((fluor_max_wl + phos_max_wl) / 2, 0.92,
-                f'Red shift: {red_shift:.1f} nm',
-                fontsize=10, ha='center', fontweight='bold',
-                bbox=dict(boxstyle='round,pad=0.5', facecolor='yellow', alpha=0.7))
-
-    ax1.set_ylabel('Normalized Intensity' if normalize else 'Intensity',
-                  fontsize=12, fontweight='bold')
-    ax1.set_title(title, fontsize=14, fontweight='bold')
-    ax1.legend(loc='upper right', fontsize=10)
-    ax1.grid(True, alpha=0.3)
-    ax1.set_xlim(wavelength_range)
-    ax1.spines['top'].set_visible(False)
-    ax1.spines['right'].set_visible(False)
+        fig.add_annotation(
+            x=(fluor_max_wl + phos_max_wl) / 2, y=0.92,
+            text=f'Red shift: {red_shift:.1f} nm',
+            showarrow=False,
+            bgcolor='yellow', opacity=0.7,
+            row=1, col=1
+        )
 
     # Add secondary x-axis for energy
-    ax1_energy = ax1.twiny()
     energy_min = 1240 / wavelength_range[1]
     energy_max = 1240 / wavelength_range[0]
-    ax1_energy.set_xlim(energy_max, energy_min)
-    ax1_energy.set_xlabel('Energy (eV)', fontsize=11, fontweight='bold')
 
-    # Information panel (bottom 30%)
-    ax2 = plt.subplot2grid((10, 1), (7, 0), rowspan=3)
-    ax2.axis('off')
-
-    # Create information table
+    # Information panel
     table_data = [
         ['Property', 'Fluorescence', 'Phosphorescence'],
         ['Type', 'S₁ → S₀', 'T₁ → S₀'],
@@ -219,30 +224,48 @@ def create_fluorescence_phosphorescence_comparison(
         ['Rel. Position', 'Higher energy', f'Red-shifted by {red_shift:.1f} nm']
     ]
 
-    table = ax2.table(cellText=table_data, cellLoc='left',
-                     loc='center', colWidths=[0.30, 0.35, 0.35])
+    # Add table
+    fig.add_trace(go.Table(
+        header=dict(
+            values=['Property', 'Fluorescence', 'Phosphorescence'],
+            fill_color='#4472C4',
+            font=dict(color='white', size=11),
+            align='left'
+        ),
+        cells=dict(
+            values=[[row[0] for row in table_data[1:]],
+                   [row[1] for row in table_data[1:]],
+                   [row[2] for row in table_data[1:]]],
+            fill_color=[['white'] * 6, ['#E8F5E9'] * 6, ['#FFE0B2'] * 6],
+            align='left',
+            font=dict(size=10)
+        )
+    ), row=2, col=1)
 
-    table.auto_set_font_size(False)
-    table.set_fontsize(9)
-    table.scale(1, 2)
+    # Update layout
+    ylabel = 'Normalized Intensity' if normalize else 'Intensity'
 
-    # Style header row
-    for i in range(3):
-        cell = table[(0, i)]
-        cell.set_facecolor('#4472C4')
-        cell.set_text_props(weight='bold', color='white')
+    fig.update_xaxes(title_text='Wavelength (nm)', row=1, col=1, range=wavelength_range, showgrid=True)
+    fig.update_yaxes(title_text=ylabel, row=1, col=1, showgrid=True)
 
-    # Color code fluorescence and phosphorescence columns
-    for i in range(1, len(table_data)):
-        table[(i, 1)].set_facecolor('#E8F5E9')  # Light green
-        table[(i, 2)].set_facecolor('#FFE0B2')  # Light orange
-
-    ax1.set_xlabel('Wavelength (nm)', fontsize=12, fontweight='bold')
-
-    plt.tight_layout()
+    fig.update_layout(
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        showlegend=True,
+        xaxis2=dict(
+            overlaying='x',
+            side='top',
+            range=[energy_max, energy_min],
+            title='Energy (eV)'
+        )
+    )
 
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved figure to {save_path}")
 
     return fig
@@ -256,7 +279,7 @@ def create_absorption_emission_mirror(
     figsize: Tuple[float, float] = (12, 8),
     title: str = "Absorption-Emission Mirror Image",
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create mirror image plot showing absorption and emission spectra.
 
@@ -272,7 +295,7 @@ def create_absorption_emission_mirror(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        plotly Figure object
     """
     logger.info("Creating absorption-emission mirror image")
 
@@ -304,45 +327,61 @@ def create_absorption_emission_mirror(
     stokes_nm, stokes_cm1 = calculate_stokes_shift(abs_max_wl, em_max_wl)
 
     # Create figure
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = go.Figure()
 
     # Plot absorption (upward)
-    ax.plot(wl_grid, abs_spectrum, color='blue', linewidth=2.5,
-           label=f'Absorption (max: {abs_max_wl:.1f} nm)')
-    ax.fill_between(wl_grid, 0, abs_spectrum, color='blue', alpha=0.2)
+    fig.add_trace(go.Scatter(
+        x=wl_grid, y=abs_spectrum,
+        mode='lines', name=f'Absorption (max: {abs_max_wl:.1f} nm)',
+        line=dict(color='blue', width=2.5),
+        fill='tozeroy', fillcolor='rgba(0, 0, 255, 0.2)'
+    ))
 
     # Plot emission (downward - mirror image)
-    ax.plot(wl_grid, -em_spectrum, color='red', linewidth=2.5,
-           label=f'Emission (max: {em_max_wl:.1f} nm)')
-    ax.fill_between(wl_grid, 0, -em_spectrum, color='red', alpha=0.2)
+    fig.add_trace(go.Scatter(
+        x=wl_grid, y=-em_spectrum,
+        mode='lines', name=f'Emission (max: {em_max_wl:.1f} nm)',
+        line=dict(color='red', width=2.5),
+        fill='tozeroy', fillcolor='rgba(255, 0, 0, 0.2)'
+    ))
 
     # Mark maxima
-    ax.axvline(abs_max_wl, color='blue', linestyle='--', alpha=0.5)
-    ax.axvline(em_max_wl, color='red', linestyle='--', alpha=0.5)
+    fig.add_vline(x=abs_max_wl, line=dict(color='blue', dash='dash'), opacity=0.5)
+    fig.add_vline(x=em_max_wl, line=dict(color='red', dash='dash'), opacity=0.5)
 
     # Add Stokes shift annotation
-    ax.annotate('', xy=(em_max_wl, 0), xytext=(abs_max_wl, 0),
-               arrowprops=dict(arrowstyle='<->', color='black', lw=2.5))
-    ax.text((abs_max_wl + em_max_wl) / 2, 0.1,
-           f'Stokes Shift\n{stokes_nm:.1f} nm\n({stokes_cm1:.0f} cm⁻¹)',
-           fontsize=11, ha='center', fontweight='bold',
-           bbox=dict(boxstyle='round,pad=0.5', facecolor='yellow', alpha=0.8))
+    fig.add_annotation(
+        x=(abs_max_wl + em_max_wl) / 2, y=0.1,
+        text=f'Stokes Shift<br>{stokes_nm:.1f} nm<br>({stokes_cm1:.0f} cm⁻¹)',
+        showarrow=True,
+        arrowhead=3,
+        arrowsize=1,
+        arrowwidth=2.5,
+        arrowcolor='black',
+        ax=(em_max_wl - abs_max_wl) * 40,
+        ay=0,
+        bgcolor='yellow',
+        opacity=0.8
+    )
 
-    ax.axhline(0, color='black', linewidth=1, linestyle='-', alpha=0.5)
+    fig.add_hline(y=0, line=dict(color='black', width=1), opacity=0.5)
 
-    ax.set_xlabel('Wavelength (nm)', fontsize=12, fontweight='bold')
-    ax.set_ylabel('Normalized Intensity', fontsize=12, fontweight='bold')
-    ax.set_title(f'{title}\n(Absorption ↑, Emission ↓)', fontsize=14, fontweight='bold')
-    ax.set_xlim(wavelength_range)
-    ax.legend(loc='upper right', fontsize=10)
-    ax.grid(True, alpha=0.3, axis='x')
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-
-    plt.tight_layout()
+    fig.update_layout(
+        xaxis_title='Wavelength (nm)',
+        yaxis_title='Normalized Intensity',
+        title=f'{title}<br>(Absorption ↑, Emission ↓)',
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        xaxis=dict(range=wavelength_range, showgrid=True),
+        yaxis=dict(showgrid=True, gridcolor='lightgray', zeroline=True)
+    )
 
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved figure to {save_path}")
 
     return fig
