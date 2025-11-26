@@ -8,6 +8,361 @@ This project provides parsers for various ORCA output file formats and a UI to p
 
 ---
 
+## Missing Features from Reference Notebook (0cbz.ipynb)
+
+**Reference:** `0cbz.ipynb` - Comprehensive Jupyter notebook with advanced ORCA data extraction and matplotlib visualizations
+
+### Missing Parsing Features (18 items)
+
+#### Critical Data Extraction
+1. **SMILES Generation** ⭐ HIGH PRIORITY
+   - Function: `coords_to_smiles()` using OpenBabel (pybel)
+   - Converts 3D coordinates → SMILES notation
+   - Use Case: Chemical database lookup, structure validation
+   - Implementation: Requires openbabel Python bindings
+   - Estimated Effort: 2-3 hours
+
+2. **TD-DFT Excited States** ⭐ HIGH PRIORITY
+   - Function: `parse_tddft_states()`
+   - Extracts: State energies (au, eV, cm⁻¹), transitions (HOMO/LUMO contributions)
+   - Data: State number, energy, weight, coefficient, orbital indices
+   - Use Case: UV-Vis spectra prediction, photochemistry
+   - Estimated Effort: 6-8 hours
+
+3. **Electric Dipole Absorption Spectrum** ⭐ HIGH PRIORITY
+   - Function: `parse_electric_dipole_spectrum()`
+   - Extracts: Both regular and SOC-corrected absorption spectra
+   - Data: Transition, energy (eV, cm⁻¹), wavelength (nm), oscillator strength, dipole moments (dx, dy, dz)
+   - Use Case: UV-Vis spectra, transition analysis
+   - Estimated Effort: 4-6 hours
+
+4. **Velocity Dipole Absorption Spectrum** ⭐ HIGH PRIORITY
+   - Function: `parse_velocity_dipole_spectrum()`
+   - Extracts: Alternative formulation of absorption spectra
+   - Data: Same as electric dipole but via velocity representation
+   - Use Case: Comparison with electric dipole, theoretical validation
+   - Estimated Effort: 3-4 hours
+
+5. **Advanced .spectrum File Parser** 🌟 MEDIUM PRIORITY
+   - Function: `parse_spectrum_file()` with type detection
+   - Types: AH (Adiabatic Hessian), AHAS (AH + Anharmonic), VG (Vertical Gradient), FLUOR (Fluorescence), PHOSP (Phosphorescence)
+   - Data: Energy (cm⁻¹), total spectrum, intensity (FC + HT components for absorption)
+   - Use Case: High-resolution emission/absorption spectra
+   - File Search Patterns: Multiple naming conventions
+   - Estimated Effort: 5-7 hours
+
+#### Enhanced Parsing
+6. **Geometry Info Extraction**
+   - Function: `parse_geometry_info()`
+   - Extracts: Geometry filename, charge, multiplicity from INPUT FILE section
+   - Current: Only parsed from specific sections
+   - Enhancement: Parse from `* xyzfile` line in input
+   - Estimated Effort: 2-3 hours
+
+7. **ESD Flag Detection**
+   - Function: `parse_esd_flag()`
+   - Extracts: ESDFlag (emission) or HESSFLAG (absorption) from %ESD block
+   - Use Case: Determines spectrum calculation type
+   - Estimated Effort: 1-2 hours
+
+8. **Spin-Polarized Orbitals** ✅ PARTIALLY DONE
+   - Function: `parse_last_orbitals()` with spin handling
+   - Current: Handles closed-shell only
+   - Missing: Explicit SPIN UP / SPIN DOWN orbital separation
+   - Enhancement: Label orbitals with spin="up"/"down"/"na"
+   - Estimated Effort: 3-4 hours
+
+9. **Optimized Internal Coordinates**
+   - Function: `parse_internal()` - final bond/angle/dihedral values
+   - Extracts: Optimized geometry parameters from "Definition" table
+   - Data: Bond lengths (Å), angles (°), dihedrals (°), old/new values
+   - Use Case: Geometry analysis, structural changes during optimization
+   - Estimated Effort: 4-5 hours
+
+### Missing Visualization Features (35 items)
+
+#### Advanced Spectroscopy Plots (14 items)
+10. **Publication-Quality Raman Spectra** ⭐⭐ TOP PRIORITY
+    - Stick spectrum below baseline (negative region)
+    - Gaussian broadening with adjustable FWHM (σ calculation)
+    - Regional boundary markers (500, 1000, 1800, 2800, 3200 cm⁻¹)
+    - Automatic region labels (O-H/N-H, C-H, C=O, Fingerprint, Low freq)
+    - Inverted x-axis (high → low wavenumber)
+    - Implementation: Matplotlib figure with customized axes
+    - Estimated Effort: 4-6 hours
+
+11. **Temperature-Dependent Raman Intensity** ⭐ ADVANCED
+    - Physical intensity formula: I ∝ (ν₀-νᵢ)⁴ × S / [νᵢ × (1-exp(-hcνᵢ/kBT))]
+    - Constants: h, c, kB, T (298.15 K), laser wavelength (532 nm)
+    - Converts Raman activity → experimental-like intensity
+    - Low-frequency suppression threshold (0-100 cm⁻¹ filter)
+    - Estimated Effort: 3-4 hours
+
+12. **Multi-Dataset Raman Stacking** ⭐ HIGH PRIORITY
+    - Overlay multiple Raman spectra with vertical offsets
+    - Auto-spacing calculation (prev_top - this_bottom + y_space)
+    - Right y-axis labels for dataset names
+    - Color-coded traces (black, red, blue, green, orange, etc.)
+    - Adjustable spacing multiplier
+    - Estimated Effort: 5-7 hours
+
+13. **Publication-Quality IR Spectra** ⭐⭐ TOP PRIORITY
+    - Absorbance calculation: A = ε × c × l (Beer-Lambert law)
+    - Transmittance conversion: T = 10^(-A) × 100%
+    - Stick spectrum above 100% baseline (showing discrete peaks)
+    - Dual plot output: Absorbance + Transmittance
+    - Regional boundaries: 3000, 2400, 2000, 1600, 1400, 1000, 600 cm⁻¹
+    - Estimated Effort: 4-6 hours
+
+14. **Multi-Dataset IR Stacking** ⭐ HIGH PRIORITY
+    - Same stacking logic as Raman (vertical offset with auto-spacing)
+    - 30 datasets example in notebook (p1x-p6x, p1a-p6a, etc.)
+    - Supports different dataset orderings (by series or by position)
+    - Estimated Effort: 3-4 hours
+
+15. **Experimental vs DFT IR Comparison**
+    - Overlay experimental data (continuous + discrete/AIST)
+    - Interpolation of experimental data to match DFT grid
+    - Broadening of discrete experimental peaks
+    - Automatic offset positioning below DFT spectra
+    - Try-except blocks for missing experimental data
+    - Estimated Effort: 6-8 hours
+
+16. **Combined IR + Raman Overlay** ✅ PARTIALLY DONE
+    - Current: Basic dual y-axis implementation exists
+    - Missing: Proper baseline separation with automatic spacing
+    - Missing: Unified legend positioning
+    - Missing: Synchronized stick spectra
+    - Enhancement: Calculate baseline distance dynamically
+    - Estimated Effort: 3-4 hours
+
+17. **UV-Vis Electric Dipole Spectrum**
+    - Stick spectrum showing transitions (vertical lines)
+    - Continuous spectrum with Gaussian broadening
+    - Wavelength (nm) on x-axis
+    - Oscillator strength (f) on y-axis
+    - Interactive plot with zoom
+    - Estimated Effort: 4-5 hours
+
+18. **UV-Vis Velocity Dipole Spectrum**
+    - Same as electric dipole but for velocity representation
+    - Side-by-side comparison with electric dipole
+    - Estimated Effort: 3-4 hours
+
+19. **Absorption Spectrum Comparison (VG, AH, AHAS)**
+    - Three methods overlayed on same plot
+    - Wavelength (nm) vs normalized intensity
+    - Inverted x-axis (shorter λ on left)
+    - Computation time annotations in legend
+    - Estimated Effort: 4-5 hours
+
+20. **Fluorescence vs Phosphorescence Emission**
+    - Dual emission spectra from .spectrum files
+    - Wavelength conversion: λ (nm) = 10⁷ / E (cm⁻¹)
+    - Normalized intensity comparison
+    - Color-coded: yellow (FL), orange (PH)
+    - Estimated Effort: 3-4 hours
+
+21. **Interactive IR Scaling Slider** 🎯 ADVANCED
+    - IPython widget: FloatSlider for real-time scaling
+    - Scale factor: 0.1-1.0 (DFT frequency correction)
+    - Dual subplot: Absorbance + Transmittance
+    - Real-time plot updates (no need to re-run cell)
+    - Reference lines stay at original positions
+    - Implementation: ipywidgets.interact
+    - Estimated Effort: 5-6 hours
+
+22. **Advanced IR with Frequency Scaling**
+    - Scale factor for x-axis (DFT usually overestimates)
+    - Shift parameter (cm⁻¹ offset)
+    - Scaled sigma for proper peak widths
+    - Examples: scale_x = 0.96 for B3LYP
+    - Estimated Effort: 2-3 hours
+
+23. **IR Functional Group Assignment Table**
+    - Markdown table with wavenumber ranges
+    - Assignment column (e.g., "N-H stretch", "C=O stretch")
+    - Reference data from literature
+    - Overlay on IR plot as text annotations
+    - Estimated Effort: 3-4 hours
+
+#### Orbital & Electronic Structure (7 items)
+24. **Multi-Dataset Orbital Energy Comparison** ⭐ HIGH PRIORITY
+    - Side-by-side orbital diagrams for multiple calculations
+    - Dashed lines connecting same orbital levels across datasets
+    - HOMO-LUMO gap arrows with values
+    - Support for both flat and nested dataset lists
+    - Connection groups (only connect within specified groups)
+    - Horizontal bars with adjustable width (overaxis parameter)
+    - Manual labels for each dataset
+    - Implementation: Complex loop logic for connections
+    - Estimated Effort: 8-10 hours
+
+25. **Grouped Orbital Connections**
+    - Syntax: datasets = [[1,2], [3,4]] - only connects within sublists
+    - vs. datasets = [1,2,3,4] - connects all sequentially
+    - Use Case: Compare different molecules vs. different methods
+    - Estimated Effort: Included in item 24
+
+26. **Orbital Level Filtering**
+    - n_orbitals parameter (default: 6)
+    - Shows n/2 orbitals above and below gap
+    - Separate occupied/virtual orbital selection
+    - Estimated Effort: 2-3 hours
+
+27. **Color-Coded Orbital Bars**
+    - Blue: Occupied (HOMO and below)
+    - Red: Virtual (LUMO and above)
+    - Consistent color scheme across all datasets
+    - Estimated Effort: 1-2 hours
+
+28. **HOMO/LUMO Index Detection**
+    - Automatic detection from transition data
+    - Fallback to orbital occupation analysis
+    - Handles edge cases (no transitions, no occupation data)
+    - Estimated Effort: 2-3 hours
+
+29. **Orbital Energy Label Annotations**
+    - Gap value centered between HOMO-LUMO
+    - White background box for readability
+    - Format: "X.XX eV"
+    - Estimated Effort: 1 hour
+
+30. **Dataset Label Positioning**
+    - Manual label list matching datasets
+    - Centered x-axis labels for each diagram
+    - Font size customization
+    - Estimated Effort: 1 hour
+
+#### Utility & Infrastructure (14 items)
+31. **Matplotlib Regional Boundaries**
+    - Customizable boundary lists for each spectrum type
+    - Vertical dashed lines (gray, alpha=0.5-0.7)
+    - Automatic positioning
+    - Use Cases: IR, Raman, UV-Vis
+    - Estimated Effort: 2 hours
+
+32. **Inverted X-Axis Convention**
+    - ax.invert_xaxis() for IR/Raman (high → low)
+    - Standard axis for UV-Vis (low → high)
+    - Consistent with experimental convention
+    - Estimated Effort: 1 hour
+
+33. **Dual Y-Axis Right Labels**
+    - ax2 = ax.twinx() for dataset labels
+    - Label positioning at spectrum baselines or peaks
+    - Vertical alignment options (baseline/center/max)
+    - Hide left y-ticks, show right y-labels
+    - Estimated Effort: 2-3 hours
+
+34. **Advanced Subplot Layouts**
+    - fig, (ax1, ax2) = plt.subplots(2, 1) for dual plots
+    - Shared x-axis for comparison plots
+    - Tight layout management
+    - Estimated Effort: 2 hours
+
+35. **Custom Colorscales**
+    - 9-color palette for multiple datasets
+    - Modulo cycling: colors[i % len(colors)]
+    - Seaborn/Matplotlib color palettes
+    - Estimated Effort: 1 hour
+
+36. **Gaussian Broadening Utilities**
+    - FWHM → sigma conversion: σ = FWHM / (2√(2ln2))
+    - Gaussian function: inten × exp(-0.5 × ((x-ν₀)/σ)²)
+    - Reusable for all spectra types
+    - Estimated Effort: 2 hours
+
+37. **Normalization Methods**
+    - Max normalization: spectrum / spectrum.max()
+    - Range normalization: (spectrum - min) / (max - min) × 100
+    - Min-max scaling for transmittance
+    - Estimated Effort: 1-2 hours
+
+38. **Stick Spectrum Utilities**
+    - Below baseline: ax.vlines(freq, -stick_height, 0)
+    - Above baseline: ax.vlines(freq, 100, 100 + stick_height)
+    - Proportional height: spectrum.max() × 0.1
+    - Estimated Effort: 2 hours
+
+39. **Legend and Title Management**
+    - Auto-generated titles with dataset info
+    - Legend positioning (best, upper right, etc.)
+    - Font size scaling
+    - Estimated Effort: 1 hour
+
+40. **Spine and Axis Customization**
+    - Hide spines: ax.spines["top/right/left"].set_visible(False)
+    - Hide y-axis: ax.yaxis.set_visible(False)
+    - Grid toggling with transparency
+    - Estimated Effort: 1 hour
+
+41. **Wavelength-Energy Conversion**
+    - λ (nm) = 10⁷ / E (cm⁻¹)
+    - Automatic conversion for UV-Vis plots
+    - Bidirectional conversion support
+    - Estimated Effort: 1 hour
+
+42. **Try-Except Error Handling for Experimental Data**
+    - Graceful failure when experimental files missing
+    - Warning messages: print("⚠️ Experimental data skipped:", e)
+    - Continued execution without crashing
+    - Estimated Effort: 2 hours
+
+43. **Data Interpolation for Comparison**
+    - np.interp() for experimental data alignment
+    - Resampling to match DFT grid
+    - Use Case: Overlay experimental on computed spectra
+    - Estimated Effort: 2 hours
+
+44. **Automatic Y-Limit Calculation**
+    - Dynamic based on stacked spectrum heights
+    - Padding: ±10-20% of total range
+    - Handles negative regions (stick spectra)
+    - Estimated Effort: 2 hours
+
+### Implementation Priority
+
+**Phase 1: Critical Parsing (20-28 hours)**
+1. SMILES generation (2-3 hrs)
+2. TD-DFT states (6-8 hrs)
+3. Electric dipole spectrum (4-6 hrs)
+4. Velocity dipole spectrum (3-4 hrs)
+5. .spectrum file parser (5-7 hrs)
+
+**Phase 2: Advanced Visualizations (30-40 hours)**
+6. Publication-quality Raman (4-6 hrs)
+7. Multi-dataset Raman stacking (5-7 hrs)
+8. Publication-quality IR (4-6 hrs)
+9. Multi-dataset IR stacking (3-4 hrs)
+10. Multi-dataset orbital comparison (8-10 hrs)
+
+**Phase 3: Utility Functions (15-20 hours)**
+11. All utility features (items 31-44)
+
+**Phase 4: Advanced Features (25-35 hours)**
+12. Experimental data comparison (6-8 hrs)
+13. Temperature-dependent Raman (3-4 hrs)
+14. Interactive sliders (5-6 hrs)
+15. UV-Vis spectra (10-12 hrs)
+16. Remaining advanced features
+
+**Total Estimated Effort:** 90-123 hours for complete implementation
+
+### Dependencies to Add
+- `openbabel` (pybel) - For SMILES generation
+- `ipywidgets` - For interactive sliders (Jupyter only)
+- No additional dependencies for Matplotlib features (already available)
+
+### Notes
+- Current program uses Plotly.js (interactive web plots)
+- Notebook uses Matplotlib (static publication plots)
+- Consider hybrid approach: Keep Plotly for web UI, add Matplotlib export option
+- Priority should be on data parsing (items 1-9) before visualization enhancements
+- Many visualization features can be ported from Matplotlib to Plotly with similar syntax
+
+---
+
 ## File Format Documentation
 
 ### Analyzed Files
