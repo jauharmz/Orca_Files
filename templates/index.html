@@ -2254,8 +2254,7 @@
 
                 // Color each atom by charge
                 data.coordinates.forEach((coord, i) => {
-                    const element = coord.element;
-                    const atomKey = `${i}${element}`;
+                    const atomKey = String(i);  // Charges are keyed by atom index only
                     const chargeData = charges[atomKey];
 
                     if (chargeData) {
@@ -2350,18 +2349,18 @@
             if (showBondOrdersFlag) {
                 // Show bond orders as labels
                 data.mayer_bond_orders.forEach(bond => {
-                    if (bond.bond_order > 0.5) { // Only show significant bonds
-                        const coord1 = data.coordinates[bond.atom1_index];
-                        const coord2 = data.coordinates[bond.atom2_index];
+                    if (bond.order > 0.5) { // Only show significant bonds
+                        const coord1 = data.coordinates[bond.atom1];
+                        const coord2 = data.coordinates[bond.atom2];
 
                         if (coord1 && coord2) {
                             const midpoint = {
-                                x: (coord1[1] + coord2[1]) / 2,
-                                y: (coord1[2] + coord2[2]) / 2,
-                                z: (coord1[3] + coord2[3]) / 2
+                                x: (coord1.x + coord2.x) / 2,
+                                y: (coord1.y + coord2.y) / 2,
+                                z: (coord1.z + coord2.z) / 2
                             };
 
-                            viewer3d.addLabel(bond.bond_order.toFixed(2), {
+                            viewer3d.addLabel(bond.order.toFixed(2), {
                                 position: midpoint,
                                 backgroundColor: 'rgba(255, 255, 0, 0.7)',
                                 fontColor: 'black',
@@ -4249,17 +4248,17 @@
             data.mayer_bond_orders.forEach(bond => {
                 // Find corresponding bond length from internal coords
                 const intCoord = data.internal_coords.find(ic =>
-                    ic.bond_to === bond.atom1_index || ic.bond_to === bond.atom2_index
+                    ic.bond_to === bond.atom1 || ic.bond_to === bond.atom2
                 );
 
-                if (intCoord && intCoord.bond_length && bond.bond_order > 0.1) {
-                    bondOrders.push(bond.bond_order);
+                if (intCoord && intCoord.bond_length && bond.order > 0.1) {
+                    bondOrders.push(bond.order);
                     bondLengths.push(intCoord.bond_length);
-                    const coord1 = data.coordinates[bond.atom1_index];
-                    const coord2 = data.coordinates[bond.atom2_index];
+                    const coord1 = data.coordinates[bond.atom1];
+                    const coord2 = data.coordinates[bond.atom2];
                     const label = coord1 && coord2 ?
-                        `${coord1[0]}${bond.atom1_index}-${coord2[0]}${bond.atom2_index}` :
-                        `${bond.atom1_index}-${bond.atom2_index}`;
+                        `${coord1.element}${bond.atom1}-${coord2.element}${bond.atom2}` :
+                        `${bond.atom1}-${bond.atom2}`;
                     bondLabels.push(label);
                 }
             });
@@ -5176,14 +5175,14 @@
         }
 
         function renderNMRDistribution() {
-            if (!data || !data.nmr_shifts || data.nmr_shifts.length === 0) return;
+            if (!data || !data.nmr_data || !data.nmr_data.chemical_shifts || data.nmr_data.chemical_shifts.length === 0) return;
 
-            // Group by nucleus type (assuming format like "1H", "13C")
+            // Group by nucleus type (element)
             const nucleusGroups = {};
-            data.nmr_shifts.forEach((shift, i) => {
-                const nucleus = data.coordinates_au && data.coordinates_au[i] ? data.coordinates_au[i][0] : 'Unknown';
+            data.nmr_data.chemical_shifts.forEach((shift, i) => {
+                const nucleus = shift.element || 'Unknown';
                 if (!nucleusGroups[nucleus]) nucleusGroups[nucleus] = [];
-                nucleusGroups[nucleus].push(shift);
+                nucleusGroups[nucleus].push(shift.isotropic);
             });
 
             const nuclei = Object.keys(nucleusGroups).sort();
@@ -5209,7 +5208,7 @@
             if (!data || !data.mayer_bond_orders || data.mayer_bond_orders.length === 0) return;
 
             // Extract bond order values > 0.1
-            const bondOrders = data.mayer_bond_orders.filter(b => b[2] > 0.1).map(b => b[2]);
+            const bondOrders = data.mayer_bond_orders.filter(b => b.order > 0.1).map(b => b.order);
 
             if (bondOrders.length === 0) return;
 
@@ -5485,10 +5484,10 @@
                 properties['Löwdin Charge'] = data.loewdin_charges.slice(0, 20);
             }
             if (data.mayer_bond_orders && data.mayer_bond_orders.length > 0) {
-                properties['Bond Orders'] = data.mayer_bond_orders.slice(0, 20).map(b => b[2]);
+                properties['Bond Orders'] = data.mayer_bond_orders.slice(0, 20).map(b => b.order);
             }
-            if (data.nmr_shifts && data.nmr_shifts.length > 0) {
-                properties['NMR Shifts'] = data.nmr_shifts.slice(0, 20);
+            if (data.nmr_data && data.nmr_data.chemical_shifts && data.nmr_data.chemical_shifts.length > 0) {
+                properties['NMR Shifts'] = data.nmr_data.chemical_shifts.slice(0, 20).map(s => s.isotropic);
             }
 
             const propNames = Object.keys(properties);
@@ -5626,13 +5625,13 @@
             if (!data || !data.mulliken_overlap_charges || data.mulliken_overlap_charges.length === 0) return;
 
             const overlapData = data.mulliken_overlap_charges;
-            const numAtoms = Math.max(...overlapData.map(o => Math.max(o[0], o[1]))) + 1;
+            const numAtoms = Math.max(...overlapData.map(o => Math.max(o.atom1, o.atom2))) + 1;
 
             // Build symmetric matrix
             const matrix = Array(numAtoms).fill(0).map(() => Array(numAtoms).fill(0));
-            overlapData.forEach(([i, j, val]) => {
-                matrix[i][j] = val;
-                matrix[j][i] = val;
+            overlapData.forEach(o => {
+                matrix[o.atom1][o.atom2] = o.overlap_charge;
+                matrix[o.atom2][o.atom1] = o.overlap_charge;
             });
 
             const trace = {
@@ -5709,8 +5708,8 @@
             if (!data.ir_spectrum || !data.raman_spectrum) return;
 
             const freq = data.frequencies;
-            const irIntensities = data.ir_spectrum.map(s => s[1]);
-            const ramanActivities = data.raman_spectrum.map(s => s[1]);
+            const irIntensities = data.ir_spectrum.map(s => s.intensity);
+            const ramanActivities = data.raman_spectrum.map(s => s.activity);
 
             const minLen = Math.min(freq.length, irIntensities.length, ramanActivities.length);
 
