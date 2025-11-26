@@ -368,6 +368,70 @@ def align_spectra_to_common_grid(
     return x_common, interpolated_spectra
 
 
+def find_optimal_label_positions(
+    spectra: List[np.ndarray],
+    y_offsets: List[float],
+    x_range: Tuple[float, float],
+    x_grid: np.ndarray,
+    method: str = 'peak'
+) -> List[Tuple[float, float]]:
+    """
+    Find optimal (x, y) positions for dataset labels on stacked spectra.
+
+    Args:
+        spectra: List of spectrum arrays
+        y_offsets: Vertical offsets for each spectrum
+        x_range: (x_min, x_max) range to consider
+        x_grid: X-axis grid corresponding to spectra
+        method: 'peak' (at maximum), 'flat' (at flattest region), 'right' (right side)
+
+    Returns:
+        List of (x, y) positions for each label
+    """
+    positions = []
+
+    for i, (spectrum, offset) in enumerate(zip(spectra, y_offsets)):
+        offset_spectrum = spectrum + offset
+
+        # Find indices within x_range
+        mask = (x_grid >= x_range[0]) & (x_grid <= x_range[1])
+        x_subset = x_grid[mask]
+        y_subset = offset_spectrum[mask]
+
+        if len(y_subset) == 0:
+            # Fallback to right edge
+            positions.append((x_range[1], offset))
+            continue
+
+        if method == 'peak':
+            # Place at maximum intensity
+            max_idx = np.argmax(y_subset)
+            x_pos = x_subset[max_idx]
+            y_pos = y_subset[max_idx]
+
+        elif method == 'flat':
+            # Place at flattest region (minimum gradient)
+            gradient = np.abs(np.gradient(y_subset))
+            flat_idx = np.argmin(gradient[10:-10]) + 10  # Avoid edges
+            x_pos = x_subset[flat_idx]
+            y_pos = y_subset[flat_idx]
+
+        elif method == 'right':
+            # Place at right edge
+            x_pos = x_range[1]
+            y_pos = offset
+
+        else:
+            # Default to right edge
+            x_pos = x_range[1]
+            y_pos = offset
+
+        positions.append((x_pos, y_pos))
+
+    logger.debug(f"Found optimal label positions using method '{method}'")
+    return positions
+
+
 def calculate_spectrum_similarity(
     spectrum1: np.ndarray,
     spectrum2: np.ndarray,
@@ -431,5 +495,6 @@ __all__ = [
     'normalize_spectrum',
     'interpolate_spectrum',
     'align_spectra_to_common_grid',
-    'calculate_spectrum_similarity'
+    'calculate_spectrum_similarity',
+    'find_optimal_label_positions'
 ]

@@ -336,13 +336,13 @@ This project provides parsers for various ORCA output file formats and a UI to p
 8. ⏳ Spin-Polarized Orbitals
 9. ⏳ Optimized Internal Coordinates
 
-#### Visualization Features (28/35 Complete = 80%)
+#### Visualization Features (30/35 Complete = 86%)
 10. ✅ Publication-Quality Raman Spectra
 11. ✅ Temperature-Dependent Raman Intensity
 12. ✅ Multi-Dataset Raman Stacking
 13. ✅ Publication-Quality IR Spectra
 14. ✅ Multi-Dataset IR Stacking
-15. ⏳ Experimental vs DFT IR Comparison
+15. ✅ Experimental vs DFT IR Comparison
 16. ✅ Combined IR + Raman Overlay (Enhanced)
 17. ✅ UV-Vis Electric Dipole Spectrum (UI ready)
 18. ✅ UV-Vis Velocity Dipole Spectrum (UI ready)
@@ -357,7 +357,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 27. ✅ Color-Coded Orbital Bars
 28. ✅ HOMO/LUMO Index Detection
 29. ✅ Orbital Energy Label Annotations
-30. ⏳ Dataset Label Positioning
+30. ✅ Dataset Label Positioning
 31. ✅ Regional Boundaries (all spectra)
 32. ✅ Inverted X-Axis Convention
 33. 🟡 Dual Y-Axis Right Labels (IR+Raman)
@@ -373,7 +373,7 @@ This project provides parsers for various ORCA output file formats and a UI to p
 43. ✅ Data Interpolation for Comparison
 44. ✅ Automatic Y-Limit Calculation (calculateYLimits)
 
-**Overall: 28/44 = 64% Complete**
+**Overall: 30/44 = 68% Complete**
 
 **Additional Enhancements Implemented:**
 45. ✅ Thermochemistry Waterfall Diagram (energy ladder)
