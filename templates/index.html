@@ -1834,10 +1834,10 @@
             data.coordinates.forEach((coord, i) => {
                 html += `<tr>
                     <td>${i}</td>
-                    <td><strong>${coord[0] || 'N/A'}</strong></td>
-                    <td>${typeof coord[1] === 'number' ? coord[1].toFixed(6) : 'N/A'}</td>
-                    <td>${typeof coord[2] === 'number' ? coord[2].toFixed(6) : 'N/A'}</td>
-                    <td>${typeof coord[3] === 'number' ? coord[3].toFixed(6) : 'N/A'}</td>
+                    <td><strong>${coord.element || 'N/A'}</strong></td>
+                    <td>${typeof coord.x === 'number' ? coord.x.toFixed(6) : 'N/A'}</td>
+                    <td>${typeof coord.y === 'number' ? coord.y.toFixed(6) : 'N/A'}</td>
+                    <td>${typeof coord.z === 'number' ? coord.z.toFixed(6) : 'N/A'}</td>
                 </tr>`;
             });
 
@@ -2122,7 +2122,7 @@
                 xyzData += `ORCA Molecule - ${data.job_info?.basis_set || 'Unknown basis'}\n`;
 
                 data.coordinates.forEach((coord, idx) => {
-                    const [element, x, y, z] = coord;
+                    const {element, x, y, z} = coord;
                     if (element && typeof x === 'number' && typeof y === 'number' && typeof z === 'number') {
                         xyzData += `${element}  ${x.toFixed(6)}  ${y.toFixed(6)}  ${z.toFixed(6)}\n`;
                     } else {
@@ -2202,8 +2202,8 @@
             viewer3d.removeAllLabels();
             if (showLabels) {
                 data.coordinates.forEach((coord, i) => {
-                    viewer3d.addLabel(coord[0], {
-                        position: {x: coord[1], y: coord[2], z: coord[3]},
+                    viewer3d.addLabel(coord.element, {
+                        position: {x: coord.x, y: coord.y, z: coord.z},
                         backgroundColor: 'white',
                         fontColor: 'black',
                         fontSize: 12
@@ -2245,7 +2245,7 @@
 
                 // Color each atom by charge
                 data.coordinates.forEach((coord, i) => {
-                    const element = coord[0];
+                    const element = coord.element;
                     const atomKey = `${i}${element}`;
                     const chargeData = charges[atomKey];
 
@@ -3116,7 +3116,7 @@
             const moLabels = [];
             const atomLabels = sortedAtomIndices.map(idx => {
                 const coord = data.coordinates[idx];
-                return coord ? `${coord[0]}${idx}` : `Atom${idx}`;
+                return coord ? `${coord.element}${idx}` : `Atom${idx}`;
             });
 
             charges.forEach(moCharge => {
@@ -3194,7 +3194,7 @@
                 const coord = data.coordinates[idx];
                 return {
                     index: idx,
-                    element: coord ? coord[0] : 'X',
+                    element: coord ? coord.element : 'X',
                     shift: shift ? shift.isotropic : 0
                 };
             });
@@ -3275,7 +3275,7 @@
 
             tensors.forEach((tensor, i) => {
                 const coord = data.coordinates[tensor.atom_index];
-                const element = coord ? coord[0] : 'X';
+                const element = coord ? coord.element : 'X';
 
                 html += `<tr>
                     <td>${tensor.atom_index}</td>
@@ -3304,7 +3304,7 @@
 
             const tensor = data.chemical_shielding_tensors[tensorIndex];
             const coord = data.coordinates[tensor.atom_index];
-            const element = coord ? coord[0] : 'X';
+            const element = coord ? coord.element : 'X';
 
             // Format 3x3 tensor
             const formatTensor = (values) => {
@@ -3523,10 +3523,10 @@
                 const coord = data.coordinates[idx];
                 return {
                     index: idx,
-                    element: coord ? coord[0] : 'X',
-                    x: coord ? coord[1] : 0,
-                    y: coord ? coord[2] : 0,
-                    z: coord ? coord[3] : 0
+                    element: coord ? coord.element : 'X',
+                    x: coord ? coord.x : 0,
+                    y: coord ? coord.y : 0,
+                    z: coord ? coord.z : 0
                 };
             });
 
@@ -3936,7 +3936,7 @@
 
             populations.forEach(pop => {
                 const coord = data.coordinates[pop.atom_index];
-                const label = coord ? `${coord[0]}${pop.atom_index}` : `Atom${pop.atom_index}`;
+                const label = coord ? `${coord.element}${pop.atom_index}` : `Atom${pop.atom_index}`;
                 atomLabels.push(label);
 
                 sData.push(pop.s || 0);
@@ -4384,8 +4384,8 @@
             // Group by element
             const elementMasses = {};
             data.coordinates_au.forEach(coord => {
-                const element = coord[0]; // element symbol
-                const mass = coord[5];    // atomic mass
+                const element = coord.element; // element symbol
+                const mass = coord.mass;    // atomic mass
                 if (!elementMasses[element]) {
                     elementMasses[element] = 0;
                 }
@@ -4500,7 +4500,7 @@
             // Count atoms by element
             const elementCounts = {};
             data.coordinates_au.forEach(coord => {
-                const element = coord[0];
+                const element = coord.element;
                 elementCounts[element] = (elementCounts[element] || 0) + 1;
             });
 
@@ -4590,7 +4590,7 @@
             // Count atoms by element
             const elementCounts = {};
             data.coordinates_au.forEach(coord => {
-                const element = coord[0];
+                const element = coord.element;
                 elementCounts[element] = (elementCounts[element] || 0) + 1;
             });
 
@@ -6350,7 +6350,7 @@
                     // Geometry table (first 20 atoms)
                     const atoms = data.coordinates.slice(0, 20);
                     atoms.forEach((coord, i) => {
-                        pdf.text(`${i}  ${coord[0]}  ${coord[1]?.toFixed(4)}  ${coord[2]?.toFixed(4)}  ${coord[3]?.toFixed(4)}`, 15, yPos);
+                        pdf.text(`${i}  ${coord.element}  ${coord.x?.toFixed(4)}  ${coord.y?.toFixed(4)}  ${coord.z?.toFixed(4)}`, 15, yPos);
                         yPos += 5;
                         if (yPos > pageHeight - 20) {
                             pdf.addPage();
@@ -6462,7 +6462,7 @@ Atom & Element & X (\\si{\\angstrom}) & Y (\\si{\\angstrom}) & Z (\\si{\\angstro
 \\midrule
 `;
                 data.coordinates.forEach((coord, i) => {
-                    latex += `${i} & ${coord[0]} & ${coord[1]?.toFixed(4)} & ${coord[2]?.toFixed(4)} & ${coord[3]?.toFixed(4)} \\\\\n`;
+                    latex += `${i} & ${coord.element} & ${coord.x?.toFixed(4)} & ${coord.y?.toFixed(4)} & ${coord.z?.toFixed(4)} \\\\\n`;
                 });
 
                 latex += `\\bottomrule
