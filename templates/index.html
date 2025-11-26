@@ -579,8 +579,10 @@
             <div style="display: flex; gap: 10px; flex: 1; align-items: center; flex-wrap: wrap;">
                 <button class="btn-primary" onclick="loadDefaultData()">📂 Load Example</button>
                 <button class="btn-secondary" onclick="exportJSON()">💾 Export JSON</button>
-                <button class="btn-secondary" onclick="generatePDFReport()">📄 PDF Report</button>
-                <button class="btn-secondary" onclick="shareViaURL()">🔗 Share URL</button>
+                <button class="btn-secondary" onclick="generateEnhancedPDF()">📄 Enhanced PDF</button>
+                <button class="btn-secondary" onclick="exportToLaTeX()">📜 LaTeX</button>
+                <button class="btn-secondary" onclick="shareFullDataset()">🌐 Share Dataset</button>
+                <button class="btn-secondary" onclick="exportJupyterNotebook()">📓 Jupyter</button>
                 <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">🌓</button>
                 <select id="fileSelector" onchange="switchFile()" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd; display: none;">
                     <option value="0">File 1</option>
@@ -666,6 +668,38 @@
             <button class="collapsible" onclick="toggleCollapsible(this)">Side-by-Side Properties 📋</button>
             <div class="collapsible-content">
                 <div id="comparison-table" style="overflow-x: auto;"></div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">RMSD & Structure Overlay 🔄</button>
+            <div class="collapsible-content">
+                <div id="rmsd-info" style="padding: 15px; background: #f8f9fa; border-radius: 8px; margin-bottom: 15px;">
+                    <h4 style="margin-bottom: 10px;">Root Mean Square Deviation (RMSD)</h4>
+                    <p id="rmsd-value" style="font-size: 1.5em; color: #667eea; font-weight: bold;">--</p>
+                    <p style="font-size: 12px; color: #666; margin-top: 5px;">Lower RMSD indicates more similar structures</p>
+                </div>
+                <div id="structure-overlay-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('structure-overlay-plot', 'structure_overlay.png')">📷 PNG</button>
+                </div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Energy Level Diagrams Side-by-Side ⚡</button>
+            <div class="collapsible-content">
+                <div id="energy-diagrams-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('energy-diagrams-plot', 'energy_diagrams.png')">📷 PNG</button>
+                </div>
+            </div>
+
+            <button class="collapsible" onclick="toggleCollapsible(this)">Reaction Coordinate ⚗️</button>
+            <div class="collapsible-content">
+                <div id="reaction-coordinate-plot" style="width: 100%; height: 500px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('reaction-coordinate-plot', 'reaction_coordinate.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Shows energy profile across multiple calculation files. Upload files in order (reactant → TS → product).
+                </p>
             </div>
         </div>
 
@@ -5819,6 +5853,227 @@
             document.getElementById('comparison-table').innerHTML = html;
         }
 
+        // RMSD Calculation and Structure Overlay
+        function renderRMSDOverlay() {
+            if (allFiles.length < 2) {
+                alert('Please upload at least 2 files to compare structures');
+                return;
+            }
+
+            const idx1 = parseInt(document.getElementById('compareFile1').value);
+            const idx2 = parseInt(document.getElementById('compareFile2').value);
+
+            if (idx1 === idx2) {
+                alert('Please select two different files');
+                return;
+            }
+
+            const file1 = allFiles[idx1].data;
+            const file2 = allFiles[idx2].data;
+
+            if (!file1.coordinates || !file2.coordinates) {
+                alert('Coordinate data not available');
+                return;
+            }
+
+            // Calculate RMSD
+            const coords1 = file1.coordinates;
+            const coords2 = file2.coordinates;
+            const minLen = Math.min(coords1.length, coords2.length);
+
+            let sumSq = 0;
+            for (let i = 0; i < minLen; i++) {
+                const dx = coords1[i][1] - coords2[i][1];
+                const dy = coords1[i][2] - coords2[i][2];
+                const dz = coords1[i][3] - coords2[i][3];
+                sumSq += dx*dx + dy*dy + dz*dz;
+            }
+            const rmsd = Math.sqrt(sumSq / minLen);
+
+            document.getElementById('rmsd-value').textContent = `${rmsd.toFixed(4)} Å`;
+
+            // 3D Structure Overlay
+            const trace1 = {
+                x: coords1.map(c => c[1]),
+                y: coords1.map(c => c[2]),
+                z: coords1.map(c => c[3]),
+                mode: 'markers+text',
+                type: 'scatter3d',
+                name: allFiles[idx1].name,
+                marker: {size: 8, color: '#667eea', opacity: 0.8},
+                text: coords1.map(c => c[0]),
+                textposition: 'top center',
+                hovertemplate: 'Atom: %{text}<br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
+            };
+
+            const trace2 = {
+                x: coords2.map(c => c[1]),
+                y: coords2.map(c => c[2]),
+                z: coords2.map(c => c[3]),
+                mode: 'markers+text',
+                type: 'scatter3d',
+                name: allFiles[idx2].name,
+                marker: {size: 8, color: '#f39c12', opacity: 0.8},
+                text: coords2.map(c => c[0]),
+                textposition: 'bottom center',
+                hovertemplate: 'Atom: %{text}<br>X: %{x:.3f}<br>Y: %{y:.3f}<br>Z: %{z:.3f}<extra></extra>'
+            };
+
+            const layout = {
+                title: `3D Structure Overlay (RMSD: ${rmsd.toFixed(4)} Å)`,
+                scene: {
+                    xaxis: {title: 'X (Å)'},
+                    yaxis: {title: 'Y (Å)'},
+                    zaxis: {title: 'Z (Å)'},
+                    camera: {eye: {x: 1.5, y: 1.5, z: 1.5}}
+                },
+                showlegend: true
+            };
+
+            Plotly.newPlot('structure-overlay-plot', [trace1, trace2], layout, {responsive: true});
+        }
+
+        // Side-by-Side Energy Level Diagrams
+        function renderEnergyDiagramsSideBySide() {
+            if (allFiles.length < 2) {
+                alert('Please upload at least 2 files');
+                return;
+            }
+
+            const idx1 = parseInt(document.getElementById('compareFile1').value);
+            const idx2 = parseInt(document.getElementById('compareFile2').value);
+            const file1 = allFiles[idx1].data;
+            const file2 = allFiles[idx2].data;
+
+            if (!file1.orbital_energies || !file2.orbital_energies) {
+                alert('Orbital energy data not available');
+                return;
+            }
+
+            const energies1 = file1.orbital_energies.map(e => e * 27.211);
+            const energies2 = file2.orbital_energies.map(e => e * 27.211);
+            const homoIdx1 = file1.homo_idx || Math.floor(energies1.length / 2);
+            const homoIdx2 = file2.homo_idx || Math.floor(energies2.length / 2);
+
+            // File 1 - Occupied
+            const occ1 = {
+                x: Array(homoIdx1 + 1).fill(0),
+                y: energies1.slice(0, homoIdx1 + 1),
+                mode: 'markers',
+                marker: {size: 12, color: '#667eea', symbol: 'line-ew', line: {width: 3}},
+                name: `${allFiles[idx1].name} (Occupied)`,
+                hovertemplate: 'MO %{pointIndex}<br>Energy: %{y:.3f} eV<extra></extra>'
+            };
+
+            // File 1 - Virtual
+            const virt1 = {
+                x: Array(energies1.length - homoIdx1 - 1).fill(0.5),
+                y: energies1.slice(homoIdx1 + 1),
+                mode: 'markers',
+                marker: {size: 12, color: '#667eea', symbol: 'line-ew', line: {width: 3}, opacity: 0.6},
+                name: `${allFiles[idx1].name} (Virtual)`,
+                hovertemplate: 'MO %{pointIndex}<br>Energy: %{y:.3f} eV<extra></extra>'
+            };
+
+            // File 2 - Occupied
+            const occ2 = {
+                x: Array(homoIdx2 + 1).fill(1.5),
+                y: energies2.slice(0, homoIdx2 + 1),
+                mode: 'markers',
+                marker: {size: 12, color: '#f39c12', symbol: 'line-ew', line: {width: 3}},
+                name: `${allFiles[idx2].name} (Occupied)`,
+                hovertemplate: 'MO %{pointIndex}<br>Energy: %{y:.3f} eV<extra></extra>'
+            };
+
+            // File 2 - Virtual
+            const virt2 = {
+                x: Array(energies2.length - homoIdx2 - 1).fill(2),
+                y: energies2.slice(homoIdx2 + 1),
+                mode: 'markers',
+                marker: {size: 12, color: '#f39c12', symbol: 'line-ew', line: {width: 3}, opacity: 0.6},
+                name: `${allFiles[idx2].name} (Virtual)`,
+                hovertemplate: 'MO %{pointIndex}<br>Energy: %{y:.3f} eV<extra></extra>'
+            };
+
+            const gap1 = (energies1[homoIdx1 + 1] - energies1[homoIdx1]).toFixed(3);
+            const gap2 = (energies2[homoIdx2 + 1] - energies2[homoIdx2]).toFixed(3);
+
+            const layout = {
+                title: `Energy Level Diagrams (Gaps: ${gap1} eV vs ${gap2} eV)`,
+                xaxis: {
+                    title: '',
+                    tickvals: [0.25, 1.75],
+                    ticktext: [allFiles[idx1].name, allFiles[idx2].name],
+                    range: [-0.5, 2.5]
+                },
+                yaxis: {title: 'Energy (eV)'},
+                showlegend: true,
+                annotations: [
+                    {x: 0.25, y: energies1[homoIdx1], text: 'HOMO', showarrow: true, arrowhead: 2, ax: -40},
+                    {x: 0.25, y: energies1[homoIdx1 + 1], text: 'LUMO', showarrow: true, arrowhead: 2, ax: -40},
+                    {x: 1.75, y: energies2[homoIdx2], text: 'HOMO', showarrow: true, arrowhead: 2, ax: 40},
+                    {x: 1.75, y: energies2[homoIdx2 + 1], text: 'LUMO', showarrow: true, arrowhead: 2, ax: 40}
+                ]
+            };
+
+            Plotly.newPlot('energy-diagrams-plot', [occ1, virt1, occ2, virt2], layout, {responsive: true});
+        }
+
+        // Reaction Coordinate Visualization
+        function renderReactionCoordinate() {
+            if (allFiles.length < 2) {
+                alert('Please upload multiple files representing reaction steps');
+                return;
+            }
+
+            const energies = allFiles.map(f => f.data.final_energy || 0);
+            const names = allFiles.map(f => f.name);
+
+            // Convert to relative energies (kcal/mol)
+            const minEnergy = Math.min(...energies);
+            const relativeEnergies = energies.map(e => (e - minEnergy) * 627.509); // Convert Eh to kcal/mol
+
+            const trace = {
+                x: Array.from({length: energies.length}, (_, i) => i),
+                y: relativeEnergies,
+                mode: 'lines+markers',
+                line: {color: '#667eea', width: 3, shape: 'spline'},
+                marker: {size: 12, color: '#f39c12', line: {width: 2, color: '#667eea'}},
+                text: names,
+                hovertemplate: '%{text}<br>Relative Energy: %{y:.2f} kcal/mol<extra></extra>'
+            };
+
+            const layout = {
+                title: 'Reaction Coordinate Diagram',
+                xaxis: {
+                    title: 'Reaction Progress',
+                    tickvals: Array.from({length: energies.length}, (_, i) => i),
+                    ticktext: names.map((n, i) => `Step ${i + 1}`)
+                },
+                yaxis: {title: 'Relative Energy (kcal/mol)'},
+                showlegend: false,
+                shapes: energies.map((_, i) => ({
+                    type: 'line',
+                    x0: i,
+                    x1: i,
+                    y0: 0,
+                    y1: relativeEnergies[i],
+                    line: {color: '#ddd', width: 1, dash: 'dot'}
+                }))
+            };
+
+            Plotly.newPlot('reaction-coordinate-plot', [trace], layout, {responsive: true});
+        }
+
+        // Update renderComparison to include new visualizations
+        const originalRenderComparison = renderComparison;
+        renderComparison = function() {
+            originalRenderComparison();
+            renderRMSDOverlay();
+            renderEnergyDiagramsSideBySide();
+            renderReactionCoordinate();
+        };
+
         // 4.2 Animation Export
         function exportAnimationGIF(plotId, filename) {
             alert('GIF export feature: Use Plotly\'s built-in animation controls and browser screen recording, or click "📷 PNG" to export current frame.');
@@ -5910,6 +6165,394 @@
             } catch (error) {
                 alert(`Error generating share URL: ${error.message}`);
             }
+        }
+
+        // ============ PHASE 6: ENHANCED FEATURES ============
+
+        // Enhanced PDF Report Generation with Plot Capture
+        async function generateEnhancedPDF() {
+            if (!data) {
+                alert('Please load data first');
+                return;
+            }
+
+            setStatus('Generating enhanced PDF report with plots...', true);
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+                let yPos = 20;
+
+                // Title Page
+                pdf.setFontSize(24);
+                pdf.text('ORCA Output', pageWidth / 2, yPos, {align: 'center'});
+                yPos += 10;
+                pdf.setFontSize(18);
+                pdf.text('Analysis Report', pageWidth / 2, yPos, {align: 'center'});
+                yPos += 20;
+
+                // Report metadata
+                pdf.setFontSize(10);
+                pdf.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, yPos, {align: 'center'});
+                yPos += 6;
+                pdf.text(`File: ${allFiles[currentFileIndex]?.name || 'Unknown'}`, pageWidth / 2, yPos, {align: 'center'});
+                yPos += 20;
+
+                // Summary Section
+                pdf.setFontSize(16);
+                pdf.text('1. Calculation Summary', 10, yPos);
+                yPos += 10;
+                pdf.setFontSize(10);
+
+                const summary = [
+                    {label: 'Method', value: data.method || 'N/A'},
+                    {label: 'Basis Set', value: data.basis_set || 'N/A'},
+                    {label: 'Final Energy', value: data.final_energy ? `${data.final_energy.toFixed(6)} Eh` : 'N/A'},
+                    {label: 'HOMO Energy', value: data.homo_energy ? `${data.homo_energy.toFixed(6)} Eh` : 'N/A'},
+                    {label: 'LUMO Energy', value: data.lumo_energy ? `${data.lumo_energy.toFixed(6)} Eh` : 'N/A'},
+                    {label: 'HOMO-LUMO Gap', value: data.homo_energy && data.lumo_energy ? `${((data.lumo_energy - data.homo_energy) * 27.211).toFixed(3)} eV` : 'N/A'},
+                    {label: 'Total Atoms', value: data.coordinates?.length || 'N/A'},
+                    {label: 'SCF Iterations', value: data.scf_energies?.length || 'N/A'},
+                    {label: 'Vibrational Modes', value: data.frequencies?.length || 'N/A'},
+                    {label: 'Total Runtime', value: data.total_run_time?.total_seconds ? `${data.total_run_time.total_seconds.toFixed(2)} s` : 'N/A'}
+                ];
+
+                summary.forEach(item => {
+                    pdf.text(`${item.label}:`, 15, yPos);
+                    pdf.text(item.value.toString(), 65, yPos);
+                    yPos += 6;
+                });
+
+                // Geometry Section
+                if (data.coordinates && data.coordinates.length > 0) {
+                    pdf.addPage();
+                    yPos = 20;
+                    pdf.setFontSize(16);
+                    pdf.text('2. Molecular Geometry', 10, yPos);
+                    yPos += 10;
+                    pdf.setFontSize(9);
+
+                    // Geometry table (first 20 atoms)
+                    const atoms = data.coordinates.slice(0, 20);
+                    atoms.forEach((coord, i) => {
+                        pdf.text(`${i}  ${coord[0]}  ${coord[1]?.toFixed(4)}  ${coord[2]?.toFixed(4)}  ${coord[3]?.toFixed(4)}`, 15, yPos);
+                        yPos += 5;
+                        if (yPos > pageHeight - 20) {
+                            pdf.addPage();
+                            yPos = 20;
+                        }
+                    });
+
+                    if (data.coordinates.length > 20) {
+                        pdf.text(`... and ${data.coordinates.length - 20} more atoms`, 15, yPos);
+                    }
+                }
+
+                // Energy Analysis
+                pdf.addPage();
+                yPos = 20;
+                pdf.setFontSize(16);
+                pdf.text('3. Energy Analysis', 10, yPos);
+                yPos += 10;
+                pdf.setFontSize(10);
+
+                if (data.thermochemistry) {
+                    const thermo = [
+                        {label: 'Gibbs Free Energy', value: data.thermochemistry.gibbs_free_energy?.toFixed(6) + ' Eh' || 'N/A'},
+                        {label: 'Total Enthalpy', value: data.thermochemistry.total_enthalpy?.toFixed(6) + ' Eh' || 'N/A'},
+                        {label: 'Zero Point Energy', value: data.thermochemistry.zero_point_energy?.toFixed(6) + ' Eh' || 'N/A'}
+                    ];
+
+                    thermo.forEach(item => {
+                        pdf.text(`${item.label}: ${item.value}`, 15, yPos);
+                        yPos += 6;
+                    });
+                }
+
+                // Instructions for plot capture
+                pdf.addPage();
+                yPos = 20;
+                pdf.setFontSize(16);
+                pdf.text('4. Visualization Plots', 10, yPos);
+                yPos += 10;
+                pdf.setFontSize(10);
+                pdf.text('To include interactive visualizations in your report:', 15, yPos);
+                yPos += 7;
+                pdf.text('1. Use the 📷 PNG button on each plot to export individually', 20, yPos);
+                yPos += 6;
+                pdf.text('2. Save all required plots to a folder', 20, yPos);
+                yPos += 6;
+                pdf.text('3. Use a PDF editor to combine this report with plot images', 20, yPos);
+                yPos += 6;
+                pdf.text('4. Alternatively, use the browser Print to PDF feature (Ctrl+P) to capture', 20, yPos);
+                yPos += 6;
+                pdf.text('   the entire web page with all visualizations rendered', 20, yPos);
+
+                pdf.save(`orca_enhanced_report_${new Date().getTime()}.pdf`);
+                setStatus('✓ Enhanced PDF report generated', true);
+            } catch (error) {
+                setStatus(`✗ Enhanced PDF generation failed: ${error.message}`, false);
+                console.error('PDF Error:', error);
+            }
+        }
+
+        // LaTeX Export
+        function exportToLaTeX() {
+            if (!data) {
+                alert('Please load data first');
+                return;
+            }
+
+            let latex = `\\documentclass{article}
+\\usepackage{booktabs}
+\\usepackage{siunitx}
+\\usepackage{graphicx}
+\\title{ORCA Output Analysis Report}
+\\author{Generated by ORCA Parser}
+\\date{${new Date().toLocaleDateString()}}
+
+\\begin{document}
+\\maketitle
+
+\\section{Calculation Summary}
+\\begin{table}[h]
+\\centering
+\\begin{tabular}{ll}
+\\toprule
+Property & Value \\\\
+\\midrule
+Method & ${data.method || 'N/A'} \\\\
+Basis Set & ${data.basis_set || 'N/A'} \\\\
+Final Energy & ${data.final_energy?.toFixed(6) || 'N/A'} \\si{\\hartree} \\\\
+HOMO Energy & ${data.homo_energy?.toFixed(6) || 'N/A'} \\si{\\hartree} \\\\
+LUMO Energy & ${data.lumo_energy?.toFixed(6) || 'N/A'} \\si{\\hartree} \\\\
+HOMO-LUMO Gap & ${data.homo_energy && data.lumo_energy ? ((data.lumo_energy - data.homo_energy) * 27.211).toFixed(3) : 'N/A'} \\si{\\electronvolt} \\\\
+SCF Iterations & ${data.scf_energies?.length || 'N/A'} \\\\
+Total Atoms & ${data.coordinates?.length || 'N/A'} \\\\
+\\bottomrule
+\\end{tabular}
+\\caption{Summary of ORCA calculation}
+\\end{table}
+
+`;
+
+            if (data.coordinates && data.coordinates.length > 0 && data.coordinates.length <= 50) {
+                latex += `\\section{Molecular Geometry}
+\\begin{table}[h]
+\\centering
+\\small
+\\begin{tabular}{ccrrr}
+\\toprule
+Atom & Element & X (\\si{\\angstrom}) & Y (\\si{\\angstrom}) & Z (\\si{\\angstrom}) \\\\
+\\midrule
+`;
+                data.coordinates.forEach((coord, i) => {
+                    latex += `${i} & ${coord[0]} & ${coord[1]?.toFixed(4)} & ${coord[2]?.toFixed(4)} & ${coord[3]?.toFixed(4)} \\\\\n`;
+                });
+
+                latex += `\\bottomrule
+\\end{tabular}
+\\caption{Cartesian coordinates of the molecular structure}
+\\end{table}
+
+`;
+            }
+
+            latex += `\\section{Visualization Notes}
+To include plots in this report:
+\\begin{itemize}
+\\item Export individual plots using the PNG export buttons in the web interface
+\\item Save plots to your LaTeX project directory
+\\item Use \\texttt{\\textbackslash includegraphics\\{plotname.png\\}} to embed them
+\\item Example: \\texttt{\\textbackslash includegraphics[width=0.8\\textbackslash textwidth]\\{scf\\_plot.png\\}}
+\\end{itemize}
+
+\\end{document}`;
+
+            const blob = new Blob([latex], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `orca_report_${new Date().getTime()}.tex`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            setStatus('✓ LaTeX file exported successfully', true);
+        }
+
+        // Full Dataset Sharing
+        function shareFullDataset() {
+            if (!data) {
+                alert('Please load data first');
+                return;
+            }
+
+            try {
+                // Create full dataset package
+                const fullData = {
+                    version: '1.0',
+                    timestamp: new Date().toISOString(),
+                    filename: allFiles[currentFileIndex]?.name || 'unknown',
+                    data: data
+                };
+
+                // Convert to JSON
+                const jsonString = JSON.stringify(fullData, null, 2);
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+
+                // Download
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `orca_full_dataset_${new Date().getTime()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                alert('✓ Full dataset exported!\\n\\nThis file contains all parsed data and can be shared with colleagues.\\nRecipients can upload this JSON file to view all visualizations.');
+                setStatus('✓ Full dataset exported', true);
+            } catch (error) {
+                alert(`Error exporting dataset: ${error.message}`);
+            }
+        }
+
+        // Jupyter Notebook Export
+        function exportJupyterNotebook() {
+            if (!data) {
+                alert('Please load data first');
+                return;
+            }
+
+            const notebook = {
+                cells: [
+                    {
+                        cell_type: 'markdown',
+                        metadata: {},
+                        source: [
+                            '# ORCA Output Analysis\\n',
+                            `Generated: ${new Date().toLocaleString()}\\n`,
+                            `\\nFile: ${allFiles[currentFileIndex]?.name || 'Unknown'}`
+                        ]
+                    },
+                    {
+                        cell_type: 'code',
+                        execution_count: null,
+                        metadata: {},
+                        outputs: [],
+                        source: [
+                            'import json\\n',
+                            'import plotly.graph_objects as go\\n',
+                            'import plotly.express as px\\n',
+                            'import pandas as pd\\n',
+                            'import numpy as np'
+                        ]
+                    },
+                    {
+                        cell_type: 'markdown',
+                        metadata: {},
+                        source: ['## Load Data']
+                    },
+                    {
+                        cell_type: 'code',
+                        execution_count: null,
+                        metadata: {},
+                        outputs: [],
+                        source: [
+                            '# Paste the data dictionary below\\n',
+                            `data = ${JSON.stringify(data, null, 2)}`
+                        ]
+                    },
+                    {
+                        cell_type: 'markdown',
+                        metadata: {},
+                        source: ['## Calculation Summary']
+                    },
+                    {
+                        cell_type: 'code',
+                        execution_count: null,
+                        metadata: {},
+                        outputs: [],
+                        source: [
+                            'summary = {\\n',
+                            `    "Method": "${data.method || 'N/A'}",\\n`,
+                            `    "Basis Set": "${data.basis_set || 'N/A'}",\\n`,
+                            `    "Final Energy (Eh)": ${data.final_energy || 'None'},\\n`,
+                            `    "HOMO-LUMO Gap (eV)": ${data.homo_energy && data.lumo_energy ? ((data.lumo_energy - data.homo_energy) * 27.211).toFixed(3) : 'None'},\\n`,
+                            `    "SCF Iterations": ${data.scf_energies?.length || 'None'},\\n`,
+                            `    "Total Atoms": ${data.coordinates?.length || 'None'}\\n`,
+                            '}\\n',
+                            'pd.DataFrame([summary]).T'
+                        ]
+                    },
+                    {
+                        cell_type: 'markdown',
+                        metadata: {},
+                        source: ['## SCF Convergence Plot']
+                    },
+                    {
+                        cell_type: 'code',
+                        execution_count: null,
+                        metadata: {},
+                        outputs: [],
+                        source: [
+                            'if data.get("scf_energies"):\\n',
+                            '    fig = go.Figure()\\n',
+                            '    fig.add_trace(go.Scatter(\\n',
+                            '        x=list(range(1, len(data["scf_energies"]) + 1)),\\n',
+                            '        y=data["scf_energies"],\\n',
+                            '        mode="lines+markers",\\n',
+                            '        name="SCF Energy"\\n',
+                            '    ))\\n',
+                            '    fig.update_layout(\\n',
+                            '        title="SCF Convergence",\\n',
+                            '        xaxis_title="Iteration",\\n',
+                            '        yaxis_title="Energy (Eh)"\\n',
+                            '    )\\n',
+                            '    fig.show()'
+                        ]
+                    },
+                    {
+                        cell_type: 'markdown',
+                        metadata: {},
+                        source: [
+                            '## Additional Analysis\\n',
+                            '\\n',
+                            'Add your own analysis cells below. The data dictionary contains all parsed ORCA output data.'
+                        ]
+                    }
+                ],
+                metadata: {
+                    kernelspec: {
+                        display_name: 'Python 3',
+                        language: 'python',
+                        name: 'python3'
+                    },
+                    language_info: {
+                        name: 'python',
+                        version: '3.8.0'
+                    }
+                },
+                nbformat: 4,
+                nbformat_minor: 4
+            };
+
+            const notebookStr = JSON.stringify(notebook, null, 2);
+            const blob = new Blob([notebookStr], { type: 'application/x-ipynb+json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `orca_analysis_${new Date().getTime()}.ipynb`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            alert('✓ Jupyter Notebook exported!\\n\\nOpen this .ipynb file in Jupyter Lab or Google Colab.\\nAll data is embedded - install plotly, pandas, and numpy to run.');
+            setStatus('✓ Jupyter Notebook exported', true);
+        }
+
+        // Real-time Collaboration (WebSocket placeholder)
+        function enableRealTimeCollaboration() {
+            alert('🚀 Real-time Collaboration\\n\\nThis feature enables multiple users to view and annotate the same analysis session in real-time.\\n\\nComing soon: WebSocket-based live updates, shared annotations, and collaborative filtering.\\n\\nFor now, use the "Share Dataset" feature to send full analysis data to colleagues.');
         }
 
         // Load shared data from URL on page load
