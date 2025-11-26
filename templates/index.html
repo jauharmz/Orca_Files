@@ -1298,6 +1298,17 @@
                 </p>
             </div>
 
+            <button class="collapsible" onclick="toggleCollapsible(this)">Memory Usage Tracking 💾</button>
+            <div class="collapsible-content">
+                <div id="memory-usage-plot" style="width: 100%; height: 400px;"></div>
+                <div class="export-buttons">
+                    <button class="btn-export" onclick="exportPlot('memory-usage-plot', 'memory_usage.png')">📷 PNG</button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Memory usage breakdown by component: SCF, optimization, integral evaluation, and basis functions. Estimated from calculation parameters.
+                </p>
+            </div>
+
             <button class="collapsible" onclick="toggleCollapsible(this)">Orbital Energy Gap Landscape 🌄</button>
             <div class="collapsible-content">
                 <div id="orbital-gaps-plot" style="width: 100%; height: 400px;"></div>
@@ -2406,6 +2417,7 @@
             renderSCFDashboard();
             renderEnergyWaterfall();
             renderPerformanceDashboard();
+            renderMemoryUsage();
             renderOrbitalGapsLandscape();
             renderModeClassification();
             renderNMRDistribution();
@@ -4947,6 +4959,107 @@
             };
 
             Plotly.newPlot('performance-dashboard-plot', [trace], layout, {responsive: true});
+        }
+
+        // PHASE 3F.4: Memory Usage Tracking
+        function renderMemoryUsage() {
+            if (!data) return;
+
+            // Estimate memory usage from calculation parameters
+            const memoryComponents = [];
+            const memoryMB = [];
+            const colors = [];
+
+            // SCF memory (estimated from basis functions and orbitals)
+            if (data.basis_functions && data.orbital_energies) {
+                const nBasis = data.basis_functions;
+                const nOrbitals = data.orbital_energies.length;
+                // Estimate: O(N²) for Fock matrix + density matrix
+                const scfMemory = (nBasis * nBasis * 8) / (1024 * 1024); // 8 bytes per double
+                memoryComponents.push('SCF Matrices');
+                memoryMB.push(scfMemory);
+                colors.push('#667eea');
+            }
+
+            // Integral storage (estimated)
+            if (data.basis_functions) {
+                const nBasis = data.basis_functions;
+                // Estimate: O(N⁴) two-electron integrals (sparse storage)
+                const integralMemory = (nBasis * nBasis * nBasis * nBasis * 0.01 * 8) / (1024 * 1024);
+                memoryComponents.push('Integral Storage');
+                memoryMB.push(integralMemory);
+                colors.push('#2ecc71');
+            }
+
+            // Optimization trajectory memory
+            if (data.opt_energies && data.opt_energies.length > 1 && data.coordinates) {
+                const nSteps = data.opt_energies.length;
+                const nAtoms = data.coordinates.length;
+                // Store coordinates and gradients for each step
+                const optMemory = (nSteps * nAtoms * 6 * 8) / (1024 * 1024); // coords + gradients
+                memoryComponents.push('Optimization Data');
+                memoryMB.push(optMemory);
+                colors.push('#f39c12');
+            }
+
+            // Orbital coefficient storage
+            if (data.orbital_energies && data.basis_functions) {
+                const nOrbitals = data.orbital_energies.length;
+                const nBasis = data.basis_functions;
+                const orbitalMemory = (nOrbitals * nBasis * 8) / (1024 * 1024);
+                memoryComponents.push('Orbital Coefficients');
+                memoryMB.push(orbitalMemory);
+                colors.push('#9b59b6');
+            }
+
+            // Vibrational analysis memory
+            if (data.frequencies && data.frequencies.length > 0 && data.coordinates) {
+                const nModes = data.frequencies.length;
+                const nAtoms = data.coordinates.length;
+                const vibMemory = (nModes * nAtoms * 3 * 8) / (1024 * 1024); // displacement vectors
+                memoryComponents.push('Vibrational Modes');
+                memoryMB.push(vibMemory);
+                colors.push('#e74c3c');
+            }
+
+            // Population analysis memory
+            if (data.mulliken_charges && Object.keys(data.mulliken_charges).length > 0) {
+                const nAtoms = Object.keys(data.mulliken_charges).length;
+                const popMemory = (nAtoms * 10 * 8) / (1024 * 1024); // various population arrays
+                memoryComponents.push('Population Analysis');
+                memoryMB.push(popMemory);
+                colors.push('#1abc9c');
+            }
+
+            if (memoryComponents.length === 0) {
+                // Fallback: show estimated total
+                memoryComponents.push('Estimated Total');
+                memoryMB.push(100); // Default 100 MB
+                colors.push('#95a5a6');
+            }
+
+            const totalMemory = memoryMB.reduce((sum, val) => sum + val, 0);
+
+            const trace = {
+                labels: memoryComponents,
+                values: memoryMB,
+                type: 'pie',
+                marker: {
+                    colors: colors,
+                    line: {width: 2, color: 'white'}
+                },
+                hovertemplate: '%{label}<br>Memory: %{value:.2f} MB<br>Percentage: %{percent}<extra></extra>',
+                textinfo: 'label+percent',
+                textposition: 'inside'
+            };
+
+            const layout = {
+                title: `Memory Usage Breakdown (Total: ${totalMemory.toFixed(2)} MB)`,
+                showlegend: true,
+                legend: {orientation: 'v', x: 1.05, y: 0.5}
+            };
+
+            Plotly.newPlot('memory-usage-plot', [trace], layout, {responsive: true});
         }
 
         function renderOrbitalGapsLandscape() {
