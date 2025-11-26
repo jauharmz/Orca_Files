@@ -24,7 +24,8 @@ from visualization_utils import (
     get_color_palette,
     get_ir_region_boundaries,
     get_ir_region_labels,
-    normalize_spectrum
+    normalize_spectrum,
+    find_optimal_label_positions
 )
 
 logger = logging.getLogger(__name__)
