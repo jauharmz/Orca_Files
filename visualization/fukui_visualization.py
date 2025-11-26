@@ -9,8 +9,8 @@ Create visualizations for Fukui function analysis including:
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from typing import Optional, Tuple
 import logging
 
@@ -24,7 +24,7 @@ def create_fukui_bar_plot(
     dpi: int = 300,
     show_labels: bool = True,
     top_n: Optional[int] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create bar plot visualization of Fukui indices.
 
@@ -37,7 +37,7 @@ def create_fukui_bar_plot(
         top_n: Only show top N most reactive atoms (None = show all)
 
     Returns:
-        Matplotlib figure object
+        Plotly figure object
     """
     if not fukui_data.atomic_fukui:
         raise ValueError("No Fukui data available")
@@ -56,109 +56,119 @@ def create_fukui_bar_plot(
     dual = np.array([atom.dual_descriptor for atom in sorted_atoms])
 
     x = np.arange(n_atoms)
-    width = 0.2
 
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=figsize)
+    # Create subplots
+    fig = make_subplots(
+        rows=2, cols=2,
+        subplot_titles=(
+            'Electrophilic Attack Sites (High f⁺)',
+            'Nucleophilic Attack Sites (High f⁻)',
+            'Radical Attack Sites (High f⁰)',
+            'Dual Descriptor (Δf = f⁻ - f⁺)'
+        ),
+        vertical_spacing=0.15,
+        horizontal_spacing=0.1
+    )
 
     # Plot 1: f⁺ (nucleophilic Fukui - electrophilic attack sites)
-    bars1 = ax1.bar(x, f_plus, width=0.6, color='#e74c3c', alpha=0.7, edgecolor='black')
-    ax1.set_xlabel('Atom Index', fontsize=11, fontweight='bold')
-    ax1.set_ylabel('f⁺ (Nucleophilic Fukui)', fontsize=11, fontweight='bold')
-    ax1.set_title('Electrophilic Attack Sites (High f⁺)', fontsize=12, fontweight='bold')
-    ax1.axhline(y=0, color='gray', linestyle='--', linewidth=0.8)
-    ax1.grid(True, alpha=0.3, axis='y')
-
-    if show_labels:
-        ax1.set_xticks(x)
-        ax1.set_xticklabels([f"{idx}\n{elem}" for idx, elem in zip(atom_indices, elements)],
-                           rotation=0, fontsize=8)
-    else:
-        ax1.set_xticks(x)
-        ax1.set_xticklabels(atom_indices, rotation=45)
-
-    # Highlight top 3
-    top_3_indices = np.argsort(f_plus)[-3:]
-    for idx in top_3_indices:
-        bars1[idx].set_color('#c0392b')
-        bars1[idx].set_linewidth(2)
+    colors_fplus = ['#c0392b' if i in np.argsort(f_plus)[-3:] else '#e74c3c' for i in range(n_atoms)]
+    fig.add_trace(go.Bar(
+        x=x, y=f_plus,
+        marker_color=colors_fplus,
+        marker_line=dict(color='black', width=1),
+        opacity=0.7,
+        showlegend=False,
+        hovertemplate='%{y:.4f}<extra></extra>'
+    ), row=1, col=1)
 
     # Plot 2: f⁻ (electrophilic Fukui - nucleophilic attack sites)
-    bars2 = ax2.bar(x, f_minus, width=0.6, color='#3498db', alpha=0.7, edgecolor='black')
-    ax2.set_xlabel('Atom Index', fontsize=11, fontweight='bold')
-    ax2.set_ylabel('f⁻ (Electrophilic Fukui)', fontsize=11, fontweight='bold')
-    ax2.set_title('Nucleophilic Attack Sites (High f⁻)', fontsize=12, fontweight='bold')
-    ax2.axhline(y=0, color='gray', linestyle='--', linewidth=0.8)
-    ax2.grid(True, alpha=0.3, axis='y')
-
-    if show_labels:
-        ax2.set_xticks(x)
-        ax2.set_xticklabels([f"{idx}\n{elem}" for idx, elem in zip(atom_indices, elements)],
-                           rotation=0, fontsize=8)
-    else:
-        ax2.set_xticks(x)
-        ax2.set_xticklabels(atom_indices, rotation=45)
-
-    # Highlight top 3
-    top_3_indices = np.argsort(f_minus)[-3:]
-    for idx in top_3_indices:
-        bars2[idx].set_color('#2980b9')
-        bars2[idx].set_linewidth(2)
+    colors_fminus = ['#2980b9' if i in np.argsort(f_minus)[-3:] else '#3498db' for i in range(n_atoms)]
+    fig.add_trace(go.Bar(
+        x=x, y=f_minus,
+        marker_color=colors_fminus,
+        marker_line=dict(color='black', width=1),
+        opacity=0.7,
+        showlegend=False,
+        hovertemplate='%{y:.4f}<extra></extra>'
+    ), row=1, col=2)
 
     # Plot 3: f⁰ (radical Fukui - radical attack sites)
-    bars3 = ax3.bar(x, f_zero, width=0.6, color='#2ecc71', alpha=0.7, edgecolor='black')
-    ax3.set_xlabel('Atom Index', fontsize=11, fontweight='bold')
-    ax3.set_ylabel('f⁰ (Radical Fukui)', fontsize=11, fontweight='bold')
-    ax3.set_title('Radical Attack Sites (High f⁰)', fontsize=12, fontweight='bold')
-    ax3.axhline(y=0, color='gray', linestyle='--', linewidth=0.8)
-    ax3.grid(True, alpha=0.3, axis='y')
-
-    if show_labels:
-        ax3.set_xticks(x)
-        ax3.set_xticklabels([f"{idx}\n{elem}" for idx, elem in zip(atom_indices, elements)],
-                           rotation=0, fontsize=8)
-    else:
-        ax3.set_xticks(x)
-        ax3.set_xticklabels(atom_indices, rotation=45)
-
-    # Highlight top 3
-    top_3_indices = np.argsort(f_zero)[-3:]
-    for idx in top_3_indices:
-        bars3[idx].set_color('#27ae60')
-        bars3[idx].set_linewidth(2)
+    colors_fzero = ['#27ae60' if i in np.argsort(f_zero)[-3:] else '#2ecc71' for i in range(n_atoms)]
+    fig.add_trace(go.Bar(
+        x=x, y=f_zero,
+        marker_color=colors_fzero,
+        marker_line=dict(color='black', width=1),
+        opacity=0.7,
+        showlegend=False,
+        hovertemplate='%{y:.4f}<extra></extra>'
+    ), row=2, col=1)
 
     # Plot 4: Dual descriptor (Δf = f⁻ - f⁺)
-    colors = ['#3498db' if d > 0 else '#e74c3c' for d in dual]
-    bars4 = ax4.bar(x, dual, width=0.6, color=colors, alpha=0.7, edgecolor='black')
-    ax4.set_xlabel('Atom Index', fontsize=11, fontweight='bold')
-    ax4.set_ylabel('Δf (Dual Descriptor)', fontsize=11, fontweight='bold')
-    ax4.set_title('Dual Descriptor (Δf = f⁻ - f⁺)', fontsize=12, fontweight='bold')
-    ax4.axhline(y=0, color='black', linestyle='-', linewidth=1.5)
-    ax4.grid(True, alpha=0.3, axis='y')
-
-    if show_labels:
-        ax4.set_xticks(x)
-        ax4.set_xticklabels([f"{idx}\n{elem}" for idx, elem in zip(atom_indices, elements)],
-                           rotation=0, fontsize=8)
-    else:
-        ax4.set_xticks(x)
-        ax4.set_xticklabels(atom_indices, rotation=45)
+    colors_dual = ['#3498db' if d > 0 else '#e74c3c' for d in dual]
+    fig.add_trace(go.Bar(
+        x=x, y=dual,
+        marker_color=colors_dual,
+        marker_line=dict(color='black', width=1),
+        opacity=0.7,
+        showlegend=False,
+        hovertemplate='%{y:.4f}<extra></extra>'
+    ), row=2, col=2)
 
     # Add legend to dual descriptor
-    from matplotlib.patches import Patch
-    legend_elements = [
-        Patch(facecolor='#3498db', alpha=0.7, label='Nucleophilic (Δf > 0)'),
-        Patch(facecolor='#e74c3c', alpha=0.7, label='Electrophilic (Δf < 0)')
-    ]
-    ax4.legend(handles=legend_elements, loc='upper right', fontsize=9)
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None],
+        mode='markers',
+        marker=dict(size=10, color='#3498db', opacity=0.7),
+        name='Nucleophilic (Δf > 0)',
+        showlegend=True
+    ))
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None],
+        mode='markers',
+        marker=dict(size=10, color='#e74c3c', opacity=0.7),
+        name='Electrophilic (Δf < 0)',
+        showlegend=True
+    ))
 
-    # Add global title with method
-    fig.suptitle(f'Fukui Function Analysis ({fukui_data.method.upper()} Charges)',
-                 fontsize=14, fontweight='bold', y=0.995)
+    # Update axes
+    if show_labels:
+        ticktext = [f"{idx}<br>{elem}" for idx, elem in zip(atom_indices, elements)]
+    else:
+        ticktext = [str(idx) for idx in atom_indices]
 
-    plt.tight_layout(rect=[0, 0, 1, 0.99])
+    for row in range(1, 3):
+        for col in range(1, 3):
+            fig.update_xaxes(
+                title_text='Atom Index', row=row, col=col,
+                tickmode='array', tickvals=x, ticktext=ticktext,
+                tickfont=dict(size=8)
+            )
+            fig.update_yaxes(showgrid=True, gridcolor='lightgray', row=row, col=col)
+
+    fig.update_yaxes(title_text='f⁺ (Nucleophilic Fukui)', row=1, col=1)
+    fig.update_yaxes(title_text='f⁻ (Electrophilic Fukui)', row=1, col=2)
+    fig.update_yaxes(title_text='f⁰ (Radical Fukui)', row=2, col=1)
+    fig.update_yaxes(title_text='Δf (Dual Descriptor)', row=2, col=2)
+
+    # Add horizontal lines at y=0
+    for row, col in [(1, 1), (1, 2), (2, 1)]:
+        fig.add_hline(y=0, line=dict(color='gray', dash='dash', width=0.8), row=row, col=col)
+    fig.add_hline(y=0, line=dict(color='black', width=1.5), row=2, col=2)
+
+    fig.update_layout(
+        title_text=f'Fukui Function Analysis ({fukui_data.method.upper()} Charges)',
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        showlegend=True,
+        legend=dict(x=0.75, y=0.25)
+    )
 
     if output_file:
-        plt.savefig(output_file, dpi=dpi, bbox_inches='tight')
+        if output_file.endswith('.html'):
+            fig.write_html(output_file)
+        else:
+            fig.write_image(output_file, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved Fukui bar plot to {output_file}")
 
     return fig
@@ -170,7 +180,7 @@ def create_fukui_comparison_plot(
     figsize: Tuple[float, float] = (14, 6),
     dpi: int = 300,
     top_n: int = 15
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create side-by-side comparison of all three Fukui indices.
 
@@ -182,7 +192,7 @@ def create_fukui_comparison_plot(
         top_n: Show top N atoms by f⁰
 
     Returns:
-        Matplotlib figure object
+        Plotly figure object
     """
     if not fukui_data.atomic_fukui:
         raise ValueError("No Fukui data available")
@@ -199,30 +209,59 @@ def create_fukui_comparison_plot(
     x = np.arange(n_atoms)
     width = 0.25
 
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = go.Figure()
 
     # Plot all three Fukui indices
-    bars1 = ax.bar(x - width, f_plus, width, label='f⁺ (Electrophilic attack)',
-                   color='#e74c3c', alpha=0.7, edgecolor='black')
-    bars2 = ax.bar(x, f_minus, width, label='f⁻ (Nucleophilic attack)',
-                   color='#3498db', alpha=0.7, edgecolor='black')
-    bars3 = ax.bar(x + width, f_zero, width, label='f⁰ (Radical attack)',
-                   color='#2ecc71', alpha=0.7, edgecolor='black')
+    fig.add_trace(go.Bar(
+        x=x - width, y=f_plus, width=width,
+        name='f⁺ (Electrophilic attack)',
+        marker=dict(color='#e74c3c', line=dict(color='black', width=1)),
+        opacity=0.7
+    ))
 
-    ax.set_xlabel('Atom', fontsize=12, fontweight='bold')
-    ax.set_ylabel('Fukui Index Value', fontsize=12, fontweight='bold')
-    ax.set_title(f'Fukui Indices Comparison (Top {top_n} Reactive Atoms)',
-                 fontsize=13, fontweight='bold')
-    ax.set_xticks(x)
-    ax.set_xticklabels(atom_labels, rotation=45, ha='right', fontsize=9)
-    ax.legend(fontsize=10, loc='upper right')
-    ax.axhline(y=0, color='gray', linestyle='--', linewidth=0.8)
-    ax.grid(True, alpha=0.3, axis='y')
+    fig.add_trace(go.Bar(
+        x=x, y=f_minus, width=width,
+        name='f⁻ (Nucleophilic attack)',
+        marker=dict(color='#3498db', line=dict(color='black', width=1)),
+        opacity=0.7
+    ))
 
-    plt.tight_layout()
+    fig.add_trace(go.Bar(
+        x=x + width, y=f_zero, width=width,
+        name='f⁰ (Radical attack)',
+        marker=dict(color='#2ecc71', line=dict(color='black', width=1)),
+        opacity=0.7
+    ))
+
+    fig.add_hline(y=0, line=dict(color='gray', dash='dash', width=0.8))
+
+    fig.update_layout(
+        xaxis=dict(
+            title='Atom',
+            tickmode='array',
+            tickvals=x,
+            ticktext=atom_labels,
+            tickangle=45,
+            tickfont=dict(size=9)
+        ),
+        yaxis=dict(
+            title='Fukui Index Value',
+            showgrid=True,
+            gridcolor='lightgray'
+        ),
+        title=f'Fukui Indices Comparison (Top {top_n} Reactive Atoms)',
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        barmode='group',
+        legend=dict(x=1.0, y=1.0, xanchor='right')
+    )
 
     if output_file:
-        plt.savefig(output_file, dpi=dpi, bbox_inches='tight')
+        if output_file.endswith('.html'):
+            fig.write_html(output_file)
+        else:
+            fig.write_image(output_file, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved Fukui comparison plot to {output_file}")
 
     return fig
@@ -233,7 +272,7 @@ def create_global_descriptors_plot(
     output_file: Optional[str] = None,
     figsize: Tuple[float, float] = (12, 8),
     dpi: int = 300
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create visualization of global reactivity descriptors.
 
@@ -244,9 +283,14 @@ def create_global_descriptors_plot(
         dpi: Resolution for saved figure
 
     Returns:
-        Matplotlib figure object
+        Plotly figure object
     """
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    fig = make_subplots(
+        rows=1, cols=2,
+        column_widths=[0.4, 0.6],
+        specs=[[{"type": "bar"}, {"type": "table"}]],
+        subplot_titles=('Global Reactivity Descriptors', 'Top Reactive Sites')
+    )
 
     # Collect global descriptors
     descriptors = []
@@ -254,108 +298,88 @@ def create_global_descriptors_plot(
     colors = []
 
     if fukui_data.ionization_potential is not None:
-        descriptors.append('IP\n(Ionization\nPotential)')
+        descriptors.append('IP<br>(Ionization<br>Potential)')
         values.append(fukui_data.ionization_potential)
         colors.append('#e74c3c')
 
     if fukui_data.electron_affinity is not None:
-        descriptors.append('EA\n(Electron\nAffinity)')
+        descriptors.append('EA<br>(Electron<br>Affinity)')
         values.append(fukui_data.electron_affinity)
         colors.append('#3498db')
 
     if fukui_data.electronegativity is not None:
-        descriptors.append('χ\n(Electro-\nnegativity)')
+        descriptors.append('χ<br>(Electro-<br>negativity)')
         values.append(fukui_data.electronegativity)
         colors.append('#9b59b6')
 
     if fukui_data.chemical_hardness is not None:
-        descriptors.append('η\n(Chemical\nHardness)')
+        descriptors.append('η<br>(Chemical<br>Hardness)')
         values.append(fukui_data.chemical_hardness)
         colors.append('#f39c12')
 
     if fukui_data.electrophilicity_index is not None:
-        descriptors.append('ω\n(Electro-\nphilicity)')
+        descriptors.append('ω<br>(Electro-<br>philicity)')
         values.append(fukui_data.electrophilicity_index)
         colors.append('#e67e22')
 
     # Plot 1: Global descriptors bar chart
     if descriptors:
-        x = np.arange(len(descriptors))
-        bars = ax1.bar(x, values, color=colors, alpha=0.7, edgecolor='black', linewidth=1.5)
-        ax1.set_ylabel('Value (eV)', fontsize=12, fontweight='bold')
-        ax1.set_title('Global Reactivity Descriptors', fontsize=13, fontweight='bold')
-        ax1.set_xticks(x)
-        ax1.set_xticklabels(descriptors, fontsize=10)
-        ax1.grid(True, alpha=0.3, axis='y')
+        fig.add_trace(go.Bar(
+            x=descriptors, y=values,
+            marker=dict(color=colors, line=dict(color='black', width=1.5)),
+            opacity=0.7,
+            text=[f'{v:.3f}' for v in values],
+            textposition='outside',
+            textfont=dict(size=9),
+            showlegend=False
+        ), row=1, col=1)
 
-        # Add value labels on bars
-        for bar, val in zip(bars, values):
-            height = bar.get_height()
-            ax1.text(bar.get_x() + bar.get_width() / 2., height,
-                    f'{val:.3f}',
-                    ha='center', va='bottom', fontsize=9, fontweight='bold')
-    else:
-        ax1.text(0.5, 0.5, 'No global descriptors available',
-                ha='center', va='center', transform=ax1.transAxes, fontsize=12)
-        ax1.set_xlim(0, 1)
-        ax1.set_ylim(0, 1)
+        fig.update_yaxes(title_text='Value (eV)', showgrid=True, gridcolor='lightgray', row=1, col=1)
 
-    # Plot 2: Top reactive sites summary
+    # Plot 2: Top reactive sites table
     if fukui_data.atomic_fukui:
-        top_f_plus = fukui_data.get_max_f_plus()
-        top_f_minus = fukui_data.get_max_f_minus()
-
-        # Get top 5 for each
         sorted_f_plus = sorted(fukui_data.atomic_fukui, key=lambda x: x.f_plus, reverse=True)[:5]
         sorted_f_minus = sorted(fukui_data.atomic_fukui, key=lambda x: x.f_minus, reverse=True)[:5]
 
-        ax2.axis('off')
-
-        # Title
-        ax2.text(0.5, 0.95, 'Top Reactive Sites', ha='center', va='top',
-                fontsize=13, fontweight='bold', transform=ax2.transAxes)
-
-        # Electrophilic attack sites (f⁺)
-        y_pos = 0.82
-        ax2.text(0.05, y_pos, 'Electrophilic Attack Sites (f⁺):', ha='left', va='top',
-                fontsize=11, fontweight='bold', color='#e74c3c', transform=ax2.transAxes)
-        y_pos -= 0.06
-        for i, atom in enumerate(sorted_f_plus, 1):
-            text = f"{i}. Atom {atom.atom_index} ({atom.element}): f⁺ = {atom.f_plus:.4f}"
-            ax2.text(0.08, y_pos, text, ha='left', va='top',
-                    fontsize=9, transform=ax2.transAxes, family='monospace')
-            y_pos -= 0.05
-
-        # Nucleophilic attack sites (f⁻)
-        y_pos -= 0.04
-        ax2.text(0.05, y_pos, 'Nucleophilic Attack Sites (f⁻):', ha='left', va='top',
-                fontsize=11, fontweight='bold', color='#3498db', transform=ax2.transAxes)
-        y_pos -= 0.06
-        for i, atom in enumerate(sorted_f_minus, 1):
-            text = f"{i}. Atom {atom.atom_index} ({atom.element}): f⁻ = {atom.f_minus:.4f}"
-            ax2.text(0.08, y_pos, text, ha='left', va='top',
-                    fontsize=9, transform=ax2.transAxes, family='monospace')
-            y_pos -= 0.05
-
-        # Add interpretation guide
-        y_pos -= 0.04
-        ax2.text(0.05, y_pos, 'Interpretation:', ha='left', va='top',
-                fontsize=10, fontweight='bold', style='italic', transform=ax2.transAxes)
-        y_pos -= 0.05
-        guide_text = [
-            "• High f⁺: Susceptible to electrophilic attack",
-            "• High f⁻: Susceptible to nucleophilic attack",
-            "• For degradation: High f⁺ or f⁻ = reactive sites"
+        # Prepare table data
+        header = ['Type', 'Atom', 'Index Value']
+        cell_values = [
+            ['f⁺'] * 5 + ['f⁻'] * 5,
+            [f"{atom.atom_index} ({atom.element})" for atom in sorted_f_plus] +
+            [f"{atom.atom_index} ({atom.element})" for atom in sorted_f_minus],
+            [f"{atom.f_plus:.4f}" for atom in sorted_f_plus] +
+            [f"{atom.f_minus:.4f}" for atom in sorted_f_minus]
         ]
-        for line in guide_text:
-            ax2.text(0.08, y_pos, line, ha='left', va='top',
-                    fontsize=8, transform=ax2.transAxes)
-            y_pos -= 0.04
 
-    plt.tight_layout()
+        colors_col = ['#ffe6e6'] * 5 + ['#e6f2ff'] * 5
+
+        fig.add_trace(go.Table(
+            header=dict(
+                values=header,
+                fill_color='#4472C4',
+                font=dict(color='white', size=11),
+                align='center'
+            ),
+            cells=dict(
+                values=cell_values,
+                fill_color=[colors_col, 'white', 'white'],
+                align='center',
+                font=dict(size=9, family='monospace')
+            )
+        ), row=1, col=2)
+
+    fig.update_layout(
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        showlegend=False
+    )
 
     if output_file:
-        plt.savefig(output_file, dpi=dpi, bbox_inches='tight')
+        if output_file.endswith('.html'):
+            fig.write_html(output_file)
+        else:
+            fig.write_image(output_file, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved global descriptors plot to {output_file}")
 
     return fig
@@ -367,7 +391,7 @@ def create_fukui_heatmap(
     figsize: Tuple[float, float] = (14, 8),
     dpi: int = 300,
     max_atoms: int = 30
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create heatmap of Fukui indices across all atoms.
 
@@ -379,7 +403,7 @@ def create_fukui_heatmap(
         max_atoms: Maximum number of atoms to display
 
     Returns:
-        Matplotlib figure object
+        Plotly figure object
     """
     if not fukui_data.atomic_fukui:
         raise ValueError("No Fukui data available")
@@ -397,38 +421,44 @@ def create_fukui_heatmap(
         data[3, i] = atom.dual_descriptor
 
     atom_labels = [f"{atom.atom_index}-{atom.element}" for atom in sorted_atoms]
-    fukui_labels = ['f⁺\n(Electrophilic\nattack)', 'f⁻\n(Nucleophilic\nattack)',
-                    'f⁰\n(Radical\nattack)', 'Δf\n(Dual\ndescriptor)']
+    fukui_labels = ['f⁺<br>(Electrophilic<br>attack)', 'f⁻<br>(Nucleophilic<br>attack)',
+                    'f⁰<br>(Radical<br>attack)', 'Δf<br>(Dual<br>descriptor)']
 
-    fig, ax = plt.subplots(figsize=figsize)
-
-    # Create heatmap
-    im = ax.imshow(data, cmap='RdYlBu_r', aspect='auto', interpolation='nearest')
-
-    # Set ticks
-    ax.set_xticks(np.arange(n_atoms))
-    ax.set_yticks(np.arange(4))
-    ax.set_xticklabels(atom_labels, rotation=45, ha='right', fontsize=8)
-    ax.set_yticklabels(fukui_labels, fontsize=10)
-
-    # Add colorbar
-    cbar = plt.colorbar(im, ax=ax, pad=0.02)
-    cbar.set_label('Fukui Index Value', rotation=270, labelpad=20, fontsize=11, fontweight='bold')
-
-    # Add value annotations
+    # Create annotations for values
+    annotations = []
     for i in range(4):
         for j in range(n_atoms):
-            text = ax.text(j, i, f'{data[i, j]:.3f}',
-                          ha="center", va="center", color="black", fontsize=6)
+            annotations.append(
+                dict(
+                    x=j, y=i,
+                    text=f'{data[i, j]:.3f}',
+                    showarrow=False,
+                    font=dict(size=6, color='black')
+                )
+            )
 
-    ax.set_title(f'Fukui Indices Heatmap ({fukui_data.method.upper()} Charges)',
-                 fontsize=13, fontweight='bold', pad=10)
-    ax.set_xlabel('Atom Index', fontsize=11, fontweight='bold')
+    fig = go.Figure(data=go.Heatmap(
+        z=data,
+        x=atom_labels,
+        y=fukui_labels,
+        colorscale='RdYlBu_r',
+        colorbar=dict(title='Fukui Index Value')
+    ))
 
-    plt.tight_layout()
+    fig.update_layout(
+        title=f'Fukui Indices Heatmap ({fukui_data.method.upper()} Charges)',
+        xaxis=dict(title='Atom Index', tickangle=45, tickfont=dict(size=8)),
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        annotations=annotations
+    )
 
     if output_file:
-        plt.savefig(output_file, dpi=dpi, bbox_inches='tight')
+        if output_file.endswith('.html'):
+            fig.write_html(output_file)
+        else:
+            fig.write_image(output_file, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved Fukui heatmap to {output_file}")
 
     return fig

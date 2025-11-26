@@ -11,8 +11,8 @@ Based on advanced visualization needs from ORCA output analysis.
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from typing import List, Dict, Optional, Tuple, Callable, Any
 import logging
 
@@ -52,54 +52,67 @@ class SubplotLayout:
         self.cols = cols
         self.figsize = figsize
 
-        self.fig = plt.figure(figsize=figsize)
-        self.gs = gridspec.GridSpec(rows, cols, figure=self.fig,
-                                   height_ratios=height_ratios,
-                                   width_ratios=width_ratios,
-                                   hspace=hspace, wspace=wspace)
+        # Create subplots with specs
+        specs = [[{"secondary_y": False} for _ in range(cols)] for _ in range(rows)]
+
+        self.fig = make_subplots(
+            rows=rows, cols=cols,
+            row_heights=height_ratios,
+            column_widths=width_ratios,
+            vertical_spacing=hspace,
+            horizontal_spacing=wspace,
+            specs=specs
+        )
 
         self.axes = {}
+        self.current_row = 1
+        self.current_col = 1
+
         logger.info(f"Created {rows}x{cols} subplot layout")
 
     def add_subplot(self, row: int, col: int,
                    rowspan: int = 1, colspan: int = 1,
-                   name: Optional[str] = None) -> plt.Axes:
+                   name: Optional[str] = None) -> Tuple[int, int]:
         """
         Add a subplot to the layout.
 
         Args:
-            row: Starting row (0-indexed)
-            col: Starting column (0-indexed)
+            row: Starting row (0-indexed, will be converted to 1-indexed for Plotly)
+            col: Starting column (0-indexed, will be converted to 1-indexed for Plotly)
             rowspan: Number of rows to span
             colspan: Number of columns to span
             name: Optional name for referencing this subplot
 
         Returns:
-            matplotlib Axes object
+            (row, col) tuple for plotly (1-indexed)
         """
-        ax = self.fig.add_subplot(self.gs[row:row+rowspan, col:col+colspan])
+        # Convert to 1-indexed for Plotly
+        plotly_row = row + 1
+        plotly_col = col + 1
 
         if name is None:
             name = f"ax_{row}_{col}"
 
-        self.axes[name] = ax
-        logger.debug(f"Added subplot '{name}' at ({row},{col}) with span ({rowspan},{colspan})")
+        self.axes[name] = (plotly_row, plotly_col)
+        logger.debug(f"Added subplot '{name}' at ({plotly_row},{plotly_col})")
 
-        return ax
+        return plotly_row, plotly_col
 
-    def get_axis(self, name: str) -> Optional[plt.Axes]:
-        """Get axis by name."""
+    def get_axis(self, name: str) -> Optional[Tuple[int, int]]:
+        """Get axis location by name."""
         return self.axes.get(name)
 
     def save(self, path: str, dpi: int = 300):
         """Save figure to file."""
-        self.fig.savefig(path, dpi=dpi, bbox_inches='tight')
+        if path.endswith('.html'):
+            self.fig.write_html(path)
+        else:
+            self.fig.write_image(path, width=self.figsize[0] * 80, height=self.figsize[1] * 80, scale=3)
         logger.info(f"Saved figure to {path}")
 
     def show(self):
         """Display figure."""
-        plt.tight_layout()
-        plt.show()
+        self.fig.show()
 
 
 def create_ir_raman_comparison(
@@ -108,7 +121,7 @@ def create_ir_raman_comparison(
     layout: str = 'vertical',
     figsize: Optional[Tuple[float, float]] = None,
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create side-by-side or stacked IR and Raman comparison.
 
@@ -120,7 +133,7 @@ def create_ir_raman_comparison(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        plotly Figure object
     """
     from visualization_utils import gaussian_broadening, normalize_spectrum
 
@@ -136,15 +149,14 @@ def create_ir_raman_comparison(
         if figsize is None:
             figsize = (16, 6)
 
-    subplot_layout = SubplotLayout(rows, cols, figsize=figsize,
-                                   hspace=0.3, wspace=0.3)
+    fig = make_subplots(
+        rows=rows, cols=cols,
+        vertical_spacing=0.15,
+        horizontal_spacing=0.1,
+        subplot_titles=("IR Spectrum", "Raman Spectrum") if layout == 'horizontal' else None
+    )
 
-    # IR subplot
-    if layout == 'vertical':
-        ax_ir = subplot_layout.add_subplot(0, 0, name='ir')
-    else:
-        ax_ir = subplot_layout.add_subplot(0, 0, name='ir')
-
+    # Process IR data
     ir_freq = np.array(ir_data['frequencies'])
     ir_inten = np.array(ir_data['intensities'])
 
@@ -152,21 +164,15 @@ def create_ir_raman_comparison(
     ir_spectrum = gaussian_broadening(x_ir, list(zip(ir_freq, ir_inten)), fwhm=20.0)
     ir_spectrum = normalize_spectrum(ir_spectrum)
 
-    ax_ir.plot(x_ir, ir_spectrum, 'b-', linewidth=1.5)
-    ax_ir.invert_xaxis()
-    ax_ir.set_xlabel('Wavenumber (cm⁻¹)', fontweight='bold')
-    ax_ir.set_ylabel('Normalized Intensity', fontweight='bold')
-    ax_ir.set_title('IR Spectrum', fontweight='bold')
-    ax_ir.grid(True, alpha=0.3)
-    ax_ir.spines['top'].set_visible(False)
-    ax_ir.spines['right'].set_visible(False)
+    # IR subplot
+    ir_row, ir_col = (1, 1) if layout == 'vertical' else (1, 1)
+    fig.add_trace(go.Scatter(
+        x=x_ir, y=ir_spectrum,
+        mode='lines', name='IR',
+        line=dict(color='blue', width=1.5)
+    ), row=ir_row, col=ir_col)
 
-    # Raman subplot
-    if layout == 'vertical':
-        ax_raman = subplot_layout.add_subplot(1, 0, name='raman')
-    else:
-        ax_raman = subplot_layout.add_subplot(0, 1, name='raman')
-
+    # Process Raman data
     raman_freq = np.array(raman_data['frequencies'])
     raman_act = np.array(raman_data['activities'])
 
@@ -174,21 +180,36 @@ def create_ir_raman_comparison(
     raman_spectrum = gaussian_broadening(x_raman, list(zip(raman_freq, raman_act)), fwhm=17.0)
     raman_spectrum = normalize_spectrum(raman_spectrum)
 
-    ax_raman.plot(x_raman, raman_spectrum, 'r-', linewidth=1.5)
-    ax_raman.invert_xaxis()
-    ax_raman.set_xlabel('Raman Shift (cm⁻¹)', fontweight='bold')
-    ax_raman.set_ylabel('Normalized Intensity', fontweight='bold')
-    ax_raman.set_title('Raman Spectrum', fontweight='bold')
-    ax_raman.grid(True, alpha=0.3)
-    ax_raman.spines['top'].set_visible(False)
-    ax_raman.spines['right'].set_visible(False)
+    # Raman subplot
+    raman_row, raman_col = (2, 1) if layout == 'vertical' else (1, 2)
+    fig.add_trace(go.Scatter(
+        x=x_raman, y=raman_spectrum,
+        mode='lines', name='Raman',
+        line=dict(color='red', width=1.5)
+    ), row=raman_row, col=raman_col)
 
-    plt.tight_layout()
+    # Update axes
+    fig.update_xaxes(title_text='Wavenumber (cm⁻¹)', row=ir_row, col=ir_col, autorange='reversed', showgrid=True)
+    fig.update_yaxes(title_text='Normalized Intensity', row=ir_row, col=ir_col, showgrid=True)
+
+    fig.update_xaxes(title_text='Raman Shift (cm⁻¹)', row=raman_row, col=raman_col, autorange='reversed', showgrid=True)
+    fig.update_yaxes(title_text='Normalized Intensity', row=raman_row, col=raman_col, showgrid=True)
+
+    fig.update_layout(
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        showlegend=False,
+        title_text="IR and Raman Spectroscopy Comparison" if layout == 'vertical' else None
+    )
 
     if save_path:
-        subplot_layout.save(save_path)
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
 
-    return subplot_layout.fig
+    return fig
 
 
 def create_spectroscopy_orbitals_layout(
@@ -197,7 +218,7 @@ def create_spectroscopy_orbitals_layout(
     spectrum_type: str = 'raman',
     figsize: Tuple[float, float] = (16, 10),
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create layout with spectrum on left and orbital diagram on right.
 
@@ -209,16 +230,18 @@ def create_spectroscopy_orbitals_layout(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        plotly Figure object
     """
     logger.info(f"Creating {spectrum_type} + orbitals layout")
 
-    subplot_layout = SubplotLayout(1, 2, figsize=figsize,
-                                   width_ratios=[2, 1], wspace=0.3)
+    fig = make_subplots(
+        rows=1, cols=2,
+        column_widths=[0.67, 0.33],
+        horizontal_spacing=0.15,
+        subplot_titles=(f'{spectrum_type.upper()} Spectrum', 'Molecular Orbitals')
+    )
 
     # Spectrum subplot (left, larger)
-    ax_spec = subplot_layout.add_subplot(0, 0, name='spectrum')
-
     from visualization_utils import gaussian_broadening, normalize_spectrum
 
     frequencies = np.array(spectrum_data['frequencies'])
@@ -228,31 +251,24 @@ def create_spectroscopy_orbitals_layout(
         x = np.linspace(50, 3400, 2000)
         fwhm = 17.0
         xlabel = 'Raman Shift (cm⁻¹)'
-        title = 'Raman Spectrum'
         color = 'red'
     else:  # ir
         intensities = np.array(spectrum_data['intensities'])
         x = np.linspace(400, 4000, 2000)
         fwhm = 20.0
         xlabel = 'Wavenumber (cm⁻¹)'
-        title = 'IR Spectrum'
         color = 'blue'
 
     spectrum = gaussian_broadening(x, list(zip(frequencies, intensities)), fwhm)
     spectrum = normalize_spectrum(spectrum)
 
-    ax_spec.plot(x, spectrum, color=color, linewidth=1.5)
-    ax_spec.invert_xaxis()
-    ax_spec.set_xlabel(xlabel, fontweight='bold')
-    ax_spec.set_ylabel('Normalized Intensity', fontweight='bold')
-    ax_spec.set_title(title, fontweight='bold')
-    ax_spec.grid(True, alpha=0.3)
-    ax_spec.spines['top'].set_visible(False)
-    ax_spec.spines['right'].set_visible(False)
+    fig.add_trace(go.Scatter(
+        x=x, y=spectrum,
+        mode='lines', name=spectrum_type.upper(),
+        line=dict(color=color, width=1.5)
+    ), row=1, col=1)
 
     # Orbital diagram (right, smaller)
-    ax_orb = subplot_layout.add_subplot(0, 1, name='orbitals')
-
     from orbital_visualization import find_homo_lumo
 
     orbitals = orbital_data['orbital_energies']
@@ -271,35 +287,52 @@ def create_spectroscopy_orbitals_layout(
     energies = [orb.get('energy_ev', 0.0) for orb in selected_orbitals]
     occupations = [orb.get('occupation', 0.0) for orb in selected_orbitals]
 
+    # Draw orbital levels
     for energy, occupation in zip(energies, occupations):
         color = 'blue' if occupation > 0.5 else 'red'
-        ax_orb.hlines(energy, 0.3, 0.7, colors=color, linewidth=2.5)
+        fig.add_trace(go.Scatter(
+            x=[0.3, 0.7], y=[energy, energy],
+            mode='lines',
+            line=dict(color=color, width=2.5),
+            showlegend=False,
+            hoverinfo='skip'
+        ), row=1, col=2)
 
     # Mark HOMO and LUMO
     homo_energy = orbitals[homo_idx].get('energy_ev', 0.0)
     lumo_energy = orbitals[lumo_idx].get('energy_ev', 0.0)
     gap = lumo_energy - homo_energy
 
-    ax_orb.text(0.1, homo_energy, 'HOMO', fontsize=9, fontweight='bold', va='center')
-    ax_orb.text(0.1, lumo_energy, 'LUMO', fontsize=9, fontweight='bold', va='center')
-    ax_orb.text(0.8, (homo_energy + lumo_energy) / 2, f'{gap:.2f} eV',
-               fontsize=9, fontweight='bold', va='center')
+    # Add HOMO/LUMO annotations
+    fig.add_annotation(x=0.1, y=homo_energy, text='HOMO', showarrow=False,
+                      font=dict(size=9), xref='x2', yref='y2')
+    fig.add_annotation(x=0.1, y=lumo_energy, text='LUMO', showarrow=False,
+                      font=dict(size=9), xref='x2', yref='y2')
+    fig.add_annotation(x=0.8, y=(homo_energy + lumo_energy) / 2,
+                      text=f'{gap:.2f} eV', showarrow=False,
+                      font=dict(size=9), xref='x2', yref='y2')
 
-    ax_orb.set_ylabel('Orbital Energy (eV)', fontweight='bold')
-    ax_orb.set_title('Molecular Orbitals', fontweight='bold')
-    ax_orb.set_xlim(0, 1)
-    ax_orb.set_xticks([])
-    ax_orb.grid(True, axis='y', alpha=0.3)
-    ax_orb.spines['top'].set_visible(False)
-    ax_orb.spines['right'].set_visible(False)
-    ax_orb.spines['bottom'].set_visible(False)
+    # Update axes
+    fig.update_xaxes(title_text=xlabel, row=1, col=1, autorange='reversed', showgrid=True)
+    fig.update_yaxes(title_text='Normalized Intensity', row=1, col=1, showgrid=True)
 
-    plt.tight_layout()
+    fig.update_xaxes(title_text='', row=1, col=2, range=[0, 1], showticklabels=False, showgrid=False)
+    fig.update_yaxes(title_text='Orbital Energy (eV)', row=1, col=2, showgrid=True)
+
+    fig.update_layout(
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        showlegend=False
+    )
 
     if save_path:
-        subplot_layout.save(save_path)
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
 
-    return subplot_layout.fig
+    return fig
 
 
 def create_comparison_panel(
@@ -308,7 +341,7 @@ def create_comparison_panel(
     spectrum_type: str = 'ir',
     figsize: Tuple[float, float] = (14, 10),
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create 3-panel comparison: Experimental, Calculated, and Overlay.
 
@@ -320,12 +353,16 @@ def create_comparison_panel(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        plotly Figure object
     """
     logger.info(f"Creating experimental vs calculated {spectrum_type} comparison")
 
-    subplot_layout = SubplotLayout(3, 1, figsize=figsize,
-                                   height_ratios=[1, 1, 1], hspace=0.3)
+    fig = make_subplots(
+        rows=3, cols=1,
+        row_heights=[1, 1, 1],
+        vertical_spacing=0.1,
+        subplot_titles=('Experimental Spectrum', 'Calculated Spectrum (DFT)', 'Overlay')
+    )
 
     from visualization_utils import (
         gaussian_broadening, normalize_spectrum,
@@ -333,22 +370,17 @@ def create_comparison_panel(
     )
 
     # Experimental (top)
-    ax_exp = subplot_layout.add_subplot(0, 0, name='experimental')
-
     x_exp = np.array(experimental_data['x'])
     y_exp = np.array(experimental_data['y'])
     y_exp_norm = normalize_spectrum(y_exp)
 
-    ax_exp.plot(x_exp, y_exp_norm, 'k-', linewidth=1.5, label='Experimental')
-    ax_exp.set_ylabel('Normalized Intensity', fontweight='bold')
-    ax_exp.set_title('Experimental Spectrum', fontweight='bold')
-    ax_exp.legend()
-    ax_exp.grid(True, alpha=0.3)
-    ax_exp.invert_xaxis()
+    fig.add_trace(go.Scatter(
+        x=x_exp, y=y_exp_norm,
+        mode='lines', name='Experimental',
+        line=dict(color='black', width=1.5)
+    ), row=1, col=1)
 
     # Calculated (middle)
-    ax_calc = subplot_layout.add_subplot(1, 0, name='calculated')
-
     frequencies = np.array(calculated_data['frequencies'])
 
     if spectrum_type == 'raman':
@@ -366,16 +398,13 @@ def create_comparison_panel(
     y_calc = gaussian_broadening(x_calc, list(zip(frequencies, intensities)), fwhm)
     y_calc_norm = normalize_spectrum(y_calc)
 
-    ax_calc.plot(x_calc, y_calc_norm, 'b-', linewidth=1.5, label='Calculated')
-    ax_calc.set_ylabel('Normalized Intensity', fontweight='bold')
-    ax_calc.set_title('Calculated Spectrum (DFT)', fontweight='bold')
-    ax_calc.legend()
-    ax_calc.grid(True, alpha=0.3)
-    ax_calc.invert_xaxis()
+    fig.add_trace(go.Scatter(
+        x=x_calc, y=y_calc_norm,
+        mode='lines', name='Calculated',
+        line=dict(color='blue', width=1.5)
+    ), row=2, col=1)
 
     # Overlay (bottom)
-    ax_overlay = subplot_layout.add_subplot(2, 0, name='overlay')
-
     # Align spectra for comparison
     x_common, [y_exp_interp, y_calc_interp] = align_spectra_to_common_grid(
         [(x_exp, y_exp_norm), (x_calc, y_calc_norm)],
@@ -388,26 +417,44 @@ def create_comparison_panel(
     correlation = calculate_spectrum_similarity(y_exp_interp, y_calc_interp, 'correlation')
     r2 = calculate_spectrum_similarity(y_exp_interp, y_calc_interp, 'r2')
 
-    ax_overlay.plot(x_common, y_exp_interp, 'k-', linewidth=1.5, alpha=0.7, label='Experimental')
-    ax_overlay.plot(x_common, y_calc_interp, 'b-', linewidth=1.5, alpha=0.7, label='Calculated')
-    ax_overlay.set_xlabel(xlabel, fontweight='bold')
-    ax_overlay.set_ylabel('Normalized Intensity', fontweight='bold')
-    ax_overlay.set_title(f'Overlay (Correlation: {correlation:.3f}, R²: {r2:.3f})',
-                        fontweight='bold')
-    ax_overlay.legend()
-    ax_overlay.grid(True, alpha=0.3)
-    ax_overlay.invert_xaxis()
+    fig.add_trace(go.Scatter(
+        x=x_common, y=y_exp_interp,
+        mode='lines', name='Experimental',
+        line=dict(color='black', width=1.5),
+        opacity=0.7
+    ), row=3, col=1)
 
-    for ax in [ax_exp, ax_calc, ax_overlay]:
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
+    fig.add_trace(go.Scatter(
+        x=x_common, y=y_calc_interp,
+        mode='lines', name='Calculated',
+        line=dict(color='blue', width=1.5),
+        opacity=0.7
+    ), row=3, col=1)
 
-    plt.tight_layout()
+    # Update all axes
+    for i in range(1, 4):
+        fig.update_xaxes(autorange='reversed', showgrid=True, row=i, col=1)
+        fig.update_yaxes(title_text='Normalized Intensity', showgrid=True, row=i, col=1)
+
+    fig.update_xaxes(title_text=xlabel, row=3, col=1)
+
+    # Update subplot title for overlay with metrics
+    fig.layout.annotations[2].update(text=f'Overlay (Correlation: {correlation:.3f}, R²: {r2:.3f})')
+
+    fig.update_layout(
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        showlegend=False
+    )
 
     if save_path:
-        subplot_layout.save(save_path)
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
 
-    return subplot_layout.fig
+    return fig
 
 
 # Export main functions

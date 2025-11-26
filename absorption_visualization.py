@@ -12,7 +12,8 @@ Implements Item 19: Absorption Spectrum Comparison
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from typing import List, Dict, Optional, Tuple, Union
 import logging
 
@@ -102,7 +103,7 @@ def create_absorption_comparison(
     normalize: bool = True,
     title: str = "Absorption Spectrum Comparison",
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create multi-dataset absorption spectrum comparison.
 
@@ -120,7 +121,7 @@ def create_absorption_comparison(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        plotly Figure object
     """
     logger.info(f"Creating absorption comparison for {len(datasets)} datasets")
 
@@ -176,24 +177,34 @@ def create_absorption_comparison(
 
     # Create figure
     if layout == 'stacked':
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize, height_ratios=[3, 1])
+        fig = make_subplots(
+            rows=2, cols=1,
+            row_heights=[0.75, 0.25],
+            vertical_spacing=0.1,
+            specs=[[{"secondary_y": False}], [{"type": "table"}]]
+        )
     else:
-        fig, ax1 = plt.subplots(figsize=figsize)
-        ax2 = None
+        fig = go.Figure()
 
     # Plot broadened spectra
     if layout == 'overlay':
         # All spectra on same axes
         for data in spectra_data:
-            ax1.plot(data['wl_grid'], data['spectrum'],
-                    color=data['color'], linewidth=2.0, label=data['label'])
+            fig.add_trace(go.Scatter(
+                x=data['wl_grid'], y=data['spectrum'],
+                mode='lines', name=data['label'],
+                line=dict(color=data['color'], width=2.0)
+            ))
 
             # Add stick spectrum
             if show_sticks:
                 for wl, fosc in zip(data['wavelengths'], data['fosc']):
                     if wavelength_range[0] <= wl <= wavelength_range[1]:
-                        ax1.vlines(wl, 0, fosc * 0.8,
-                                 color=data['color'], alpha=0.3, linewidth=1.0)
+                        fig.add_trace(go.Scatter(
+                            x=[wl, wl], y=[0, fosc * 0.8],
+                            mode='lines', line=dict(color=data['color'], width=1.0),
+                            opacity=0.3, showlegend=False, hoverinfo='skip'
+                        ))
 
     elif layout == 'stacked':
         # Calculate vertical offsets
@@ -202,42 +213,48 @@ def create_absorption_comparison(
 
         for data, offset in zip(spectra_data, y_offsets):
             offset_spectrum = data['spectrum'] + offset
-            ax1.plot(data['wl_grid'], offset_spectrum,
-                    color=data['color'], linewidth=2.0, label=data['label'])
+            fig.add_trace(go.Scatter(
+                x=data['wl_grid'], y=offset_spectrum,
+                mode='lines', name=data['label'],
+                line=dict(color=data['color'], width=2.0)
+            ), row=1, col=1)
 
             # Add stick spectrum
             if show_sticks:
                 for wl, fosc in zip(data['wavelengths'], data['fosc']):
                     if wavelength_range[0] <= wl <= wavelength_range[1]:
-                        ax1.vlines(wl, offset, offset + fosc * 0.3,
-                                 color=data['color'], alpha=0.3, linewidth=1.0)
+                        fig.add_trace(go.Scatter(
+                            x=[wl, wl], y=[offset, offset + fosc * 0.3],
+                            mode='lines', line=dict(color=data['color'], width=1.0),
+                            opacity=0.3, showlegend=False, hoverinfo='skip'
+                        ), row=1, col=1)
 
     # Formatting for main plot
-    ax1.set_xlabel('Wavelength (nm)', fontsize=12, fontweight='bold')
-    if normalize:
-        ax1.set_ylabel('Normalized Intensity', fontsize=12, fontweight='bold')
-    else:
-        ax1.set_ylabel('Oscillator Strength', fontsize=12, fontweight='bold')
-
-    ax1.set_title(title, fontsize=14, fontweight='bold')
-    ax1.set_xlim(wavelength_range)
-    ax1.legend(loc='best', fontsize=10)
-    ax1.grid(True, alpha=0.3)
-    ax1.spines['top'].set_visible(False)
-    ax1.spines['right'].set_visible(False)
+    ylabel = 'Normalized Intensity' if normalize else 'Oscillator Strength'
 
     # Add secondary x-axis for energy
-    ax1_energy = ax1.twiny()
-    # Convert wavelength to energy: E(eV) = 1240/λ(nm)
     energy_min = 1240 / wavelength_range[1]
     energy_max = 1240 / wavelength_range[0]
-    ax1_energy.set_xlim(energy_max, energy_min)  # Inverted for increasing wavelength
-    ax1_energy.set_xlabel('Energy (eV)', fontsize=11, fontweight='bold')
 
-    # Comparison metrics panel (for overlay layout)
-    if layout == 'stacked' and ax2 is not None:
-        ax2.axis('off')
+    fig.update_layout(
+        xaxis_title='Wavelength (nm)',
+        yaxis_title=ylabel,
+        title=title,
+        template='plotly_white',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        showlegend=True,
+        xaxis=dict(range=wavelength_range, showgrid=True),
+        xaxis2=dict(
+            overlaying='x',
+            side='top',
+            range=[energy_max, energy_min],
+            title='Energy (eV)'
+        )
+    )
 
+    # Comparison metrics panel (for stacked layout)
+    if layout == 'stacked':
         # Create comparison table
         table_data = [['Method', 'Max λ (nm)', 'Max E (eV)', 'Total f_osc']]
 
@@ -250,30 +267,32 @@ def create_absorption_comparison(
             # Total oscillator strength
             total_fosc = np.sum(data['fosc'])
 
+            table_data[0].append(data['label'])
             table_data.append([
-                data['label'],
-                f"{max_wl:.1f}",
-                f"{max_e:.2f}",
-                f"{total_fosc:.4f}"
+                'Max λ (nm)', f"{max_wl:.1f}", '', ''
             ])
 
-        table = ax2.table(cellText=table_data, cellLoc='center',
-                         loc='center', colWidths=[0.3, 0.25, 0.25, 0.20])
+        # Add table to subplot
+        header = table_data[0]
+        cells = [row[1:] for row in table_data[1:]]
 
-        table.auto_set_font_size(False)
-        table.set_fontsize(9)
-        table.scale(1, 2)
-
-        # Style header
-        for i in range(4):
-            cell = table[(0, i)]
-            cell.set_facecolor('#4472C4')
-            cell.set_text_props(weight='bold', color='white')
-
-    plt.tight_layout()
+        fig.add_trace(go.Table(
+            header=dict(values=header,
+                       fill_color='#4472C4',
+                       font=dict(color='white', size=11),
+                       align='center'),
+            cells=dict(values=[[data['label'],
+                               f"{data['wl_grid'][np.argmax(data['spectrum'])]:.1f}",
+                               f"{1240/data['wl_grid'][np.argmax(data['spectrum'])]:.2f}",
+                               f"{np.sum(data['fosc']):.4f}"] for data in spectra_data],
+                      align='center')
+        ), row=2, col=1)
 
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved figure to {save_path}")
 
     return fig
@@ -287,7 +306,7 @@ def create_electric_vs_velocity_comparison(
     figsize: Tuple[float, float] = (14, 10),
     title: str = "Electric vs Velocity Dipole Comparison",
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create specialized comparison between electric and velocity dipole spectra.
 
@@ -301,7 +320,7 @@ def create_electric_vs_velocity_comparison(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        plotly Figure object
     """
     logger.info("Creating electric vs velocity dipole comparison")
 
@@ -334,7 +353,7 @@ def create_transition_table(
     figsize: Tuple[float, float] = (10, 6),
     title: str = "Major Transitions",
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create table showing major transitions.
 
@@ -346,7 +365,7 @@ def create_transition_table(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        plotly Figure object
     """
     logger.info(f"Creating transition table for {len(transitions)} transitions")
 
@@ -356,42 +375,24 @@ def create_transition_table(
     # Sort by oscillator strength (descending)
     sorted_indices = np.argsort(fosc)[::-1][:num_transitions]
 
-    # Create figure
-    fig, ax = plt.subplots(figsize=figsize)
-    ax.axis('off')
-
     # Prepare table data
-    table_data = [['#', 'λ (nm)', 'E (eV)', 'f_osc', 'Intensity']]
+    header = ['#', 'λ (nm)', 'E (eV)', 'f_osc', 'Intensity']
+    cells_data = [[], [], [], [], []]
 
     for i, idx in enumerate(sorted_indices, start=1):
         # Calculate relative intensity
         intensity = fosc[idx] / fosc[sorted_indices[0]] * 100
 
-        table_data.append([
-            str(i),
-            f"{wavelengths[idx]:.1f}",
-            f"{energies[idx]:.3f}",
-            f"{fosc[idx]:.4f}",
-            f"{intensity:.1f}%"
-        ])
+        cells_data[0].append(str(i))
+        cells_data[1].append(f"{wavelengths[idx]:.1f}")
+        cells_data[2].append(f"{energies[idx]:.3f}")
+        cells_data[3].append(f"{fosc[idx]:.4f}")
+        cells_data[4].append(f"{intensity:.1f}%")
 
-    # Create table
-    table = ax.table(cellText=table_data, cellLoc='center',
-                    loc='center', colWidths=[0.10, 0.20, 0.20, 0.25, 0.25])
-
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1, 2.5)
-
-    # Style header row
-    for i in range(5):
-        cell = table[(0, i)]
-        cell.set_facecolor('#4472C4')
-        cell.set_text_props(weight='bold', color='white')
-
-    # Color-code by intensity
-    for i in range(1, len(table_data)):
-        intensity_val = float(table_data[i][4].rstrip('%'))
+    # Create color coding for intensity
+    fill_colors = []
+    for i, idx in enumerate(sorted_indices):
+        intensity_val = fosc[idx] / fosc[sorted_indices[0]] * 100
         if intensity_val > 80:
             color = '#C6EFCE'  # Green - strong
         elif intensity_val > 50:
@@ -400,15 +401,38 @@ def create_transition_table(
             color = '#FFC7CE'  # Orange - weak
         else:
             color = '#E0E0E0'  # Gray - very weak
+        fill_colors.append(['white', 'white', 'white', 'white', color])
 
-        table[(i, 4)].set_facecolor(color)
+    # Create figure
+    fig = go.Figure(data=[go.Table(
+        header=dict(
+            values=header,
+            fill_color='#4472C4',
+            font=dict(color='white', size=12, family='Arial Bold'),
+            align='center',
+            height=40
+        ),
+        cells=dict(
+            values=cells_data,
+            fill_color=[['white'] * num_transitions] * 4 + [[fill_colors[i][4] for i in range(num_transitions)]],
+            align='center',
+            height=35,
+            font=dict(size=11)
+        )
+    )])
 
-    ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
-
-    plt.tight_layout()
+    fig.update_layout(
+        title=title,
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        template='plotly_white'
+    )
 
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=figsize[0] * 80, height=figsize[1] * 80, scale=3)
         logger.info(f"Saved figure to {save_path}")
 
     return fig

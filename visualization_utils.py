@@ -2,9 +2,9 @@
 Visualization Utilities for ORCA Output Analysis
 
 Provides reusable functions for creating publication-quality spectroscopy
-visualizations, including multi-dataset stacking and advanced plotting features.
+visualizations using Plotly for interactive, web-ready plots.
 
-Based on implementations from 0cbz.ipynb notebook.
+Based on implementations from 0cbz.ipynb notebook, upgraded to Plotly.
 """
 
 import numpy as np
@@ -172,15 +172,16 @@ def get_color_palette(n_colors: int, palette: str = 'default') -> List[str]:
 
     Args:
         n_colors: Number of colors needed
-        palette: Color scheme ('default', 'vibrant', 'pastel')
+        palette: Color scheme ('default', 'vibrant', 'pastel', 'plotly')
 
     Returns:
         List of color codes
     """
     palettes = {
-        'default': ['black', 'red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray'],
+        'default': ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22'],
         'vibrant': ['#E63946', '#F1FAEE', '#A8DADC', '#457B9D', '#1D3557', '#F77F00', '#06FFA5'],
-        'pastel': ['#FFB4A2', '#E5989B', '#B5838D', '#6D6875', '#FEC89A', '#F0EFEB']
+        'pastel': ['#FFB4A2', '#E5989B', '#B5838D', '#6D6875', '#FEC89A', '#F0EFEB'],
+        'plotly': ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF']
     }
 
     colors = palettes.get(palette, palettes['default'])

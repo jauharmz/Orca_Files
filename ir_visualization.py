@@ -11,7 +11,8 @@ Based on implementation from 0cbz.ipynb.
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from typing import List, Dict, Optional, Tuple
 import logging
 
@@ -48,7 +49,7 @@ def create_stacked_ir_plot(
     path_length_cm: float = 1.0,
     title: Optional[str] = None,
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create stacked IR spectra plot for multiple datasets.
 
@@ -71,7 +72,7 @@ def create_stacked_ir_plot(
         save_path: Path to save figure
 
     Returns:
-        matplotlib Figure object
+        Plotly Figure object
     """
     logger.info(f"Creating stacked IR plot for {len(datasets)} datasets")
 
@@ -125,19 +126,30 @@ def create_stacked_ir_plot(
     y_offsets = calculate_stack_offsets(spectra, y_space=y_space)
 
     # Create figure
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = go.Figure()
 
     # Plot each spectrum with offset
     for i, (spectrum, offset, label, color) in enumerate(zip(spectra, y_offsets, labels, colors)):
         offset_spectrum = spectrum + offset
-        ax.plot(x, offset_spectrum, color=color, linewidth=1.5, label=label)
 
-        # Add stick spectrum (above 100% for transmittance, above baseline for absorbance)
+        # Add main spectrum line
+        fig.add_trace(go.Scatter(
+            x=x,
+            y=offset_spectrum,
+            mode='lines',
+            name=label,
+            line=dict(color=color, width=1.5),
+            hovertemplate='Wavenumber: %{x:.1f} cm⁻¹<br>Intensity: %{y:.3f}<extra></extra>'
+        ))
+
+        # Add stick spectrum
         if 'frequencies' in datasets[i]:
             freqs = datasets[i]['frequencies']
             if scale_factor != 1.0 or shift_cm != 0.0:
                 freqs = apply_frequency_scaling(np.array(freqs), scale_factor, shift_cm)
 
+            stick_x = []
+            stick_y = []
             for freq in freqs:
                 if wavenumber_range[0] <= freq <= wavenumber_range[1]:
                     if plot_type == 'transmittance':
@@ -147,61 +159,71 @@ def create_stacked_ir_plot(
                         stick_height = np.max(spectrum) * 0.05
                         stick_base = offset
 
-                    ax.vlines(freq, stick_base, stick_base + stick_height,
-                            color=color, alpha=0.6, linewidth=0.8)
+                    stick_x.extend([freq, freq, None])
+                    stick_y.extend([stick_base, stick_base + stick_height, None])
+
+            if stick_x:
+                fig.add_trace(go.Scatter(
+                    x=stick_x,
+                    y=stick_y,
+                    mode='lines',
+                    line=dict(color=color, width=0.8),
+                    opacity=0.6,
+                    showlegend=False,
+                    hoverinfo='skip'
+                ))
 
     # Add regional boundaries
     if show_regions:
         boundaries = get_ir_region_boundaries()
-        y_min, y_max = ax.get_ylim()
         for boundary in boundaries:
             if wavenumber_range[0] <= boundary <= wavenumber_range[1]:
-                ax.axvline(boundary, color='gray', linestyle='--',
-                          alpha=0.5, linewidth=0.8, zorder=0)
-
-    # Add dataset labels on right side
-    if show_labels:
-        ax2 = ax.twinx()
-        ax2.set_ylim(ax.get_ylim())
-        ax2.set_yticks(y_offsets)
-        ax2.set_yticklabels(labels, fontsize=10)
-        ax2.tick_params(axis='y', length=0)
-
-    # Formatting
-    ax.set_xlabel('Wavenumber (cm⁻¹)', fontsize=12, fontweight='bold')
-
-    if plot_type == 'transmittance':
-        ylabel = 'Transmittance (%, offset)'
-    else:
-        ylabel = 'Absorbance (offset)'
-    ax.set_ylabel(ylabel, fontsize=12, fontweight='bold')
+                fig.add_vline(
+                    x=boundary,
+                    line_dash="dash",
+                    line_color="gray",
+                    opacity=0.5,
+                    line_width=0.8
+                )
 
     # Auto-generate title if not provided
     if title is None:
         correction_str = f" (scaled: {scale_factor}×)" if scale_factor != 1.0 else ""
         title = f"Stacked IR Spectra - {plot_type.capitalize()}{correction_str}"
-    ax.set_title(title, fontsize=14, fontweight='bold')
 
-    ax.set_xlim(wavenumber_range)
+    # Formatting
+    ylabel = 'Transmittance (%, offset)' if plot_type == 'transmittance' else 'Absorbance (offset)'
 
-    # Invert x-axis (high to low wavenumber)
-    ax.invert_xaxis()
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=14, family='Arial Black')),
+        xaxis_title=dict(text='Wavenumber (cm⁻¹)', font=dict(size=12, family='Arial Black')),
+        yaxis_title=dict(text=ylabel, font=dict(size=12, family='Arial Black')),
+        template='plotly_white',
+        hovermode='closest',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        showlegend=True,
+        legend=dict(
+            yanchor="middle",
+            y=0.5,
+            xanchor="left",
+            x=1.02
+        )
+    )
 
-    # Hide left y-axis (arbitrary offsets)
-    ax.get_yaxis().set_visible(False)
-    ax.spines['left'].set_visible(False)
+    # Invert x-axis (high to low wavenumber - spectroscopy convention)
+    fig.update_xaxes(autorange='reversed', range=[wavenumber_range[1], wavenumber_range[0]])
 
-    # Style
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.grid(False)
-
-    plt.tight_layout()
+    # Hide y-axis ticks (arbitrary offsets)
+    fig.update_yaxes(showticklabels=False)
 
     # Save if requested
     if save_path:
         logger.info(f"Saving figure to {save_path}")
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=1400, height=800, scale=3)
 
     logger.info("Stacked IR plot created successfully")
     return fig
@@ -221,7 +243,7 @@ def create_dual_ir_plot(
     show_labels: bool = True,
     title: str = "IR Spectrum",
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create dual-panel IR spectrum (absorbance + transmittance).
 
@@ -241,7 +263,7 @@ def create_dual_ir_plot(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        Plotly Figure object
     """
     # Apply frequency scaling
     if scale_factor != 1.0 or shift_cm != 0.0:
@@ -260,72 +282,153 @@ def create_dual_ir_plot(
     )
 
     # Create figure with two subplots
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize, sharex=True)
+    fig = make_subplots(
+        rows=2, cols=1,
+        subplot_titles=(f"{title} - Absorbance", f"{title} - Transmittance"),
+        vertical_spacing=0.12,
+        shared_xaxes=True
+    )
 
     # Plot absorbance (top)
-    ax1.plot(x, absorbance, color='blue', linewidth=1.5)
-    ax1.fill_between(x, absorbance, alpha=0.2, color='blue')
-    ax1.set_ylabel('Absorbance', fontsize=11, fontweight='bold')
-    ax1.set_title(f"{title} - Absorbance", fontsize=12, fontweight='bold')
+    max_abs = np.max(absorbance)
+
+    fig.add_trace(go.Scatter(
+        x=x, y=absorbance,
+        mode='lines',
+        line=dict(color='blue', width=1.5),
+        fill='tozeroy',
+        fillcolor='rgba(0, 0, 255, 0.2)',
+        name='Absorbance',
+        hovertemplate='Wavenumber: %{x:.1f} cm⁻¹<br>Absorbance: %{y:.3f}<extra></extra>'
+    ), row=1, col=1)
 
     # Stick spectrum for absorbance
-    max_abs = np.max(absorbance)
+    stick_x_abs = []
+    stick_y_abs = []
     for freq, inten in zip(frequencies, intensities):
         if wavenumber_range[0] <= freq <= wavenumber_range[1]:
-            ax1.vlines(freq, max_abs * 1.05, max_abs * 1.15,
-                      color='red', alpha=0.6, linewidth=1.0)
+            stick_x_abs.extend([freq, freq, None])
+            stick_y_abs.extend([max_abs * 1.05, max_abs * 1.15, None])
+
+    if stick_x_abs:
+        fig.add_trace(go.Scatter(
+            x=stick_x_abs, y=stick_y_abs,
+            mode='lines',
+            line=dict(color='red', width=1.0),
+            opacity=0.6,
+            showlegend=False,
+            hoverinfo='skip'
+        ), row=1, col=1)
 
     # Plot transmittance (bottom)
-    ax2.plot(x, transmittance, color='green', linewidth=1.5)
-    ax2.fill_between(x, transmittance, alpha=0.2, color='green')
-    ax2.set_ylabel('Transmittance (%)', fontsize=11, fontweight='bold')
-    ax2.set_title(f"{title} - Transmittance", fontsize=12, fontweight='bold')
-    ax2.set_xlabel('Wavenumber (cm⁻¹)', fontsize=11, fontweight='bold')
+    fig.add_trace(go.Scatter(
+        x=x, y=transmittance,
+        mode='lines',
+        line=dict(color='green', width=1.5),
+        fill='tozeroy',
+        fillcolor='rgba(0, 255, 0, 0.2)',
+        name='Transmittance',
+        hovertemplate='Wavenumber: %{x:.1f} cm⁻¹<br>Transmittance: %{y:.2f}%<extra></extra>'
+    ), row=2, col=1)
 
     # Stick spectrum for transmittance
+    stick_x_trans = []
+    stick_y_trans = []
     for freq, inten in zip(frequencies, intensities):
         if wavenumber_range[0] <= freq <= wavenumber_range[1]:
-            ax2.vlines(freq, 100, 105,
-                      color='red', alpha=0.6, linewidth=1.0)
+            stick_x_trans.extend([freq, freq, None])
+            stick_y_trans.extend([100, 105, None])
+
+    if stick_x_trans:
+        fig.add_trace(go.Scatter(
+            x=stick_x_trans, y=stick_y_trans,
+            mode='lines',
+            line=dict(color='red', width=1.0),
+            opacity=0.6,
+            showlegend=False,
+            hoverinfo='skip'
+        ), row=2, col=1)
 
     # Add regional boundaries to both
     if show_regions:
         boundaries = get_ir_region_boundaries()
-        for ax in [ax1, ax2]:
-            for boundary in boundaries:
-                if wavenumber_range[0] <= boundary <= wavenumber_range[1]:
-                    ax.axvline(boundary, color='gray', linestyle='--',
-                             alpha=0.5, linewidth=0.8)
+        for boundary in boundaries:
+            if wavenumber_range[0] <= boundary <= wavenumber_range[1]:
+                fig.add_vline(
+                    x=boundary,
+                    line_dash="dash",
+                    line_color="gray",
+                    opacity=0.5,
+                    line_width=0.8,
+                    row='all'
+                )
 
     # Add functional group labels
     if show_labels:
-        labels = get_ir_region_labels()
-        y_pos_abs = max_abs * 0.95
-        y_pos_trans = 95
-
-        for freq, label in labels:
+        label_data = get_ir_region_labels()
+        for freq, label_text in label_data:
             if wavenumber_range[0] <= freq <= wavenumber_range[1]:
-                ax1.text(freq, y_pos_abs, label, fontsize=8, ha='center',
-                        bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
-                                edgecolor='gray', alpha=0.7))
-                ax2.text(freq, y_pos_trans, label, fontsize=8, ha='center',
-                        bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
-                                edgecolor='gray', alpha=0.7))
+                # Add to absorbance plot
+                fig.add_annotation(
+                    x=freq,
+                    y=max_abs * 0.95,
+                    text=label_text,
+                    showarrow=False,
+                    bgcolor='white',
+                    bordercolor='gray',
+                    borderwidth=1,
+                    borderpad=2,
+                    font=dict(size=8),
+                    row=1, col=1
+                )
+                # Add to transmittance plot
+                fig.add_annotation(
+                    x=freq,
+                    y=95,
+                    text=label_text,
+                    showarrow=False,
+                    bgcolor='white',
+                    bordercolor='gray',
+                    borderwidth=1,
+                    borderpad=2,
+                    font=dict(size=8),
+                    row=2, col=1
+                )
 
-    # Formatting
-    for ax in [ax1, ax2]:
-        ax.invert_xaxis()
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.grid(True, alpha=0.3)
+    # Update layout
+    fig.update_layout(
+        template='plotly_white',
+        hovermode='closest',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        showlegend=False
+    )
 
-    ax1.set_ylim(bottom=0, top=max_abs * 1.2)
-    ax2.set_ylim(0, 110)
-
-    plt.tight_layout()
+    # Update axes
+    fig.update_xaxes(
+        title_text='Wavenumber (cm⁻¹)',
+        title_font=dict(size=11, family='Arial Black'),
+        autorange='reversed',
+        row=2, col=1
+    )
+    fig.update_yaxes(
+        title_text='Absorbance',
+        title_font=dict(size=11, family='Arial Black'),
+        range=[0, max_abs * 1.2],
+        row=1, col=1
+    )
+    fig.update_yaxes(
+        title_text='Transmittance (%)',
+        title_font=dict(size=11, family='Arial Black'),
+        range=[0, 110],
+        row=2, col=1
+    )
 
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=1200, height=1000, scale=3)
 
     return fig
 
@@ -443,7 +546,7 @@ def create_ir_with_assignment_table(
     figsize: Tuple[float, float] = (14, 10),
     title: str = "IR Spectrum with Functional Group Assignment",
     save_path: Optional[str] = None
-) -> plt.Figure:
+) -> go.Figure:
     """
     Create IR spectrum with functional group assignment table.
 
@@ -462,7 +565,7 @@ def create_ir_with_assignment_table(
         save_path: Save path
 
     Returns:
-        matplotlib Figure object
+        Plotly Figure object
     """
     logger.info("Creating IR spectrum with functional group assignment table")
 
@@ -483,55 +586,49 @@ def create_ir_with_assignment_table(
     assignments = assign_functional_groups(frequencies, intensities, intensity_threshold)
 
     # Create figure with spectrum and table
-    fig = plt.figure(figsize=figsize)
+    fig = make_subplots(
+        rows=2, cols=1,
+        row_heights=[0.6, 0.4],
+        subplot_titles=(title, "Functional Group Assignments"),
+        vertical_spacing=0.15,
+        specs=[[{"type": "scatter"}], [{"type": "table"}]]
+    )
 
-    # Spectrum plot (top 60%)
-    ax_spec = plt.subplot2grid((5, 1), (0, 0), rowspan=3)
-    ax_spec.plot(x, absorbance, 'b-', linewidth=1.5, label='Absorbance')
-    ax_spec.invert_xaxis()
-    ax_spec.set_ylabel('Absorbance', fontsize=11, fontweight='bold')
-    ax_spec.set_title(title, fontsize=12, fontweight='bold')
-    ax_spec.spines['top'].set_visible(False)
-    ax_spec.spines['right'].set_visible(False)
-    ax_spec.grid(True, alpha=0.3)
+    # Spectrum plot (top)
+    fig.add_trace(go.Scatter(
+        x=x,
+        y=absorbance,
+        mode='lines',
+        line=dict(color='blue', width=1.5),
+        name='Absorbance',
+        hovertemplate='Wavenumber: %{x:.1f} cm⁻¹<br>Absorbance: %{y:.3f}<extra></extra>'
+    ), row=1, col=1)
 
     # Mark peaks in spectrum
     for assignment in assignments:
         freq = assignment['frequency']
         if wavenumber_range[0] <= freq <= wavenumber_range[1]:
-            ax_spec.axvline(freq, color='red', linestyle=':', alpha=0.5, linewidth=1)
+            fig.add_vline(
+                x=freq,
+                line_dash="dot",
+                line_color="red",
+                opacity=0.5,
+                line_width=1,
+                row=1
+            )
 
-    # Assignment table (bottom 40%)
-    ax_table = plt.subplot2grid((5, 1), (3, 0), rowspan=2)
-    ax_table.axis('off')
+    # Assignment table (bottom)
+    # Sort by frequency (descending)
+    assignments_sorted = sorted(assignments, key=lambda x: x['frequency'], reverse=True)[:15]
 
     # Prepare table data
-    table_data = [['Frequency\n(cm⁻¹)', 'Intensity\n(km/mol)', 'Functional Group', 'Confidence']]
-
-    # Sort by frequency (descending)
-    assignments_sorted = sorted(assignments, key=lambda x: x['frequency'], reverse=True)
-
-    for assignment in assignments_sorted[:15]:  # Show top 15
-        table_data.append([
-            f"{assignment['frequency']:.1f}",
-            f"{assignment['intensity']:.1f}",
-            assignment['functional_group'],
-            assignment['confidence'].capitalize()
-        ])
-
-    # Create table
-    table = ax_table.table(cellText=table_data, cellLoc='left',
-                          loc='center', colWidths=[0.15, 0.15, 0.50, 0.20])
-
-    table.auto_set_font_size(False)
-    table.set_fontsize(9)
-    table.scale(1, 2)
-
-    # Style header row
-    for i in range(4):
-        cell = table[(0, i)]
-        cell.set_facecolor('#4472C4')
-        cell.set_text_props(weight='bold', color='white')
+    table_header = ['Frequency<br>(cm⁻¹)', 'Intensity<br>(km/mol)', 'Functional Group', 'Confidence']
+    table_cells = [
+        [f"{a['frequency']:.1f}" for a in assignments_sorted],
+        [f"{a['intensity']:.1f}" for a in assignments_sorted],
+        [a['functional_group'] for a in assignments_sorted],
+        [a['confidence'].capitalize() for a in assignments_sorted]
+    ]
 
     # Color-code confidence levels
     confidence_colors = {
@@ -540,19 +637,56 @@ def create_ir_with_assignment_table(
         'Low': '#FFC7CE',
         'None': '#E0E0E0'
     }
+    cell_colors = [
+        ['white'] * len(assignments_sorted),
+        ['white'] * len(assignments_sorted),
+        ['white'] * len(assignments_sorted),
+        [confidence_colors.get(a['confidence'].capitalize(), 'white') for a in assignments_sorted]
+    ]
 
-    for i, assignment in enumerate(assignments_sorted[:15], start=1):
-        conf_level = assignment['confidence'].capitalize()
-        color = confidence_colors.get(conf_level, 'white')
-        table[(i, 3)].set_facecolor(color)
+    fig.add_trace(go.Table(
+        header=dict(
+            values=table_header,
+            fill_color='#4472C4',
+            align='left',
+            font=dict(color='white', size=10, family='Arial Black')
+        ),
+        cells=dict(
+            values=table_cells,
+            fill_color=cell_colors,
+            align='left',
+            font=dict(size=9),
+            height=25
+        )
+    ), row=2, col=1)
 
-    ax_spec.set_xlabel('Wavenumber (cm⁻¹)', fontsize=11, fontweight='bold')
+    # Update layout
+    fig.update_layout(
+        template='plotly_white',
+        hovermode='closest',
+        width=figsize[0] * 80,
+        height=figsize[1] * 80,
+        showlegend=False
+    )
 
-    plt.tight_layout()
+    fig.update_xaxes(
+        title_text='Wavenumber (cm⁻¹)',
+        title_font=dict(size=11, family='Arial Black'),
+        autorange='reversed',
+        row=1, col=1
+    )
+    fig.update_yaxes(
+        title_text='Absorbance',
+        title_font=dict(size=11, family='Arial Black'),
+        row=1, col=1
+    )
 
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
         logger.info(f"Saved figure to {save_path}")
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_image(save_path, width=1400, height=1000, scale=3)
 
     return fig
 
