@@ -1497,11 +1497,30 @@ function App() {
 - [x] **5.3** File upload drag-and-drop - **DONE**
 - [x] **5.4** Expandable/collapsible sections - **DONE**
 - [x] **5.5** Data export buttons (JSON, PNG, SVG) - **DONE**
-- [ ] **5.6** Real-time parsing progress indicator
-- [ ] **5.7** Multiple file tabs (switch between uploaded files)
-- [ ] **5.8** Dark mode toggle
-- [ ] **5.9** CSV/Excel export for tables
-- [ ] **5.10** Search/filter in tables
+- [x] **5.6** Real-time parsing progress indicator - **DONE**
+  - Animated progress bar with smooth transitions
+  - Shows upload/parsing progress (0-30-60-90-100%)
+  - Auto-hides on completion
+- [x] **5.7** Multiple file tabs (switch between uploaded files) - **DONE**
+  - Visual tab interface for each uploaded file
+  - Click to switch between files
+  - Close button (×) to remove files
+  - Active tab highlighting
+- [x] **5.8** Dark mode toggle - **DONE**
+  - Moon icon (🌓) button in controls
+  - CSS variables for theme switching
+  - Persists preference in localStorage
+  - Smooth transitions for all elements
+- [x] **5.9** CSV/Excel export for tables - **DONE**
+  - CSV export button (💾) on all tables
+  - Excel-compatible export (📊) with UTF-8 BOM
+  - Proper escaping for commas and quotes
+  - Applied to: geometry, orbitals, vibrations, NMR, population tables
+- [x] **5.10** Search/filter in tables - **DONE**
+  - Real-time search input above all tables
+  - Case-insensitive filtering
+  - Shows/hides rows based on search term
+  - Integrated with table export controls
 
 ---
 
@@ -1585,9 +1604,9 @@ streamlit run app.py
 
 ## Current Progress
 
-**Status:** Phases 3-5 complete - **76/77 features implemented** 🎉 (99% complete!)
+**Status:** Phases 3-6 complete - **81/82 features implemented** 🎉 (99% complete!)
 
-**Latest Session (2025-11-25):** Added **52 visualizations + 5 infrastructure features** across Phases 3-5!
+**Latest Session (2025-11-26):** Added **52 visualizations + 10 UI enhancement features** across Phases 3-6!
 
 **First Wave (7 visualizations) - Advanced Chemistry:**
 - ✅ Geometry optimization trajectory with animation controls
@@ -1661,6 +1680,13 @@ streamlit run app.py
 - ✅ Frequency-IR-Raman 3D (3D scatter plot)
 - ✅ Basis Function Distribution (s/p/d/f pie chart)
 
+**Ninth Wave (5 features) - Web UI Enhancement (Phase 6):**
+- ✅ Real-time parsing progress indicator (animated bar, 0-100% with auto-hide)
+- ✅ Multiple file tabs (visual tabs, close buttons, active highlighting)
+- ✅ Dark mode toggle (CSS variables, localStorage persistence, smooth transitions)
+- ✅ CSV/Excel export for all tables (UTF-8 BOM, proper escaping)
+- ✅ Search/filter in tables (real-time, case-insensitive filtering)
+
 **Completion Status:**
 - **Phase 3A:** 10/10 features (100% DONE) ✓
 - **Phase 3B:** 5/5 features (100% DONE) ✓
@@ -1673,13 +1699,14 @@ streamlit run app.py
 - **Phase 3I:** 9/9 features (100% DONE) ✓
 - **Phase 4 Analytics:** 9/9 features (100% DONE) ✓
 - **Phase 4 Infrastructure:** 5/5 features (100% DONE) ✓
-- **Phase 5:** 9/9 features (100% DONE) ✓ **NEW!**
+- **Phase 5:** 9/9 features (100% DONE) ✓
+- **Phase 6:** 5/5 features (100% DONE) ✓ **NEW!**
 
-**Total: 71 Interactive Visualizations + Multi-file Comparison + PDF Export + URL Sharing**
+**Total: 71 Interactive Visualizations + Enhanced Web UI (Dark Mode, File Tabs, Table Export/Search, Progress Bar)**
 **Data Coverage: 38/57 sections parsed (67%)**
 
 **Next steps:**
 - Phase 3F.4: Memory usage tracking (final Phase 3F feature)
 - Additional parser sections (19 remaining)
-- Phase 6: Advanced comparison (RMSD, structure overlay), enhanced reports, real-time collaboration
+- Phase 7: Advanced comparison (RMSD, structure overlay), enhanced reports, real-time collaboration
 
