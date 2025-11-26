@@ -26,7 +26,8 @@ from visualization_utils import (
     get_color_palette,
     get_raman_region_boundaries,
     get_raman_region_labels,
-    normalize_spectrum
+    normalize_spectrum,
+    find_optimal_label_positions
 )
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ def create_stacked_raman_plot(
     colors: Optional[List[str]] = None,
     show_regions: bool = True,
     show_labels: bool = True,
+    label_position_method: str = 'right',
     use_temperature_correction: bool = True,
     laser_wavelength_nm: float = 532,
     low_freq_cutoff: float = 0.0,
@@ -60,7 +62,8 @@ def create_stacked_raman_plot(
         figsize: Figure size (width, height)
         colors: Custom color list (default: auto-generated)
         show_regions: Show regional boundary lines
-        show_labels: Show dataset labels on right side
+        show_labels: Show dataset labels
+        label_position_method: 'right' (edge), 'peak' (at max), or 'flat' (at flattest region)
         use_temperature_correction: Apply temperature-dependent intensity
         laser_wavelength_nm: Laser wavelength for intensity correction
         low_freq_cutoff: Suppress modes below this frequency
@@ -145,13 +148,28 @@ def create_stacked_raman_plot(
                 ax.axvline(boundary, color='gray', linestyle='--',
                           alpha=0.5, linewidth=0.8, zorder=0)
 
-    # Add dataset labels on right side
+    # Add dataset labels
     if show_labels:
-        ax2 = ax.twinx()
-        ax2.set_ylim(ax.get_ylim())
-        ax2.set_yticks(y_offsets)
-        ax2.set_yticklabels(labels, fontsize=10)
-        ax2.tick_params(axis='y', length=0)  # Hide tick marks
+        if label_position_method == 'right':
+            # Use twin axis for right-side labels
+            ax2 = ax.twinx()
+            ax2.set_ylim(ax.get_ylim())
+            ax2.set_yticks(y_offsets)
+            ax2.set_yticklabels(labels, fontsize=10)
+            ax2.tick_params(axis='y', length=0)  # Hide tick marks
+        else:
+            # Use smart positioning
+            label_positions = find_optimal_label_positions(
+                spectra, y_offsets, shift_range, shifts, method=label_position_method
+            )
+
+            for label, (x_pos, y_pos), color in zip(labels, label_positions, colors):
+                ax.annotate(label, xy=(x_pos, y_pos),
+                           xytext=(10, 0), textcoords='offset points',
+                           fontsize=10, fontweight='bold',
+                           bbox=dict(boxstyle='round,pad=0.4',
+                                   facecolor='white', edgecolor=color, linewidth=2),
+                           arrowprops=dict(arrowstyle='->', color=color, lw=1.5))
 
     # Formatting
     ax.set_xlabel('Raman Shift (cm⁻¹)', fontsize=12, fontweight='bold')

@@ -277,6 +277,209 @@ def normalize_spectrum(spectrum: np.ndarray, method: str = 'max') -> np.ndarray:
         return normalize_spectrum(spectrum, 'max')
 
 
+def interpolate_spectrum(
+    x_data: np.ndarray,
+    y_data: np.ndarray,
+    x_new: np.ndarray,
+    method: str = 'linear',
+    fill_value: float = 0.0
+) -> np.ndarray:
+    """
+    Interpolate spectrum onto a new x-axis grid.
+
+    Useful for comparing experimental and calculated spectra where
+    data points don't align.
+
+    Args:
+        x_data: Original x-axis values
+        y_data: Original y-axis values (spectrum)
+        x_new: New x-axis grid for interpolation
+        method: Interpolation method ('linear', 'cubic', 'nearest')
+        fill_value: Value to use for points outside data range
+
+    Returns:
+        Interpolated spectrum on x_new grid
+    """
+    from scipy import interpolate
+
+    if method == 'linear':
+        f = interpolate.interp1d(x_data, y_data, kind='linear',
+                                bounds_error=False, fill_value=fill_value)
+    elif method == 'cubic':
+        if len(x_data) < 4:
+            logger.warning("Not enough points for cubic interpolation, using linear")
+            f = interpolate.interp1d(x_data, y_data, kind='linear',
+                                    bounds_error=False, fill_value=fill_value)
+        else:
+            f = interpolate.interp1d(x_data, y_data, kind='cubic',
+                                    bounds_error=False, fill_value=fill_value)
+    elif method == 'nearest':
+        f = interpolate.interp1d(x_data, y_data, kind='nearest',
+                                bounds_error=False, fill_value=fill_value)
+    else:
+        logger.warning(f"Unknown interpolation method '{method}', using linear")
+        f = interpolate.interp1d(x_data, y_data, kind='linear',
+                                bounds_error=False, fill_value=fill_value)
+
+    y_new = f(x_new)
+    logger.debug(f"Interpolated spectrum from {len(x_data)} to {len(x_new)} points")
+    return y_new
+
+
+def align_spectra_to_common_grid(
+    spectra_list: List[Tuple[np.ndarray, np.ndarray]],
+    x_min: Optional[float] = None,
+    x_max: Optional[float] = None,
+    num_points: int = 1000,
+    method: str = 'linear'
+) -> Tuple[np.ndarray, List[np.ndarray]]:
+    """
+    Align multiple spectra onto a common x-axis grid.
+
+    Args:
+        spectra_list: List of (x_data, y_data) tuples for each spectrum
+        x_min: Minimum x value (None = use global minimum)
+        x_max: Maximum x value (None = use global maximum)
+        num_points: Number of points in common grid
+        method: Interpolation method
+
+    Returns:
+        (common_x_grid, list_of_interpolated_spectra)
+    """
+    # Find global x range if not specified
+    if x_min is None:
+        x_min = min(np.min(x) for x, y in spectra_list)
+    if x_max is None:
+        x_max = max(np.max(x) for x, y in spectra_list)
+
+    # Create common grid
+    x_common = np.linspace(x_min, x_max, num_points)
+
+    # Interpolate each spectrum onto common grid
+    interpolated_spectra = []
+    for i, (x_data, y_data) in enumerate(spectra_list):
+        y_interp = interpolate_spectrum(x_data, y_data, x_common, method=method)
+        interpolated_spectra.append(y_interp)
+        logger.debug(f"Aligned spectrum {i+1}/{len(spectra_list)}")
+
+    logger.info(f"Aligned {len(spectra_list)} spectra to common grid "
+                f"({x_min:.1f} to {x_max:.1f}, {num_points} points)")
+
+    return x_common, interpolated_spectra
+
+
+def find_optimal_label_positions(
+    spectra: List[np.ndarray],
+    y_offsets: List[float],
+    x_range: Tuple[float, float],
+    x_grid: np.ndarray,
+    method: str = 'peak'
+) -> List[Tuple[float, float]]:
+    """
+    Find optimal (x, y) positions for dataset labels on stacked spectra.
+
+    Args:
+        spectra: List of spectrum arrays
+        y_offsets: Vertical offsets for each spectrum
+        x_range: (x_min, x_max) range to consider
+        x_grid: X-axis grid corresponding to spectra
+        method: 'peak' (at maximum), 'flat' (at flattest region), 'right' (right side)
+
+    Returns:
+        List of (x, y) positions for each label
+    """
+    positions = []
+
+    for i, (spectrum, offset) in enumerate(zip(spectra, y_offsets)):
+        offset_spectrum = spectrum + offset
+
+        # Find indices within x_range
+        mask = (x_grid >= x_range[0]) & (x_grid <= x_range[1])
+        x_subset = x_grid[mask]
+        y_subset = offset_spectrum[mask]
+
+        if len(y_subset) == 0:
+            # Fallback to right edge
+            positions.append((x_range[1], offset))
+            continue
+
+        if method == 'peak':
+            # Place at maximum intensity
+            max_idx = np.argmax(y_subset)
+            x_pos = x_subset[max_idx]
+            y_pos = y_subset[max_idx]
+
+        elif method == 'flat':
+            # Place at flattest region (minimum gradient)
+            gradient = np.abs(np.gradient(y_subset))
+            flat_idx = np.argmin(gradient[10:-10]) + 10  # Avoid edges
+            x_pos = x_subset[flat_idx]
+            y_pos = y_subset[flat_idx]
+
+        elif method == 'right':
+            # Place at right edge
+            x_pos = x_range[1]
+            y_pos = offset
+
+        else:
+            # Default to right edge
+            x_pos = x_range[1]
+            y_pos = offset
+
+        positions.append((x_pos, y_pos))
+
+    logger.debug(f"Found optimal label positions using method '{method}'")
+    return positions
+
+
+def calculate_spectrum_similarity(
+    spectrum1: np.ndarray,
+    spectrum2: np.ndarray,
+    method: str = 'correlation'
+) -> float:
+    """
+    Calculate similarity between two spectra.
+
+    Useful for quantifying agreement between experimental and calculated spectra.
+
+    Args:
+        spectrum1: First spectrum
+        spectrum2: Second spectrum (must be same length as spectrum1)
+        method: Similarity metric ('correlation', 'rmse', 'mae', 'r2')
+
+    Returns:
+        Similarity score
+    """
+    if len(spectrum1) != len(spectrum2):
+        raise ValueError(f"Spectra must have same length: {len(spectrum1)} vs {len(spectrum2)}")
+
+    if method == 'correlation':
+        # Pearson correlation coefficient
+        correlation = np.corrcoef(spectrum1, spectrum2)[0, 1]
+        return correlation
+
+    elif method == 'rmse':
+        # Root mean squared error (lower is better)
+        rmse = np.sqrt(np.mean((spectrum1 - spectrum2)**2))
+        return rmse
+
+    elif method == 'mae':
+        # Mean absolute error (lower is better)
+        mae = np.mean(np.abs(spectrum1 - spectrum2))
+        return mae
+
+    elif method == 'r2':
+        # R-squared coefficient of determination
+        ss_res = np.sum((spectrum1 - spectrum2)**2)
+        ss_tot = np.sum((spectrum1 - np.mean(spectrum1))**2)
+        r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+        return r2
+
+    else:
+        logger.warning(f"Unknown similarity method '{method}', using correlation")
+        return calculate_spectrum_similarity(spectrum1, spectrum2, 'correlation')
+
+
 # Export all functions
 __all__ = [
     'gaussian_broadening',
@@ -289,5 +492,9 @@ __all__ = [
     'get_ir_region_labels',
     'get_raman_region_boundaries',
     'get_raman_region_labels',
-    'normalize_spectrum'
+    'normalize_spectrum',
+    'interpolate_spectrum',
+    'align_spectra_to_common_grid',
+    'calculate_spectrum_similarity',
+    'find_optimal_label_positions'
 ]
