@@ -2399,6 +2399,94 @@
         }
 
         // ===== PLOTLY VISUALIZATIONS =====
+
+        // ===== UTILITY FUNCTIONS =====
+        const SpectroscopyUtils = {
+            // Wavelength (nm) <-> Energy (eV) conversion
+            wavelengthToEnergy(wavelength_nm) {
+                return 1239.84193 / wavelength_nm;  // eV
+            },
+
+            energyToWavelength(energy_ev) {
+                return 1239.84193 / energy_ev;  // nm
+            },
+
+            // Wavenumber (cm⁻¹) <-> Wavelength (nm) conversion
+            wavenumberToWavelength(wavenumber_cm) {
+                return 1e7 / wavenumber_cm;  // nm
+            },
+
+            wavelengthToWavenumber(wavelength_nm) {
+                return 1e7 / wavelength_nm;  // cm⁻¹
+            },
+
+            // Energy unit conversions
+            hartreeToEV(hartree) {
+                return hartree * 27.211386245988;  // eV
+            },
+
+            hartreeToKcalMol(hartree) {
+                return hartree * 627.5094740631;  // kcal/mol
+            },
+
+            evToHartree(ev) {
+                return ev / 27.211386245988;  // Hartree
+            },
+
+            // Gaussian broadening function
+            gaussianBroadening(peaks, gridPoints, minX, maxX, fwhm) {
+                const sigma = fwhm / (2 * Math.sqrt(2 * Math.log(2)));
+                const xGrid = Array.from({length: gridPoints}, (_, i) =>
+                    minX + (maxX - minX) * i / (gridPoints - 1)
+                );
+
+                const spectrum = xGrid.map(x => {
+                    let intensity = 0;
+                    peaks.forEach(peak => {
+                        const exponent = -0.5 * Math.pow((x - peak.position) / sigma, 2);
+                        intensity += peak.intensity * Math.exp(exponent);
+                    });
+                    return intensity;
+                });
+
+                return {x: xGrid, y: spectrum};
+            },
+
+            // Normalize spectrum to [0, 1]
+            normalize(spectrum) {
+                const max = Math.max(...spectrum);
+                return spectrum.map(val => max > 0 ? val / max : 0);
+            },
+
+            // Calculate automatic y-limits with padding
+            calculateYLimits(data, paddingPercent = 10) {
+                const min = Math.min(...data);
+                const max = Math.max(...data);
+                const range = max - min;
+                const padding = range * paddingPercent / 100;
+                return [min - padding, max + padding];
+            },
+
+            // Safe data access with error handling
+            safeGet(obj, path, defaultValue = null) {
+                try {
+                    return path.split('.').reduce((acc, part) => acc && acc[part], obj) || defaultValue;
+                } catch (e) {
+                    console.warn(`Error accessing ${path}:`, e);
+                    return defaultValue;
+                }
+            },
+
+            // Generate color palette for multiple datasets
+            getColorPalette(count) {
+                const colors = [
+                    '#667eea', '#764ba2', '#28a745', '#dc3545',
+                    '#ffc107', '#17a2b8', '#e83e8c', '#6f42c1', '#fd7e14'
+                ];
+                return Array.from({length: count}, (_, i) => colors[i % colors.length]);
+            }
+        };
+
         function renderAllPlots() {
             if (!data) return;
             renderSCFPlot();
@@ -2773,29 +2861,129 @@
             if (!data || !data.thermochemistry) return;
 
             const thermo = data.thermochemistry;
-            const labels = ['Electronic', 'ZPE', 'Thermal', 'Enthalpy', 'Gibbs Free'];
-            const values = [
-                data.final_energy || 0,
-                thermo.zero_point_energy || 0,
-                thermo.total_enthalpy || 0,
-                thermo.total_enthalpy || 0,
-                thermo.gibbs_free_energy || 0
+            const E_elec = data.final_energy || 0;
+            const ZPE = thermo.zero_point_energy || 0;
+            const H = thermo.enthalpy || 0;
+            const G = thermo.gibbs_free_energy || 0;
+
+            // Calculate corrections
+            const ZPE_corr = ZPE - E_elec;
+            const H_corr = H - E_elec;
+            const G_corr = G - E_elec;
+            const TS = H - G;  // T×S term
+
+            // Conversion factor
+            const au_to_kcal = 627.509;
+
+            // Create waterfall diagram data
+            const stages = [
+                {label: 'E<sub>elec</sub>', value: E_elec, color: '#667eea', desc: 'Electronic Energy'},
+                {label: 'E<sub>elec</sub> + ZPE', value: ZPE, color: '#764ba2', desc: 'Zero-Point Energy'},
+                {label: 'H (Enthalpy)', value: H, color: '#28a745', desc: 'Thermal Enthalpy'},
+                {label: 'G (Gibbs)', value: G, color: '#dc3545', desc: 'Gibbs Free Energy'}
             ];
 
-            const trace = {
-                x: labels,
-                y: values,
-                type: 'bar',
-                marker: {color: ['#667eea', '#764ba2', '#28a745', '#ffc107', '#dc3545']}
-            };
+            // Main energy levels as horizontal bars
+            const traces = [];
+            stages.forEach((stage, idx) => {
+                traces.push({
+                    x: [idx - 0.3, idx + 0.3],
+                    y: [stage.value, stage.value],
+                    mode: 'lines',
+                    line: {
+                        color: stage.color,
+                        width: 8
+                    },
+                    name: stage.desc,
+                    hovertemplate: `<b>${stage.desc}</b><br>` +
+                                  `Energy: ${stage.value.toFixed(6)} Eh<br>` +
+                                  `(${(stage.value * au_to_kcal).toFixed(2)} kcal/mol)<extra></extra>`
+                });
+            });
+
+            // Add connecting arrows/lines between levels
+            for (let i = 0; i < stages.length - 1; i++) {
+                const correction = stages[i + 1].value - stages[i].value;
+                traces.push({
+                    x: [i + 0.3, i + 0.7],
+                    y: [stages[i].value, stages[i + 1].value],
+                    mode: 'lines',
+                    line: {
+                        color: '#999',
+                        width: 2,
+                        dash: 'dot'
+                    },
+                    showlegend: false,
+                    hovertemplate: `Correction: ${(correction * au_to_kcal).toFixed(2)} kcal/mol<extra></extra>`
+                });
+            }
+
+            // Annotations for corrections
+            const annotations = [
+                {
+                    x: 0.5,
+                    y: (E_elec + ZPE) / 2,
+                    text: `ZPE<br>${(ZPE_corr * au_to_kcal).toFixed(1)} kcal/mol`,
+                    showarrow: false,
+                    font: {size: 10, color: '#764ba2'},
+                    bgcolor: 'rgba(255,255,255,0.8)'
+                },
+                {
+                    x: 1.5,
+                    y: (ZPE + H) / 2,
+                    text: `Thermal<br>${((H - ZPE) * au_to_kcal).toFixed(1)} kcal/mol`,
+                    showarrow: false,
+                    font: {size: 10, color: '#28a745'},
+                    bgcolor: 'rgba(255,255,255,0.8)'
+                },
+                {
+                    x: 2.5,
+                    y: (H + G) / 2,
+                    text: `-T×S<br>${((G - H) * au_to_kcal).toFixed(1)} kcal/mol`,
+                    showarrow: false,
+                    font: {size: 10, color: '#dc3545'},
+                    bgcolor: 'rgba(255,255,255,0.8)'
+                }
+            ];
 
             const layout = {
-                title: 'Thermochemistry Energy Diagram',
-                yaxis: {title: 'Energy (Eh)'},
-                hovermode: 'closest'
+                title: {
+                    text: 'Thermochemistry Energy Ladder<br><sub>Waterfall diagram with corrections at T=' + (thermo.temperature || 298.15) + ' K</sub>',
+                    font: {size: 16}
+                },
+                xaxis: {
+                    tickmode: 'array',
+                    tickvals: [0, 1, 2, 3],
+                    ticktext: stages.map(s => s.label),
+                    showgrid: false
+                },
+                yaxis: {
+                    title: 'Energy (Hartree)',
+                    showgrid: true,
+                    gridcolor: '#e0e0e0'
+                },
+                annotations: annotations,
+                hovermode: 'closest',
+                showlegend: true,
+                legend: {
+                    x: 0.02,
+                    y: 0.98,
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                    bordercolor: '#666',
+                    borderwidth: 1
+                },
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white'
             };
 
-            Plotly.newPlot('thermo-plot', [trace], layout, {responsive: true});
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
+            };
+
+            Plotly.newPlot('thermo-plot', traces, layout, config);
         }
 
         function renderOrbitalPlot() {
