@@ -1,0 +1,20 @@
+! LibXC(B3LYP) D3BJ 6-311++G(d,p) def2/J RIJCOSX VeryTightSCF DefGrid3 CPCM(Water) PAL16 LARGEPRINT
+
+% maxcore 512 #4096
+
+%TDDFT
+  NROOTS 40
+  IROOT 1
+END
+
+%ESD
+  ESDFLAG ABS
+  GSHESSIAN "p1xs0.hess"
+  DOHT TRUE
+  HESSFLAG VG
+END
+
+! MORead
+% moinp "p1xs0.gbw"
+
+* xyzfile 0 1 p1xs0.xyz
