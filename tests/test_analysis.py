@@ -6,10 +6,16 @@ Run: pytest tests/test_analysis.py -v -s
 
 import sys
 from pathlib import Path
+import logging
 import pandas as pd
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Setup logging
+from src.logger import setup_logging, get_logger
+setup_logging(level=logging.DEBUG)
+logger = get_logger("test_analysis")
 
 
 class TestHierarchyDetector:
@@ -26,10 +32,10 @@ class TestHierarchyDetector:
         detector = HierarchyDetector(df)
         hierarchy = detector.detect()
         
-        print("\n=== HIERARCHY OUTPUT ===")
-        print(f"Roots: {hierarchy.roots}")
-        print(f"Variants: {hierarchy.variants}")
-        print(f"Tree:\n{hierarchy.to_tree()}")
+        logger.info("=== HIERARCHY OUTPUT ===")
+        logger.info(f"Roots: {hierarchy.roots}")
+        logger.info(f"Variants: {hierarchy.variants}")
+        logger.info(f"Tree:\n{hierarchy.to_tree()}")
         
         assert len(hierarchy.roots) > 0
 
@@ -48,9 +54,9 @@ class TestPartitionDetector:
         detector = PartitionDetector(df)
         partitions = detector.detect()
         
-        print("\n=== PARTITION OUTPUT ===")
-        print(f"By state: {partitions.by_state}")
-        print(f"By calc type: {partitions.by_calc_type}")
+        logger.info("=== PARTITION OUTPUT ===")
+        logger.info(f"By state: {partitions.by_state}")
+        logger.info(f"By calc type: {partitions.by_calc_type}")
         
         assert len(partitions.by_state) > 0 or len(partitions.by_calc_type) > 0
 
@@ -69,9 +75,9 @@ class TestPathwayDetector:
         detector = PathwayDetector(df)
         pathways = detector.detect()
         
-        print("\n=== PATHWAY OUTPUT ===")
+        logger.info("=== PATHWAY OUTPUT ===")
         for i, pw in enumerate(pathways):
-            print(f"Pathway {i}: nodes={pw.nodes}, edges={pw.edges}, color={pw.color}")
+            logger.info(f"Pathway {i}: nodes={pw.nodes}, edges={pw.edges}, color={pw.color}")
 
 
 class TestSpectralScaler:
@@ -89,9 +95,9 @@ class TestSpectralScaler:
         scaler = SpectralScaler(spectrum)
         scaled = scaler.linear_scale(0.97)
         
-        print("\n=== SPECTRAL SCALING OUTPUT ===")
-        print(f"Original: {list(spectrum['freq_cm-1'])}")
-        print(f"Linear scaled (0.97): {list(scaled['freq_cm-1_scaled'])}")
+        logger.info("=== SPECTRAL SCALING OUTPUT ===")
+        logger.info(f"Original: {list(spectrum['freq_cm-1'])}")
+        logger.info(f"Linear scaled (0.97): {list(scaled['freq_cm-1_scaled'])}")
         
         # 1000 * 0.97 = 970
         assert scaled["freq_cm-1_scaled"].iloc[0] == 970
@@ -108,7 +114,7 @@ class TestSpectralScaler:
         scaler = SpectralScaler(spectrum)
         scaled = scaler.relative_scale(2.0)
         
-        print(f"Relative scaled (2.0): {list(scaled['freq_cm-1_scaled'])}")
+        logger.info(f"Relative scaled (2.0): {list(scaled['freq_cm-1_scaled'])}")
         
         # ν_min + 2 * (ν - ν_min)
         # 100 + 2 * (100 - 100) = 100

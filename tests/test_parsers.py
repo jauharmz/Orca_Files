@@ -6,9 +6,15 @@ Run: pytest tests/test_parsers.py -v -s
 
 import sys
 from pathlib import Path
+import logging
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Setup logging
+from src.logger import setup_logging, get_logger
+setup_logging(level=logging.DEBUG)
+logger = get_logger("test_parsers")
 
 
 class TestGeometryParser:
@@ -30,9 +36,9 @@ H     -0.363000    1.027350    0.000000
         parser = GeometryParser(sample_text)
         result = parser.parse()
         
-        print("\n=== GEOMETRY OUTPUT ===")
-        print(f"Cart coords:\n{result.cart_coords}")
-        print(f"SMILES: {result.smiles}")
+        logger.info("=== GEOMETRY OUTPUT ===")
+        logger.info(f"Cart coords:\n{result.cart_coords}")
+        logger.info(f"SMILES: {result.smiles}")
         
         assert result.cart_coords is not None
         assert len(result.cart_coords) == 3
@@ -53,10 +59,10 @@ INPUT FILE
         parser = GeometryParser(sample_text)
         result = parser.parse()
         
-        print("\n=== GEOMETRY INFO ===")
-        print(f"Filename: {result.filename}")
-        print(f"Charge: {result.charge}")
-        print(f"Multiplicity: {result.multiplicity}")
+        logger.info("=== GEOMETRY INFO ===")
+        logger.info(f"Filename: {result.filename}")
+        logger.info(f"Charge: {result.charge}")
+        logger.info(f"Multiplicity: {result.multiplicity}")
         
         assert result.charge == 0
         assert result.multiplicity == 1
@@ -76,8 +82,8 @@ Final Gibbs free energy         ...   -854.123456789 Eh
         parser = EnergyParser(sample_text)
         result = parser.parse()
         
-        print("\n=== ENERGY OUTPUT ===")
-        print(f"Gibbs: {result.gibbs_Eh} Eh")
+        logger.info("=== ENERGY OUTPUT ===")
+        logger.info(f"Gibbs: {result.gibbs_Eh} Eh")
         
         assert result.gibbs_Eh is not None
         assert abs(result.gibbs_Eh - (-854.123456789)) < 0.001
@@ -93,7 +99,7 @@ FINAL SINGLE POINT ENERGY      -854.987654321
         parser = EnergyParser(sample_text)
         result = parser.parse()
         
-        print(f"Single point: {result.single_point_Eh} Eh")
+        logger.info(f"Single point: {result.single_point_Eh} Eh")
         
         assert result.single_point_Eh is not None
 
@@ -120,11 +126,11 @@ ORBITAL ENERGIES
         parser = OrbitalParser(sample_text)
         result = parser.parse()
         
-        print("\n=== ORBITAL OUTPUT ===")
-        print(f"Orbitals:\n{result.orbitals}")
-        print(f"HOMO: {result.homo_energy} eV")
-        print(f"LUMO: {result.lumo_energy} eV")
-        print(f"Gap: {result.homo_lumo_gap} eV")
+        logger.info("=== ORBITAL OUTPUT ===")
+        logger.info(f"Orbitals:\n{result.orbitals}")
+        logger.info(f"HOMO: {result.homo_energy} eV")
+        logger.info(f"LUMO: {result.lumo_energy} eV")
+        logger.info(f"Gap: {result.homo_lumo_gap} eV")
         
         assert result.orbitals is not None
         assert result.homo_energy is not None
@@ -157,10 +163,10 @@ Final Gibbs free energy         ...   -100.123456 Eh
         factory = ParserFactory()
         result = factory.parse_text(sample_text, "test.out")
         
-        print("\n=== FACTORY OUTPUT ===")
-        print(f"Filename: {result.filename}")
-        print(f"Geometry atoms: {len(result.geometry.cart_coords) if result.geometry.cart_coords is not None else 0}")
-        print(f"Energy: {result.energy.gibbs_Eh}")
+        logger.info("=== FACTORY OUTPUT ===")
+        logger.info(f"Filename: {result.filename}")
+        logger.info(f"Geometry atoms: {len(result.geometry.cart_coords) if result.geometry.cart_coords is not None else 0}")
+        logger.info(f"Energy: {result.energy.gibbs_Eh}")
         
         assert result.geometry.cart_coords is not None
         assert result.energy.gibbs_Eh is not None
