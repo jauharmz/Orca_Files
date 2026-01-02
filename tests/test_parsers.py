@@ -1,7 +1,14 @@
-"""Tests for parser modules."""
+"""
+Parser Unit Tests
 
-import pytest
+Run: pytest tests/test_parsers.py -v -s
+"""
+
+import sys
 from pathlib import Path
+
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 class TestGeometryParser:
@@ -24,7 +31,7 @@ H     -0.363000    1.027350    0.000000
         result = parser.parse()
         
         print("\n=== GEOMETRY OUTPUT ===")
-        print(f"Cart coords: {result.cart_coords}")
+        print(f"Cart coords:\n{result.cart_coords}")
         print(f"SMILES: {result.smiles}")
         
         assert result.cart_coords is not None
@@ -114,7 +121,7 @@ ORBITAL ENERGIES
         result = parser.parse()
         
         print("\n=== ORBITAL OUTPUT ===")
-        print(f"Orbitals: {result.orbitals}")
+        print(f"Orbitals:\n{result.orbitals}")
         print(f"HOMO: {result.homo_energy} eV")
         print(f"LUMO: {result.lumo_energy} eV")
         print(f"Gap: {result.homo_lumo_gap} eV")
@@ -152,7 +159,7 @@ Final Gibbs free energy         ...   -100.123456 Eh
         
         print("\n=== FACTORY OUTPUT ===")
         print(f"Filename: {result.filename}")
-        print(f"Geometry: {result.geometry.cart_coords}")
+        print(f"Geometry atoms: {len(result.geometry.cart_coords) if result.geometry.cart_coords is not None else 0}")
         print(f"Energy: {result.energy.gibbs_Eh}")
         
         assert result.geometry.cart_coords is not None
@@ -160,5 +167,5 @@ Final Gibbs free energy         ...   -100.123456 Eh
 
 
 if __name__ == "__main__":
-    # Run tests with output
+    import pytest
     pytest.main([__file__, "-v", "-s"])
