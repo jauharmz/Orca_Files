@@ -2,18 +2,20 @@
 
 **An interactive Python-based parser and visualization system for ORCA quantum chemistry output files.**
 
-> **Stack**: Streamlit + Plotly + py3Dmol | **Deployment**: Local | **User**: Single-user project
+> **Stack**: Streamlit + Plotly + py3Dmol | **Deployment**: Local | **User**: Single-user
 
 ---
 
-## 📋 Project Overview
+## 📋 Key Features
 
-| Component | Technology | Status |
-|-----------|------------|--------|
-| **Parser** | Python, regex, pandas | 🔄 Refactoring |
-| **Visualization** | Plotly, py3Dmol | ⏳ Migration |
-| **Web UI** | Streamlit | ⏳ Planned |
-| **Logging** | Python logging | ⏳ Planned |
+| Feature | Description |
+|---------|-------------|
+| **Modular Parser** | Data-type based parsers with logging |
+| **Interactive Viz** | Plotly + py3Dmol visualizations |
+| **Multi-Comparison** | Compare multiple molecules side-by-side |
+| **Pathway Detection** | Auto-detect degradation pathways |
+| **Spectral Scaling** | Linear & relative frequency scaling |
+| **HTML Export** | Single-file interactive reports |
 
 ---
 
@@ -23,243 +25,153 @@
 
 ```mermaid
 graph TB
-    subgraph "📁 Input Sources"
-        F1[Local .out Files]
-        F2[Folder Batch Upload]
-        F3[HuggingFace Dataset]
+    subgraph "📁 Input"
+        F1[.out Files]
+        F2[HuggingFace]
     end
     
-    subgraph "🔄 File Handler"
-        FH[FileHandler]
-        FV[FileValidator]
-        FL[FileLoader]
-    end
-    
-    subgraph "⚙️ Parser Registry"
-        PR[ParserRegistry]
+    subgraph "⚙️ Parser Layer"
         PF[ParserFactory]
-    end
-    
-    subgraph "📊 Data Store"
-        DS[(MoleculeDataStore)]
-        DF[(DataFrame Cache)]
-    end
-    
-    subgraph "📈 Visualization Registry"
-        VR[VisualizerRegistry]
-        VF[VisualizerFactory]
-    end
-    
-    subgraph "🖥️ Streamlit App"
-        UI[StreamlitUI]
-        SS[SessionState]
-    end
-    
-    F1 & F2 & F3 --> FH
-    FH --> FV --> FL
-    FL --> PR --> PF
-    PF --> DS --> DF
-    DF --> VR --> VF
-    VF --> UI
-    UI <--> SS
-```
-
----
-
-### Parser Module Architecture
-
-```mermaid
-graph LR
-    subgraph "📄 Input"
-        TXT[Raw ORCA Text]
-    end
-    
-    subgraph "🏭 Parser Factory"
-        PF[ParserFactory]
-    end
-    
-    subgraph "🔧 Base Parser"
-        BP[BaseParser]
-        BP --> LOG[Logger]
-        BP --> UTIL[RegexUtils]
-    end
-    
-    subgraph "📦 Data Parsers"
         GP[GeometryParser]
         EP[EnergyParser]
         OP[OrbitalParser]
         SP[SpectroscopyParser]
         TP[TDDFTParser]
-        DP[DipoleParser]
-        MP[MullikenParser]
     end
     
-    subgraph "📊 Output Models"
-        GM[GeometryData]
-        EM[EnergyData]
-        OM[OrbitalData]
-        SM[SpectraData]
-        TM[TDDFTData]
-        DM[DipoleData]
-        MM[ChargeData]
+    subgraph "🔬 Analysis Layer"
+        PD[PathwayDetector]
+        CE[ComparisonEngine]
+        SS[SpectralScaler]
     end
     
-    TXT --> PF
-    PF --> GP & EP & OP & SP & TP & DP & MP
-    
-    GP -.-> BP
-    EP -.-> BP
-    OP -.-> BP
-    SP -.-> BP
-    TP -.-> BP
-    DP -.-> BP
-    MP -.-> BP
-    
-    GP --> GM
-    EP --> EM
-    OP --> OM
-    SP --> SM
-    TP --> TM
-    DP --> DM
-    MP --> MM
-```
-
----
-
-### Visualization Module Architecture
-
-```mermaid
-graph LR
-    subgraph "📊 Data Input"
-        DF[(DataFrame)]
-    end
-    
-    subgraph "🏭 Visualizer Factory"
+    subgraph "📊 Visualization Layer"
         VF[VisualizerFactory]
+        M3D[Molecule3D]
+        EDV[EnergyDiagram]
+        SPV[SpectraPlot]
+        PWV[PathwayVisualizer]
     end
     
-    subgraph "🎨 Base Visualizer"
-        BV[BaseVisualizer]
-        BV --> CFG[PlotConfig]
-        BV --> THM[ThemeManager]
+    subgraph "📤 Export Layer"
+        HE[HTMLExporter]
+        PE[PlotExporter]
     end
     
-    subgraph "📈 Visualizer Modules"
-        M3D[Molecule3DVisualizer]
-        EV[EnergyDiagramVisualizer]
-        OV[OrbitalPlotVisualizer]
-        SV[SpectraVisualizer]
-        TV[TDDFTVisualizer]
+    subgraph "🖥️ Streamlit App"
+        UI[StreamlitUI]
     end
     
-    subgraph "🖼️ Output"
-        P3D[py3Dmol View]
-        PL3D[Plotly 3D Scatter]
-        PLB[Plotly Bar Chart]
-        PLL[Plotly Line Chart]
-        PLS[Plotly Sankey]
-    end
-    
-    DF --> VF
-    VF --> M3D & EV & OV & SV & TV
-    
-    M3D -.-> BV
-    EV -.-> BV
-    OV -.-> BV
-    SV -.-> BV
-    TV -.-> BV
-    
-    M3D --> P3D & PL3D
-    EV --> PLB
-    OV --> PLB
-    SV --> PLL
-    TV --> PLS
+    F1 & F2 --> PF
+    PF --> GP & EP & OP & SP & TP
+    GP & EP & OP & SP & TP --> PD & CE & SS
+    PD & CE & SS --> VF
+    VF --> M3D & EDV & SPV & PWV
+    M3D & EDV & SPV & PWV --> HE & PE
+    HE & PE --> UI
 ```
 
 ---
 
-### Streamlit App Architecture
+### Pathway Detection & Comparison Architecture
 
 ```mermaid
 graph TB
-    subgraph "🖥️ Streamlit Pages"
-        HP[HomePage]
-        UP[UploadPage]
-        MP[MoleculePage]
-        CP[ComparePage]
-        SP[SettingsPage]
+    subgraph "📊 Data Input"
+        DF[(Parsed DataFrame)]
     end
     
-    subgraph "🧩 UI Components"
-        FU[FileUploader]
-        MS[MoleculeSelector]
-        VT[VisualizationTabs]
-        EX[ExportButtons]
-        LG[LogViewer]
+    subgraph "🔍 Pathway Detection"
+        PD[PathwayDetector]
+        NM[NamingMatcher]
+        GD[GraphBuilder]
+        RR[ReactionRules]
     end
     
-    subgraph "📦 State Management"
-        SS[SessionState]
-        DC[DataCache]
-        VC[ViewCache]
+    subgraph "📐 Pathway Model"
+        PW[Pathway]
+        ED[Edge]
+        RX[Reaction]
+        SC[StepCorrection]
     end
     
-    subgraph "🔧 Services"
-        PS[ParserService]
-        VS[VizService]
-        LS[LogService]
+    subgraph "🎨 Pathway Visualization"
+        PWV[PathwayVisualizer]
+        CS[ColorScheme]
+        OD[OverlapDetector]
     end
     
-    HP --> FU
-    UP --> FU --> MS
-    MP --> VT --> EX
-    SP --> LG
+    DF --> PD
+    PD --> NM --> GD
+    GD --> RR
     
-    FU --> PS
-    VT --> VS
-    LG --> LS
+    NM --> PW
+    GD --> ED
+    RR --> RX & SC
     
-    PS & VS & LS <--> SS
-    SS <--> DC & VC
+    PW & ED & RX --> PWV
+    PWV --> CS & OD
 ```
 
 ---
 
-### Data Flow Architecture
+### Spectral Scaling Architecture
 
 ```mermaid
-sequenceDiagram
-    participant U as User
-    participant ST as Streamlit
-    participant FH as FileHandler
-    participant PF as ParserFactory
-    participant DS as DataStore
-    participant VF as VizFactory
-    participant LOG as Logger
-    
-    U->>ST: Upload .out file(s)
-    ST->>FH: validate_files()
-    FH->>LOG: log("Validating files...")
-    FH-->>ST: valid_files[]
-    
-    loop For each file
-        ST->>PF: parse(file)
-        PF->>LOG: log("Parsing geometry...")
-        PF->>LOG: log("Parsing energy...")
-        PF->>LOG: log("Parsing orbitals...")
-        PF-->>DS: MoleculeData
+graph LR
+    subgraph "📊 Input"
+        RAW[Raw Spectrum]
     end
     
-    DS-->>ST: DataFrame
-    ST->>LOG: log(f"Parsed {n} molecules")
+    subgraph "🔧 Scaler"
+        SS[SpectralScaler]
+        LS[LinearScaler]
+        RS[RelativeScaler]
+    end
     
-    U->>ST: Select molecule
-    ST->>VF: create_visualizations(mol_id)
-    VF->>LOG: log("Creating 3D viewer...")
-    VF->>LOG: log("Creating energy plot...")
-    VF-->>ST: [Figure, Figure, ...]
+    subgraph "📐 Formulas"
+        LF["ν_s = s × ν"]
+        RF["ν_s = ν_min + s × (ν - ν_min)"]
+    end
     
-    ST-->>U: Display visualizations
+    subgraph "📊 Output"
+        SCALED[Scaled Spectrum]
+    end
+    
+    RAW --> SS
+    SS --> LS --> LF
+    SS --> RS --> RF
+    LF & RF --> SCALED
+```
+
+---
+
+### HTML Export Architecture
+
+```mermaid
+graph TB
+    subgraph "📊 Visualizations"
+        V1[3D Molecule]
+        V2[Energy Diagram]
+        V3[Orbital Plot]
+        V4[Spectra Plot]
+        V5[Pathway Diagram]
+    end
+    
+    subgraph "📤 HTML Exporter"
+        HE[HTMLExporter]
+        TB[TemplateBuilder]
+        JS[PlotlyJS Embed]
+        CSS[Styling]
+    end
+    
+    subgraph "📄 Output"
+        HTML[Single HTML Report]
+    end
+    
+    V1 & V2 & V3 & V4 & V5 --> HE
+    HE --> TB --> JS & CSS
+    JS & CSS --> HTML
 ```
 
 ---
@@ -268,129 +180,141 @@ sequenceDiagram
 
 ```
 Orca_Files/
-├── README.md
+├── app.py
 ├── requirements.txt
-├── app.py                          # Streamlit entry point
 │
 ├── src/
-│   ├── __init__.py
-│   ├── config.py                   # Configuration constants
-│   ├── logger.py                   # Centralized logging
+│   ├── core/
+│   │   ├── base_parser.py
+│   │   ├── base_visualizer.py
+│   │   └── data_models.py
 │   │
-│   ├── core/                       # Core abstractions
+│   ├── parser/
+│   │   ├── factory.py
+│   │   ├── geometry.py
+│   │   ├── energy.py
+│   │   ├── orbitals.py
+│   │   ├── spectroscopy.py
+│   │   ├── tddft.py
+│   │   └── batch.py
+│   │
+│   ├── analysis/                    # NEW: Analysis modules
 │   │   ├── __init__.py
-│   │   ├── base_parser.py          # Abstract parser
-│   │   ├── base_visualizer.py      # Abstract visualizer
-│   │   ├── data_models.py          # Pydantic/dataclass models
-│   │   └── exceptions.py           # Custom exceptions
+│   │   ├── pathway_detector.py      # Auto-detect pathways
+│   │   ├── comparison_engine.py     # Multi-molecule comparison
+│   │   ├── spectral_scaler.py       # Linear/relative scaling
+│   │   └── reaction_rules.py        # Reaction definitions
 │   │
-│   ├── parser/                     # Modular parsers
+│   ├── viz/
+│   │   ├── factory.py
+│   │   ├── molecule_3d.py
+│   │   ├── energy_diagram.py
+│   │   ├── orbital_plot.py
+│   │   ├── spectra_plot.py
+│   │   └── pathway_viz.py           # NEW: Pathway visualization
+│   │
+│   ├── export/                      # NEW: Export modules
 │   │   ├── __init__.py
-│   │   ├── registry.py             # Parser registration
-│   │   ├── factory.py              # ParserFactory
-│   │   ├── geometry.py             # Coords, SMILES
-│   │   ├── energy.py               # Gibbs, single-point
-│   │   ├── orbitals.py             # HOMO/LUMO, spin
-│   │   ├── spectroscopy.py         # IR, Raman, NMR
-│   │   ├── tddft.py                # TD-DFT states
-│   │   ├── dipole.py               # Electric/velocity
-│   │   ├── mulliken.py             # Charges
-│   │   └── batch.py                # Multi-file
+│   │   ├── html_exporter.py         # Single HTML report
+│   │   ├── plot_exporter.py         # PNG/SVG export
+│   │   └── templates/
+│   │       └── report.html
 │   │
-│   ├── viz/                        # Modular visualizers
-│   │   ├── __init__.py
-│   │   ├── registry.py             # Visualizer registration
-│   │   ├── factory.py              # VisualizerFactory
-│   │   ├── config.py               # Plot themes/configs
-│   │   ├── molecule_3d.py          # py3Dmol + Plotly 3D
-│   │   ├── energy_diagram.py       # Energy pathways
-│   │   ├── orbital_plot.py         # Orbital bars
-│   │   ├── spectra_plot.py         # IR/Raman/UV-Vis
-│   │   └── tddft_plot.py           # TD-DFT diagrams
-│   │
-│   ├── services/                   # Business logic
-│   │   ├── __init__.py
-│   │   ├── parser_service.py       # Parsing orchestration
-│   │   ├── viz_service.py          # Viz orchestration
-│   │   └── file_service.py         # File handling
-│   │
-│   ├── ui/                         # Streamlit components
-│   │   ├── __init__.py
-│   │   ├── components/
-│   │   │   ├── file_uploader.py
-│   │   │   ├── molecule_selector.py
-│   │   │   ├── viz_tabs.py
-│   │   │   └── export_panel.py
-│   │   └── pages/
-│   │       ├── home.py
-│   │       ├── upload.py
-│   │       ├── molecule.py
-│   │       └── settings.py
-│   │
-│   └── utils/
-│       ├── __init__.py
-│       ├── converters.py           # Unit conversions
-│       ├── validators.py           # Input validation
-│       └── regex_patterns.py       # Shared regex
+│   └── ui/
+│       ├── pages/
+│       │   ├── home.py
+│       │   ├── upload.py
+│       │   ├── molecule.py
+│       │   ├── compare.py           # NEW: Comparison page
+│       │   └── pathway.py           # NEW: Pathway page
+│       └── components/
 │
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py                 # Pytest fixtures
-│   ├── test_parsers/
-│   │   ├── test_geometry.py
-│   │   ├── test_energy.py
-│   │   └── ...
-│   ├── test_visualizers/
-│   └── test_data/
-│       └── *.out
-│
-├── notebooks/
-│   ├── 01_parser_demo.ipynb
-│   └── 02_viz_demo.ipynb
-│
-└── legacy/
-    ├── orca_praser.py
-    └── *.ipynb
+└── tests/
 ```
 
 ---
 
-## 🔧 Parser Module Details
+## 🔬 Advanced Features
 
-| Parser | Input Regex Pattern | Output Fields |
-|--------|---------------------|---------------|
-| `GeometryParser` | `CARTESIAN COORDINATES` | `cart_coords`, `internal_coords`, `smiles` |
-| `EnergyParser` | `Final Gibbs`, `FINAL SINGLE POINT` | `gibbs_Eh`, `single_point_Eh` |
-| `OrbitalParser` | `ORBITAL ENERGIES`, `SPIN UP/DOWN` | `orbitals` DataFrame |
-| `SpectroscopyParser` | `IR SPECTRUM`, `RAMAN`, `NMR` | `ir`, `raman`, `nmr` |
-| `TDDFTParser` | `TD-DFT EXCITED STATES` | `tddft_states` DataFrame |
-| `DipoleParser` | `ELECTRIC DIPOLE`, `VELOCITY DIPOLE` | `electric_dipole`, `velocity_dipole` |
-| `MullikenParser` | `MULLIKEN POPULATION` | `mulliken_charges` |
-
----
-
-## 📊 Visualizer Module Details
-
-| Visualizer | Input Data | Output Type | Interactive Features |
-|------------|------------|-------------|---------------------|
-| `Molecule3DVisualizer` | `cart_coords` | py3Dmol, Plotly 3D | Rotate, zoom, style toggle |
-| `EnergyDiagramVisualizer` | `energies` | Plotly bar | Hover values, pathway click |
-| `OrbitalPlotVisualizer` | `orbitals` | Plotly bar | Hover labels, gap highlight |
-| `SpectraVisualizer` | `ir`, `raman` | Plotly line | Peak labels, zoom |
-| `TDDFTVisualizer` | `tddft_states` | Plotly sankey | Transition hover |
-
----
-
-## 🪵 Logging Configuration
+### 1. Pathway Detection
 
 ```python
-# Log format
-%(asctime)s | %(name)s | %(levelname)s | %(message)s
+# Auto-detect degradation pathways from molecule IDs
+detector = PathwayDetector(df)
+pathways = detector.detect()
 
-# Example output
-2026-01-02 18:55:00 | GeometryParser | INFO | Found 42 atoms
-2026-01-02 18:55:00 | EnergyParser | INFO | Gibbs energy: -854.123456 Eh
-2026-01-02 18:55:01 | Molecule3DVisualizer | DEBUG | Creating py3Dmol view
+# Output:
+# [
+#   Pathway(nodes=["p1x", "p2x", "p3x", "p4x", "p5x"]),
+#   Pathway(nodes=["p1x", "p6x"]),
+#   Pathway(nodes=["p1x", "p1a", "p2a", ...]),
+# ]
+
+# Define reaction rules
+detector.set_reaction_rules({
+    ("p1", "p2"): {"add": {"OH": 4}, "remove": {"H2O": 3}},
+    ("p2", "p3"): {"add": {"OH": 2}, "remove": {"H2O": 1}},
+    ("p3", "p4"): {"remove": {"CO2": 1}},
+    ("p4", "p5"): {"add": {"OH": 1}, "remove": {"HCO3": 1}},
+    ("p1", "p6"): {"add": {"OH": 1}, "remove": {"H2O": 1, "OMe": 1}},
+})
+
+# Color schemes
+detector.set_color_scheme("by_variant")  # or "by_destination"
+```
+
+### 2. Multi-Comparison
+
+```python
+# Compare multiple molecules
+engine = ComparisonEngine(df)
+comparison = engine.compare(["p1x", "p2x", "p3x"], 
+                            properties=["energy", "orbitals", "spectra"])
+
+# Side-by-side visualization
+fig = engine.create_comparison_figure()
+```
+
+### 3. Spectral Scaling
+
+```python
+scaler = SpectralScaler(spectrum_df)
+
+# Linear scaling: ν_s = s × ν
+scaled_linear = scaler.linear_scale(factor=0.97)
+
+# Relative scaling: ν_s = ν_min + s × (ν - ν_min)
+scaled_relative = scaler.relative_scale(factor=1.5)
+```
+
+| Scale Type | Formula | Use Case |
+|------------|---------|----------|
+| Linear | `ν_s = s × ν` | DFT frequency correction |
+| Relative | `ν_s = ν_min + s(ν - ν_min)` | Visual comparison |
+
+### 4. HTML Report Export
+
+```python
+exporter = HTMLExporter(df)
+exporter.add_molecule_3d(mol_id="p1x")
+exporter.add_energy_diagram(mol_ids=["p1x", "p2x"])
+exporter.add_pathway_diagram(pathways)
+exporter.add_spectra_plot(mol_id="p1x", spectrum_type="ir")
+
+# Export single interactive HTML
+exporter.export("report.html")
+```
+
+---
+
+## 🧪 Tests
+
+```bash
+# Run all tests with output
+pytest tests/ -v -s
+
+# Run specific module
+pytest tests/test_pathway_detector.py -v
 ```
 
 ---
@@ -398,31 +322,11 @@ Orca_Files/
 ## 🚀 Quick Start
 
 ```bash
-# Install
 pip install -r requirements.txt
-
-# Run tests with output
-pytest tests/ -v -s
-
-# Run Streamlit app
 streamlit run app.py
 ```
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jauharmz/Orca_Files/blob/main/ORCA_Test_v2.ipynb)
-
----
-
-## 🤗 HuggingFace Sample Data
-
-```python
-from huggingface_hub import snapshot_download
-
-snapshot_download(
-    repo_id="JauharMz/Orca",
-    repo_type="dataset",
-    local_dir="./data"
-)
-```
 
 ---
 
