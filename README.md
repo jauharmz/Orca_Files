@@ -2,7 +2,7 @@
 
 **An interactive Python-based parser and visualization system for ORCA quantum chemistry output files.**
 
-> **Stack**: Streamlit + Plotly + py3Dmol | **Deployment**: Local | **User**: Single-user
+> **Stack**: Streamlit + Plotly + py3Dmol | **Deployment**: Local
 
 ---
 
@@ -13,15 +13,16 @@
 | **Modular Parser** | Data-type based parsers with logging |
 | **Interactive Viz** | Plotly + py3Dmol visualizations |
 | **Multi-Comparison** | Compare multiple molecules side-by-side |
+| **Hierarchy Detection** | Auto-detect data hierarchy from naming |
+| **Partition Detection** | Auto-detect data partitions (S0/S1/T1, OPT/SP) |
 | **Pathway Detection** | Auto-detect degradation pathways |
 | **Spectral Scaling** | Linear & relative frequency scaling |
+| **Data Export** | Export parsed data (JSON, CSV, Parquet) |
 | **HTML Export** | Single-file interactive reports |
 
 ---
 
 ## 🏗️ System Architecture
-
-### High-Level Overview
 
 ```mermaid
 graph TB
@@ -36,10 +37,11 @@ graph TB
         EP[EnergyParser]
         OP[OrbitalParser]
         SP[SpectroscopyParser]
-        TP[TDDFTParser]
     end
     
     subgraph "🔬 Analysis Layer"
+        HD[HierarchyDetector]
+        PRT[PartitionDetector]
         PD[PathwayDetector]
         CE[ComparisonEngine]
         SS[SpectralScaler]
@@ -50,128 +52,100 @@ graph TB
         M3D[Molecule3D]
         EDV[EnergyDiagram]
         SPV[SpectraPlot]
-        PWV[PathwayVisualizer]
+        PWV[PathwayViz]
     end
     
     subgraph "📤 Export Layer"
+        DE[DataExporter]
         HE[HTMLExporter]
-        PE[PlotExporter]
-    end
-    
-    subgraph "🖥️ Streamlit App"
-        UI[StreamlitUI]
     end
     
     F1 & F2 --> PF
-    PF --> GP & EP & OP & SP & TP
-    GP & EP & OP & SP & TP --> PD & CE & SS
+    PF --> GP & EP & OP & SP
+    GP & EP & OP & SP --> HD & PRT & PD
+    HD & PRT --> CE & SS
     PD & CE & SS --> VF
     VF --> M3D & EDV & SPV & PWV
-    M3D & EDV & SPV & PWV --> HE & PE
-    HE & PE --> UI
+    M3D & EDV & SPV & PWV --> DE & HE
 ```
 
 ---
 
-### Pathway Detection & Comparison Architecture
+### Data Detection Architecture
 
 ```mermaid
 graph TB
-    subgraph "📊 Data Input"
+    subgraph "📊 Input"
         DF[(Parsed DataFrame)]
     end
     
-    subgraph "🔍 Pathway Detection"
+    subgraph "🔍 Detection Modules"
+        HD[HierarchyDetector]
+        PRT[PartitionDetector]
         PD[PathwayDetector]
-        NM[NamingMatcher]
-        GD[GraphBuilder]
-        RR[ReactionRules]
     end
     
-    subgraph "📐 Pathway Model"
-        PW[Pathway]
-        ED[Edge]
-        RX[Reaction]
-        SC[StepCorrection]
+    subgraph "📐 Hierarchy"
+        H1[Root Nodes]
+        H2[Variant Groups]
     end
     
-    subgraph "🎨 Pathway Visualization"
-        PWV[PathwayVisualizer]
-        CS[ColorScheme]
-        OD[OverlapDetector]
+    subgraph "📐 Partitions"
+        P1[State: S0/S1/T1]
+        P2[Calc Type: OPT/SP]
+        P3[ESD Type: VG/AH]
     end
     
-    DF --> PD
-    PD --> NM --> GD
-    GD --> RR
+    subgraph "📐 Pathways"
+        PW1[Edges]
+        PW2[Reactions]
+    end
     
-    NM --> PW
-    GD --> ED
-    RR --> RX & SC
-    
-    PW & ED & RX --> PWV
-    PWV --> CS & OD
+    DF --> HD --> H1 & H2
+    DF --> PRT --> P1 & P2 & P3
+    DF & H1 --> PD --> PW1 & PW2
+```
+
+**Partition Detection Example:**
+```python
+detector = PartitionDetector(df)
+partitions = detector.detect()
+
+# Output:
+# {
+#   "by_state": {"S0": [...], "S1": [...], "T1": [...]},
+#   "by_calc_type": {"OPT": [...], "SP": [...]},
+#   "by_esd_type": {"VG": [...], "AH": [...], "AHAS": [...]}
+# }
 ```
 
 ---
 
-### Spectral Scaling Architecture
+### Pathway Detection Architecture
 
 ```mermaid
 graph LR
     subgraph "📊 Input"
-        RAW[Raw Spectrum]
+        DF[(DataFrame)]
+        HR[Hierarchy]
+        PT[Partitions]
     end
     
-    subgraph "🔧 Scaler"
-        SS[SpectralScaler]
-        LS[LinearScaler]
-        RS[RelativeScaler]
+    subgraph "🔍 Detector"
+        PD[PathwayDetector]
+        RR[ReactionRules]
+        SC[StepCorrections]
     end
     
-    subgraph "📐 Formulas"
-        LF["ν_s = s × ν"]
-        RF["ν_s = ν_min + s × (ν - ν_min)"]
+    subgraph "📐 Output"
+        PW[Pathways]
+        ED[Edges]
+        CS[ColorSchemes]
     end
     
-    subgraph "📊 Output"
-        SCALED[Scaled Spectrum]
-    end
-    
-    RAW --> SS
-    SS --> LS --> LF
-    SS --> RS --> RF
-    LF & RF --> SCALED
-```
-
----
-
-### HTML Export Architecture
-
-```mermaid
-graph TB
-    subgraph "📊 Visualizations"
-        V1[3D Molecule]
-        V2[Energy Diagram]
-        V3[Orbital Plot]
-        V4[Spectra Plot]
-        V5[Pathway Diagram]
-    end
-    
-    subgraph "📤 HTML Exporter"
-        HE[HTMLExporter]
-        TB[TemplateBuilder]
-        JS[PlotlyJS Embed]
-        CSS[Styling]
-    end
-    
-    subgraph "📄 Output"
-        HTML[Single HTML Report]
-    end
-    
-    V1 & V2 & V3 & V4 & V5 --> HE
-    HE --> TB --> JS & CSS
-    JS & CSS --> HTML
+    DF & HR & PT --> PD
+    PD --> RR & SC --> PW & ED
+    PD --> CS
 ```
 
 ---
@@ -181,140 +155,76 @@ graph TB
 ```
 Orca_Files/
 ├── app.py
-├── requirements.txt
-│
 ├── src/
-│   ├── core/
-│   │   ├── base_parser.py
-│   │   ├── base_visualizer.py
-│   │   └── data_models.py
-│   │
 │   ├── parser/
 │   │   ├── factory.py
 │   │   ├── geometry.py
 │   │   ├── energy.py
 │   │   ├── orbitals.py
-│   │   ├── spectroscopy.py
-│   │   ├── tddft.py
-│   │   └── batch.py
+│   │   └── spectroscopy.py
 │   │
-│   ├── analysis/                    # NEW: Analysis modules
-│   │   ├── __init__.py
-│   │   ├── pathway_detector.py      # Auto-detect pathways
-│   │   ├── comparison_engine.py     # Multi-molecule comparison
-│   │   ├── spectral_scaler.py       # Linear/relative scaling
-│   │   └── reaction_rules.py        # Reaction definitions
+│   ├── analysis/
+│   │   ├── hierarchy_detector.py
+│   │   ├── partition_detector.py    # NEW
+│   │   ├── pathway_detector.py
+│   │   ├── comparison_engine.py
+│   │   └── spectral_scaler.py
 │   │
 │   ├── viz/
-│   │   ├── factory.py
 │   │   ├── molecule_3d.py
 │   │   ├── energy_diagram.py
-│   │   ├── orbital_plot.py
 │   │   ├── spectra_plot.py
-│   │   └── pathway_viz.py           # NEW: Pathway visualization
+│   │   └── pathway_viz.py
 │   │
-│   ├── export/                      # NEW: Export modules
-│   │   ├── __init__.py
-│   │   ├── html_exporter.py         # Single HTML report
-│   │   ├── plot_exporter.py         # PNG/SVG export
-│   │   └── templates/
-│   │       └── report.html
-│   │
-│   └── ui/
-│       ├── pages/
-│       │   ├── home.py
-│       │   ├── upload.py
-│       │   ├── molecule.py
-│       │   ├── compare.py           # NEW: Comparison page
-│       │   └── pathway.py           # NEW: Pathway page
-│       └── components/
+│   └── export/
+│       ├── data_exporter.py
+│       └── html_exporter.py
 │
 └── tests/
 ```
 
 ---
 
-## 🔬 Advanced Features
+## 🔬 Detection APIs
 
-### 1. Pathway Detection
-
+### Hierarchy
 ```python
-# Auto-detect degradation pathways from molecule IDs
-detector = PathwayDetector(df)
-pathways = detector.detect()
-
-# Output:
-# [
-#   Pathway(nodes=["p1x", "p2x", "p3x", "p4x", "p5x"]),
-#   Pathway(nodes=["p1x", "p6x"]),
-#   Pathway(nodes=["p1x", "p1a", "p2a", ...]),
-# ]
-
-# Define reaction rules
-detector.set_reaction_rules({
-    ("p1", "p2"): {"add": {"OH": 4}, "remove": {"H2O": 3}},
-    ("p2", "p3"): {"add": {"OH": 2}, "remove": {"H2O": 1}},
-    ("p3", "p4"): {"remove": {"CO2": 1}},
-    ("p4", "p5"): {"add": {"OH": 1}, "remove": {"HCO3": 1}},
-    ("p1", "p6"): {"add": {"OH": 1}, "remove": {"H2O": 1, "OMe": 1}},
-})
-
-# Color schemes
-detector.set_color_scheme("by_variant")  # or "by_destination"
+hd = HierarchyDetector(df)
+hierarchy = hd.detect()
+# p1x, p1a → p1 (root) with variants
 ```
 
-### 2. Multi-Comparison
-
+### Partition
 ```python
-# Compare multiple molecules
-engine = ComparisonEngine(df)
-comparison = engine.compare(["p1x", "p2x", "p3x"], 
-                            properties=["energy", "orbitals", "spectra"])
-
-# Side-by-side visualization
-fig = engine.create_comparison_figure()
+pd = PartitionDetector(df)
+partitions = pd.detect()
+# by_state, by_calc_type, by_esd_type
 ```
 
-### 3. Spectral Scaling
-
+### Pathway
 ```python
-scaler = SpectralScaler(spectrum_df)
-
-# Linear scaling: ν_s = s × ν
-scaled_linear = scaler.linear_scale(factor=0.97)
-
-# Relative scaling: ν_s = ν_min + s × (ν - ν_min)
-scaled_relative = scaler.relative_scale(factor=1.5)
-```
-
-| Scale Type | Formula | Use Case |
-|------------|---------|----------|
-| Linear | `ν_s = s × ν` | DFT frequency correction |
-| Relative | `ν_s = ν_min + s(ν - ν_min)` | Visual comparison |
-
-### 4. HTML Report Export
-
-```python
-exporter = HTMLExporter(df)
-exporter.add_molecule_3d(mol_id="p1x")
-exporter.add_energy_diagram(mol_ids=["p1x", "p2x"])
-exporter.add_pathway_diagram(pathways)
-exporter.add_spectra_plot(mol_id="p1x", spectrum_type="ir")
-
-# Export single interactive HTML
-exporter.export("report.html")
+pwd = PathwayDetector(df, hierarchy, partitions)
+pwd.set_reaction_rules({...})
+pathways = pwd.detect()
 ```
 
 ---
 
-## 🧪 Tests
+## 📤 Export APIs
 
-```bash
-# Run all tests with output
-pytest tests/ -v -s
+### Data
+```python
+exporter = DataExporter(df)
+exporter.to_json("data.json")
+exporter.to_csv("data.csv")
+exporter.to_parquet("data.parquet")
+```
 
-# Run specific module
-pytest tests/test_pathway_detector.py -v
+### HTML
+```python
+exporter = HTMLExporter(df)
+exporter.add_all_visualizations()
+exporter.export("report.html")
 ```
 
 ---
