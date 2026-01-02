@@ -1,102 +1,132 @@
-"""Orbital parser for ORCA output."""
+"""
+Orbital Parser - Refactored from orca_praser.py
 
-from typing import Optional, List, Dict
+Parses: orbital energies, HOMO/LUMO, spin-up/down
+"""
+
+import re
+from typing import Optional, List, Dict, Any, Union
 import pandas as pd
 
+from .regex_patterns import RE_ORBITAL_BLOCK, RE_SPIN_UP, RE_SPIN_DOWN
 from ..core.base_parser import BaseParser
 from ..core.data_models import OrbitalData
-from . import regex_patterns as rx
+from ..logger import get_logger
+
+
+def _to_float(x: Any) -> Optional[float]:
+    """Safe float conversion."""
+    try:
+        return float(x)
+    except (ValueError, TypeError):
+        return None
 
 
 class OrbitalParser(BaseParser):
-    """Parse orbital energy data from ORCA output."""
+    """Parser for orbital energies."""
     
-    def parse(self) -> OrbitalData:
-        """Parse orbital data."""
-        self.logger.debug("Parsing orbitals...")
+    def __init__(self, text: str):
+        super().__init__(text)
+        self.logger = get_logger("OrbitalParser")
+    
+    def parse(self, as_df: bool = True) -> OrbitalData:
+        """Parse orbital energies."""
+        self.logger.debug("Starting orbital parsing...")
         
-        data = OrbitalData()
-        data.orbitals = self._parse_orbitals()
+        orbitals_df = self.parse_orbitals(as_df=as_df)
         
-        if data.orbitals is not None and not data.orbitals.empty:
-            # Calculate HOMO/LUMO
-            occupied = data.orbitals[data.orbitals["OCC"] > 0]
-            virtual = data.orbitals[data.orbitals["OCC"] == 0]
+        homo_energy = None
+        lumo_energy = None
+        
+        if orbitals_df is not None and not orbitals_df.empty:
+            occupied = orbitals_df[orbitals_df["OCC"] > 0]
+            virtual = orbitals_df[orbitals_df["OCC"] == 0]
             
             if not occupied.empty:
-                data.homo_energy = occupied["eV"].max()
+                homo_energy = occupied["eV"].max()
             if not virtual.empty:
-                data.lumo_energy = virtual["eV"].min()
-            if data.homo_energy and data.lumo_energy:
-                data.homo_lumo_gap = data.lumo_energy - data.homo_energy
+                lumo_energy = virtual["eV"].min()
             
-            self._log_found(f"orbitals", len(data.orbitals))
-            if data.homo_lumo_gap:
-                self.logger.debug(f"HOMO-LUMO gap: {data.homo_lumo_gap:.2f} eV")
-        
-        return data
-    
-    def _parse_orbitals(self) -> Optional[pd.DataFrame]:
-        """Parse orbital energies with spin handling."""
-        # Check for open-shell (spin polarized)
-        spin_up = rx.SPIN_UP_BLOCK.findall(self.text)
-        spin_down = rx.SPIN_DOWN_BLOCK.findall(self.text)
-        
-        if spin_up and spin_down:
-            spins = [("up", spin_up[-1]), ("down", spin_down[-1])]
+            self.logger.info(f"  Orbitals: {len(occupied)} occupied, {len(virtual)} virtual")
+            if homo_energy:
+                self.logger.info(f"  HOMO: {homo_energy:.3f} eV")
+            if lumo_energy:
+                self.logger.info(f"  LUMO: {lumo_energy:.3f} eV")
+            if homo_energy and lumo_energy:
+                gap = lumo_energy - homo_energy
+                self.logger.info(f"  HOMO-LUMO gap: {gap:.3f} eV")
         else:
-            # Closed-shell
-            blocks = rx.ORBITAL_BLOCK.findall(self.text)
-            if not blocks:
-                self._log_not_found("orbital energies")
-                return None
-            spins = [("na", blocks[-1])]
+            self.logger.debug("  No orbital data found")
         
-        orbitals = []
-        for spin, block in spins:
-            lines = block.strip().splitlines()
-            for line in lines:
-                parts = line.split()
-                if not parts or not parts[0].isdigit() or len(parts) < 4:
+        return OrbitalData(
+            orbitals=orbitals_df,
+            homo_energy=homo_energy,
+            lumo_energy=lumo_energy,
+            homo_lumo_gap=lumo_energy - homo_energy if (homo_energy and lumo_energy) else None
+        )
+    
+    def parse_orbitals(self, as_df: bool = True) -> Union[pd.DataFrame, List[Dict[str, Any]], None]:
+        """Return DataFrame of last orbital block. Handles open and closed shell."""
+        if not self.text:
+            return pd.DataFrame() if as_df else None
+        
+        # Try spin-up/down blocks first (open-shell)
+        up_blocks = RE_SPIN_UP.findall(self.text)
+        down_blocks = RE_SPIN_DOWN.findall(self.text)
+        
+        spins = []
+        if up_blocks and down_blocks:
+            spins = [("up", up_blocks[-1]), ("down", down_blocks[-1])]
+            self.logger.debug("  Found open-shell (spin-up/down) orbitals")
+        else:
+            # fallback: single ORBITAL ENERGIES block (closed-shell)
+            blocks = RE_ORBITAL_BLOCK.findall(self.text)
+            if not blocks:
+                self.logger.debug("  No orbital blocks found")
+                return pd.DataFrame() if as_df else None
+            spins = [("na", blocks[-1])]
+            self.logger.debug("  Found closed-shell orbitals")
+        
+        orbitals: List[Dict[str, Any]] = []
+        for spin_label, block in spins:
+            for L in block.strip().splitlines():
+                parts = L.split()
+                if not parts or not parts[0].lstrip().isdigit():
                     continue
-                
-                occ = self._parse_float(parts[1])
-                energy_h = self._parse_float(parts[2])
-                energy_ev = self._parse_float(parts[3])
-                
-                if None in (occ, energy_h, energy_ev):
+                if len(parts) < 4:
                     continue
-                
-                # Filter fake data
-                if occ not in [0.0, 1.0, 2.0]:
+                occ = _to_float(parts[1])
+                eh = _to_float(parts[2])
+                ev = _to_float(parts[3])
+                if None in (occ, eh, ev):
                     continue
-                
-                orbitals.append({
-                    "OCC": occ,
-                    "Eh": energy_h,
-                    "eV": energy_ev,
-                    "spin": spin
-                })
+                if occ not in (0.0, 1.0, 2.0):
+                    continue
+                if eh == occ + 1.0 and ev == occ + 2.0:
+                    continue
+                orbitals.append({"OCC": occ, "Eh": eh, "eV": ev, "spin": spin_label})
         
         if not orbitals:
-            return None
+            self.logger.debug("  No valid orbitals parsed")
+            return pd.DataFrame() if as_df else None
         
-        # Assign HOMO/LUMO levels
-        occupied = [o for o in orbitals if o["OCC"] > 0]
-        virtual = [o for o in orbitals if o["OCC"] == 0]
+        # separate occupied & virtual, sort, assign levels
+        occupied = [o for o in orbitals if o["OCC"] > 0.0]
+        virtual = [o for o in orbitals if o["OCC"] == 0.0]
         
         occupied.sort(key=lambda x: x["Eh"], reverse=True)
         virtual.sort(key=lambda x: x["Eh"])
         
-        for i, orb in enumerate(occupied):
-            orb["lvl"] = -i  # HOMO=0, HOMO-1=-1, etc.
-            orb["label"] = "HOMO" if i == 0 else f"HOMO-{i}"
+        for i, o in enumerate(occupied):
+            o["lvl"] = i  # 0 = HOMO, 1 = HOMO-1
+        for i, o in enumerate(virtual):
+            o["lvl"] = i  # 0 = LUMO, 1 = LUMO+1
         
-        for i, orb in enumerate(virtual):
-            orb["lvl"] = i + 1  # LUMO=1, LUMO+1=2, etc.
-            orb["label"] = "LUMO" if i == 0 else f"LUMO+{i}"
+        all_orbs = occupied + virtual
+        all_orbs.sort(key=lambda x: x["Eh"])
         
-        all_orbitals = occupied + virtual
-        all_orbitals.sort(key=lambda x: x["Eh"])
+        self.logger.debug(f"  Parsed {len(all_orbs)} total orbitals")
         
-        return pd.DataFrame(all_orbitals)
+        if as_df:
+            return pd.DataFrame(all_orbs)
+        return all_orbs

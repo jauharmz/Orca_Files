@@ -1,89 +1,140 @@
-"""Parser factory for orchestrating all parsers."""
+"""
+Parser Factory - Orchestrates all modular parsers
 
-from typing import Optional
+This is the main entry point for parsing ORCA output files.
+"""
+
+import os
 from pathlib import Path
+from typing import Optional, Dict, Any
+import pandas as pd
 
-from ..core.data_models import ParseResult
-from ..core.exceptions import ORCAFileError
-from ..logger import get_logger
 from .geometry import GeometryParser
 from .energy import EnergyParser
 from .orbitals import OrbitalParser
 from .spectroscopy import SpectroscopyParser
 from .tddft import TDDFTParser
+from ..core.data_models import ParseResult
+from ..logger import get_logger
 
 
 class ParserFactory:
-    """Factory for parsing ORCA output files."""
+    """Factory that orchestrates all modular parsers."""
     
     def __init__(self):
         self.logger = get_logger("ParserFactory")
     
     def parse(self, filepath: str) -> ParseResult:
-        """
-        Parse an ORCA output file.
+        """Parse an ORCA output file."""
+        self.logger.info(f"Parsing file: {filepath}")
         
-        Args:
-            filepath: Path to .out file
-            
-        Returns:
-            ParseResult with all extracted data
-        """
-        self.logger.info(f"Parsing: {filepath}")
-        
-        # Load file
-        path = Path(filepath)
-        if not path.exists():
-            raise ORCAFileError(f"File not found: {filepath}")
-        
-        text = path.read_text(encoding='utf-8', errors='ignore')
-        
-        # Create result
-        result = ParseResult(filename=str(path))
-        
-        # Run all parsers
-        result.geometry = GeometryParser(text, filepath).parse()
-        result.energy = EnergyParser(text, filepath).parse()
-        result.orbitals = OrbitalParser(text, filepath).parse()
-        result.spectra = SpectroscopyParser(text, filepath).parse()
-        result.tddft = TDDFTParser(text, filepath).parse()
-        
-        # Detect calculation type
-        result.is_optimization = "GEOMETRY OPTIMIZATION" in text
-        result.has_tddft = result.tddft.states is not None
-        
-        # Detect optimized state
-        if "OPTIMIZE THE S0 STATE" in text.upper():
-            result.optimized_state = "S0"
-        elif "OPTIMIZE THE S1 STATE" in text.upper():
-            result.optimized_state = "S1"
-        elif "OPTIMIZE THE T1 STATE" in text.upper():
-            result.optimized_state = "T1"
-        
-        self.logger.info(f"Parsed: {path.name} (OPT={result.is_optimization}, TDDFT={result.has_tddft})")
-        
-        return result
+        try:
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+            self.logger.debug(f"  File size: {len(text)} bytes")
+            return self._parse_text(text, filepath)
+        except Exception as e:
+            self.logger.error(f"Parse failed: {e}")
+            return self._empty_result(filepath)
     
     def parse_text(self, text: str, filename: str = "unknown") -> ParseResult:
-        """
-        Parse ORCA output from text string.
+        """Parse from text content."""
+        self.logger.info(f"Parsing text: {filename} ({len(text)} bytes)")
+        return self._parse_text(text, filename)
+    
+    def _parse_text(self, text: str, filename: str) -> ParseResult:
+        """Internal parsing logic."""
+        if not text:
+            self.logger.warning("Empty text, returning empty result")
+            return self._empty_result(filename)
         
-        Args:
-            text: ORCA output text
-            filename: Optional filename for reference
-            
-        Returns:
-            ParseResult with all extracted data
-        """
-        result = ParseResult(filename=filename)
+        self.logger.debug("=" * 50)
+        self.logger.debug(f"PARSING: {filename}")
+        self.logger.debug("=" * 50)
         
-        result.geometry = GeometryParser(text, filename).parse()
-        result.energy = EnergyParser(text, filename).parse()
-        result.orbitals = OrbitalParser(text, filename).parse()
-        result.spectra = SpectroscopyParser(text, filename).parse()
-        result.tddft = TDDFTParser(text, filename).parse()
+        # Run all parsers
+        self.logger.debug("--- Geometry Parser ---")
+        geo_parser = GeometryParser(text)
+        geometry = geo_parser.parse()
+        internal_coords = geo_parser.parse_internal()
         
-        result.is_optimization = "GEOMETRY OPTIMIZATION" in text
-        result.has_tddft = result.tddft.states is not None
+        self.logger.debug("--- Energy Parser ---")
+        energy_parser = EnergyParser(text)
+        energy = energy_parser.parse()
+        calc_info = energy_parser.detect_calc_type()
         
-        return result
+        self.logger.debug("--- Orbital Parser ---")
+        orbital_parser = OrbitalParser(text)
+        orbitals = orbital_parser.parse()
+        
+        self.logger.debug("--- Spectroscopy Parser ---")
+        spec_parser = SpectroscopyParser(text)
+        spectra = spec_parser.parse()
+        mulliken = spec_parser.parse_mulliken()
+        
+        self.logger.debug("--- TD-DFT Parser ---")
+        tddft_parser = TDDFTParser(text)
+        tddft = tddft_parser.parse()
+        
+        # Summary
+        self.logger.debug("=" * 50)
+        self.logger.info(f"Parse complete: {filename}")
+        self._log_summary(geometry, energy, orbitals, spectra, tddft, calc_info)
+        
+        return ParseResult(
+            filename=filename,
+            geometry=geometry,
+            energy=energy,
+            orbitals=orbitals,
+            spectra=spectra,
+            tddft=tddft,
+            mulliken=mulliken,
+            internal_coords=internal_coords,
+            is_optimization=calc_info.get("is_optimization", False),
+            has_tddft=calc_info.get("has_tddft", False),
+            optimized_state=calc_info.get("optimized_state", "S0"),
+            esd_type=calc_info.get("esd_type"),
+            calc_class=calc_info.get("calc_class", "single_point")
+        )
+    
+    def _log_summary(self, geometry, energy, orbitals, spectra, tddft, calc_info):
+        """Log parsing summary."""
+        summary = []
+        
+        if geometry.filename:
+            summary.append(f"mol={geometry.filename}")
+        if geometry.smiles:
+            summary.append(f"smiles=yes")
+        if geometry.cart_coords is not None:
+            summary.append(f"atoms={len(geometry.cart_coords)}")
+        if energy.gibbs_Eh:
+            summary.append(f"gibbs={energy.gibbs_Eh:.4f}")
+        if energy.single_point_Eh:
+            summary.append(f"sp={energy.single_point_Eh:.4f}")
+        if orbitals.homo_energy:
+            summary.append(f"homo={orbitals.homo_energy:.2f}eV")
+        if orbitals.lumo_energy:
+            summary.append(f"lumo={orbitals.lumo_energy:.2f}eV")
+        if spectra.ir is not None and not spectra.ir.empty:
+            summary.append(f"ir={len(spectra.ir)}peaks")
+        if tddft.states is not None and not tddft.states.empty:
+            summary.append(f"tddft={len(tddft.states)}trans")
+        
+        summary.append(f"class={calc_info.get('calc_class')}")
+        
+        self.logger.info(f"  Summary: {', '.join(summary)}")
+    
+    def _empty_result(self, filepath: str) -> ParseResult:
+        """Return empty result."""
+        from ..core.data_models import GeometryData, EnergyData, OrbitalData, SpectraData, TDDFTData, MullikenData, InternalCoordsData
+        
+        return ParseResult(
+            filename=filepath,
+            geometry=GeometryData(),
+            energy=EnergyData(),
+            orbitals=OrbitalData(),
+            spectra=SpectraData(),
+            tddft=TDDFTData(),
+            mulliken=MullikenData(),
+            internal_coords=InternalCoordsData()
+        )

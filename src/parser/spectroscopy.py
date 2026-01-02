@@ -1,178 +1,257 @@
-"""Spectroscopy parser for ORCA output."""
+"""
+Spectroscopy Parser - Refactored from orca_praser.py
 
-from typing import Optional, Dict
+Parses: vibrations, IR, Raman, Mulliken, NMR
+"""
+
+import re
+from typing import Optional, List, Dict, Any, Union
 import pandas as pd
 
+from .regex_patterns import RE_VIBS, RE_IR, RE_RAMAN, RE_MULLIKEN, RE_NMR_SHIELD, RE_NMR_COUPLING
 from ..core.base_parser import BaseParser
-from ..core.data_models import SpectraData
-from . import regex_patterns as rx
+from ..core.data_models import SpectraData, MullikenData
+from ..logger import get_logger
+
+
+def _to_float(x: Any) -> Optional[float]:
+    """Safe float conversion."""
+    try:
+        return float(x)
+    except (ValueError, TypeError):
+        return None
 
 
 class SpectroscopyParser(BaseParser):
-    """Parse spectroscopy data (IR, Raman, NMR, vibrations)."""
+    """Parser for spectroscopic data."""
     
-    def parse(self) -> SpectraData:
-        """Parse spectroscopy data."""
-        self.logger.debug("Parsing spectroscopy...")
-        
-        data = SpectraData()
-        
-        # Parse vibrations
-        data.vibrations = self._parse_vibrations()
-        
-        # Parse IR spectrum
-        data.ir = self._parse_ir()
-        
-        # Parse Raman spectrum
-        data.raman = self._parse_raman()
-        
-        # Parse NMR
-        data.nmr_shielding, data.nmr_coupling = self._parse_nmr()
-        
-        return data
+    def __init__(self, text: str):
+        super().__init__(text)
+        self.logger = get_logger("SpectroscopyParser")
     
-    def _parse_vibrations(self) -> Optional[pd.DataFrame]:
+    def parse(self, as_df: bool = True) -> SpectraData:
+        """Parse all spectroscopic data."""
+        self.logger.debug("Starting spectroscopy parsing...")
+        
+        vib = self.parse_vibrations()
+        ir = self.parse_ir_spectrum()
+        raman = self.parse_raman_spectrum(as_df=as_df)
+        nmr = self.parse_nmr(as_df=as_df)
+        
+        return SpectraData(
+            vibrations=pd.DataFrame(vib) if vib and as_df else vib,
+            ir=pd.DataFrame(ir) if ir and as_df else ir,
+            raman=raman,
+            nmr_shielding=nmr.get("shielding"),
+            nmr_coupling=nmr.get("coupling")
+        )
+    
+    def parse_vibrations(self) -> Optional[List[Dict[str, Any]]]:
         """Parse vibrational frequencies."""
-        blocks = rx.VIBRATIONS.findall(self.text)
+        self.logger.debug("Parsing vibrations...")
+        
+        if not self.text:
+            return None
+        
+        blocks = RE_VIBS.findall(self.text)
         if not blocks:
+            self.logger.debug("  No vibration blocks found")
             return None
         
-        last_block = blocks[-1].strip().splitlines()
-        vib_data = []
+        last = blocks[-1].strip().splitlines()
+        out: List[Dict[str, Any]] = []
         
-        for line in last_block:
-            parts = line.split()
-            if not parts or not parts[0].rstrip(":").isdigit():
+        for L in last:
+            parts = L.split()
+            if not parts:
                 continue
-            try:
-                freq = float(parts[1])
-                img = 1 if freq < 0 else 0
-                vib_data.append({"freq_cm-1": freq, "imaginary": img})
-            except (ValueError, IndexError):
+            if not parts[0].rstrip(":").isdigit():
                 continue
+            freq = _to_float(parts[1])
+            if freq is None:
+                continue
+            out.append({"freq_cm-1": freq, "img": 1 if freq < 0 else 0})
         
-        if vib_data:
-            self._log_found("vibrations", len(vib_data))
-            return pd.DataFrame(vib_data)
-        return None
+        if out:
+            img_count = sum(1 for v in out if v["img"])
+            self.logger.info(f"  Vibrations: {len(out)} modes ({img_count} imaginary)")
+        else:
+            self.logger.debug("  No vibrations parsed")
+        
+        return out if out else None
     
-    def _parse_ir(self) -> Optional[pd.DataFrame]:
+    def parse_ir_spectrum(self) -> Optional[List[Dict[str, Any]]]:
         """Parse IR spectrum."""
-        match = rx.IR_SPECTRUM.search(self.text)
-        if not match:
+        self.logger.debug("Parsing IR spectrum...")
+        
+        if not self.text:
             return None
         
-        block = match.group(1).strip().splitlines()
-        ir_data = []
-        
-        for line in block:
-            parts = line.split()
-            if not parts or not parts[0].rstrip(":").isdigit():
-                continue
-            try:
-                freq = float(parts[1])
-                eps = float(parts[2])
-                intensity = float(parts[3])
-                ir_data.append({
-                    "freq_cm-1": freq,
-                    "eps": eps,
-                    "intensity_km/mol": intensity
-                })
-            except (ValueError, IndexError):
-                continue
-        
-        if ir_data:
-            self._log_found("IR peaks", len(ir_data))
-            return pd.DataFrame(ir_data)
-        return None
-    
-    def _parse_raman(self) -> Optional[pd.DataFrame]:
-        """Parse Raman spectrum."""
-        match = rx.RAMAN_SPECTRUM.search(self.text)
-        if not match:
+        m = RE_IR.search(self.text)
+        if not m:
+            self.logger.debug("  No IR spectrum found")
             return None
         
-        block = match.group(1).strip().splitlines()
-        raman_data = []
+        block = m.group(1).strip().splitlines()
+        out = []
         
-        for line in block:
-            parts = line.split()
+        for L in block:
+            parts = L.split()
             if len(parts) < 4:
                 continue
-            try:
-                freq = float(parts[1])
-                activity = float(parts[2])
-                depol = float(parts[3])
-                raman_data.append({
-                    "freq_cm-1": freq,
-                    "activity": activity,
-                    "depolarization": depol
-                })
-            except (ValueError, IndexError):
+            if not parts[0].rstrip(":").isdigit():
                 continue
+            freq = _to_float(parts[1])
+            eps = _to_float(parts[2])
+            intensity = _to_float(parts[3])
+            if None in (freq, eps, intensity):
+                continue
+            out.append({"freq_cm-1": freq, "eps": eps, "intensity_km/mol": intensity})
         
-        if raman_data:
-            self._log_found("Raman peaks", len(raman_data))
-            return pd.DataFrame(raman_data)
-        return None
+        if out:
+            self.logger.info(f"  IR spectrum: {len(out)} peaks")
+            max_int = max(p["intensity_km/mol"] for p in out)
+            self.logger.debug(f"    Max intensity: {max_int:.2f} km/mol")
+        else:
+            self.logger.debug("  No IR peaks parsed")
+        
+        return out if out else None
     
-    def _parse_nmr(self):
-        """Parse NMR shielding and coupling."""
-        shielding = None
-        coupling = None
+    def parse_raman_spectrum(self, as_df: bool = True) -> Union[pd.DataFrame, List[Dict[str, Any]], None]:
+        """Parse Raman spectrum."""
+        self.logger.debug("Parsing Raman spectrum...")
         
-        # Parse shielding
-        match = rx.NMR_SHIELDING.search(self.text)
-        if match:
-            lines = match.group(1).strip().split('\n')
-            data = []
-            for line in lines:
-                parts = line.split()
-                if len(parts) >= 4:
-                    try:
-                        data.append({
-                            "Nucleus": parts[0],
-                            "Element": parts[1],
-                            "Isotropic": float(parts[2]),
-                            "Anisotropy": float(parts[3])
-                        })
-                    except ValueError:
+        if not self.text:
+            return pd.DataFrame() if as_df else None
+        
+        m = RE_RAMAN.search(self.text)
+        if not m:
+            self.logger.debug("  No Raman spectrum found")
+            return pd.DataFrame() if as_df else None
+        
+        block = m.group(1).strip().splitlines()
+        out: List[Dict[str, Any]] = []
+        
+        for L in block:
+            parts = re.split(r"\s+", L.strip())
+            if not parts or not re.match(r"^\d+:?$", parts[0]):
+                if not parts[0].isdigit():
+                    continue
+            nums = [p for p in parts if re.match(r"^[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?$", p)]
+            if len(nums) < 3:
+                continue
+            freq = _to_float(nums[0])
+            activity = _to_float(nums[1])
+            depol = _to_float(nums[2])
+            if None in (freq, activity, depol):
+                continue
+            out.append({"freq_cm-1": freq, "activity": activity, "depolarization": depol})
+        
+        if out:
+            self.logger.info(f"  Raman spectrum: {len(out)} peaks")
+        else:
+            self.logger.debug("  No Raman peaks parsed")
+        
+        return pd.DataFrame(out) if as_df else out
+    
+    def parse_mulliken(self, as_df: bool = True) -> MullikenData:
+        """Parse Mulliken population analysis."""
+        self.logger.debug("Parsing Mulliken charges...")
+        
+        if not self.text:
+            return MullikenData(charges=pd.DataFrame() if as_df else [])
+        
+        m = RE_MULLIKEN.search(self.text)
+        if not m:
+            self.logger.debug("  No Mulliken data found")
+            return MullikenData(charges=pd.DataFrame() if as_df else [])
+        
+        lines = m.group(1).strip().splitlines()
+        out = []
+        
+        for L in lines:
+            parts = re.split(r"\s+", L.strip())
+            if len(parts) < 4:
+                continue
+            pop = _to_float(parts[2])
+            charge = _to_float(parts[3])
+            if None in (pop, charge):
+                continue
+            out.append({"Nucleus": parts[0], "Element": parts[1], "Population": pop, "Charge": charge})
+        
+        if out:
+            self.logger.info(f"  Mulliken charges: {len(out)} atoms")
+            # Show most charged atoms
+            sorted_by_charge = sorted(out, key=lambda x: abs(x["Charge"]), reverse=True)
+            for atom in sorted_by_charge[:3]:
+                self.logger.debug(f"    {atom['Element']}{atom['Nucleus']}: {atom['Charge']:+.3f}")
+        else:
+            self.logger.debug("  No Mulliken charges parsed")
+        
+        return MullikenData(charges=pd.DataFrame(out) if as_df else out)
+    
+    def parse_nmr(self, as_df: bool = True) -> Dict[str, Any]:
+        """Parse NMR data (shielding and coupling)."""
+        self.logger.debug("Parsing NMR data...")
+        
+        out = {
+            "shielding": pd.DataFrame() if as_df else [],
+            "coupling": pd.DataFrame() if as_df else []
+        }
+        
+        if not self.text:
+            return out
+        
+        # Shielding
+        m = RE_NMR_SHIELD.search(self.text)
+        if m:
+            rows = []
+            for L in m.group(1).strip().splitlines():
+                parts = re.split(r"\s+", L.strip())
+                if len(parts) < 4:
+                    continue
+                iso = _to_float(parts[2])
+                aniso = _to_float(parts[3])
+                if None in (iso, aniso):
+                    continue
+                rows.append({"Nucleus": parts[0], "Element": parts[1], "Isotropic": iso, "Anisotropy": aniso})
+            
+            if rows:
+                self.logger.info(f"  NMR shielding: {len(rows)} nuclei")
+            out["shielding"] = pd.DataFrame(rows) if as_df else rows
+        
+        # Coupling
+        m2 = RE_NMR_COUPLING.search(self.text)
+        if m2:
+            rows = []
+            lines = m2.group(1).strip().splitlines()
+            header = None
+            data_start = 0
+            
+            for i, L in enumerate(lines):
+                parts = re.split(r"\s+", L.strip())
+                if parts and any(re.match(r"^[A-Z][a-z]?$", p) for p in parts):
+                    header = parts
+                    data_start = i + 1
+                    break
+            
+            if header:
+                for L in lines[data_start:]:
+                    parts = re.split(r"\s+", L.strip())
+                    if len(parts) < len(header) + 2:
                         continue
-            if data:
-                shielding = pd.DataFrame(data)
-                self._log_found("NMR shielding", len(data))
+                    nucleus1 = f"{parts[0]} {parts[1]}"
+                    for i_h, nuc2 in enumerate(header):
+                        j_hz = _to_float(parts[i_h + 2])
+                        if j_hz and abs(j_hz) > 1e-6:
+                            rows.append({"Nucleus1": nucleus1, "Nucleus2": nuc2, "J_Hz": j_hz})
+            
+            if rows:
+                self.logger.info(f"  NMR coupling: {len(rows)} pairs")
+            out["coupling"] = pd.DataFrame(rows) if as_df else rows
         
-        # Parse coupling
-        match = rx.NMR_COUPLING.search(self.text)
-        if match:
-            lines = match.group(1).strip().split('\n')
-            data = []
-            if lines:
-                header = None
-                for i, line in enumerate(lines):
-                    parts = line.split()
-                    if parts and ('H' in parts or 'C' in parts or 'N' in parts):
-                        header = parts
-                        break
-                
-                if header:
-                    for line in lines[i+1:]:
-                        parts = line.split()
-                        if len(parts) >= len(header) + 2:
-                            nucleus1 = f"{parts[0]} {parts[1]}"
-                            for j, nucleus2 in enumerate(header):
-                                try:
-                                    j_hz = float(parts[j + 2])
-                                    if abs(j_hz) > 1e-6:
-                                        data.append({
-                                            "Nucleus1": nucleus1,
-                                            "Nucleus2": nucleus2,
-                                            "J_Hz": j_hz
-                                        })
-                                except (ValueError, IndexError):
-                                    continue
-            if data:
-                coupling = pd.DataFrame(data)
-                self._log_found("NMR couplings", len(data))
+        if out["shielding"].empty if as_df else not out["shielding"]:
+            if out["coupling"].empty if as_df else not out["coupling"]:
+                self.logger.debug("  No NMR data found")
         
-        return shielding, coupling
+        return out

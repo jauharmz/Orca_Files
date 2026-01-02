@@ -1,110 +1,134 @@
-"""Batch parser for multiple ORCA files."""
+"""
+Batch Parser - Parse multiple ORCA files
 
-from typing import List, Dict, Tuple, Optional
+Produces a DataFrame where each row is a parsed calculation.
+"""
+
+import os
+import re
+import glob
 from pathlib import Path
+from typing import List, Optional, Dict, Any
 import pandas as pd
 
-from ..core.data_models import ParseResult
-from ..logger import get_logger
 from .factory import ParserFactory
+from ..logger import get_logger
 
 
 class BatchParser:
-    """Parse multiple ORCA output files."""
+    """Batch parser for multiple ORCA output files."""
     
-    def __init__(self):
-        self.logger = get_logger("BatchParser")
-        self.factory = ParserFactory()
-    
-    def parse_files(self, filepaths: List[str], verbose: bool = True) -> pd.DataFrame:
+    def __init__(self, *patterns: str):
         """
-        Parse multiple files and return DataFrame.
+        Initialize with glob patterns.
         
         Args:
-            filepaths: List of file paths
-            verbose: Whether to log progress
-            
-        Returns:
-            DataFrame with parsed data
+            *patterns: Glob patterns like "*.out" or "data/**/*.out"
         """
-        results = []
+        self.logger = get_logger("BatchParser")
+        self.patterns = patterns
+        self.files: List[str] = []
         
-        for i, filepath in enumerate(filepaths):
-            if verbose:
-                self.logger.info(f"Parsing [{i+1}/{len(filepaths)}]: {Path(filepath).name}")
-            
-            try:
-                result = self.factory.parse(filepath)
-                row = self._result_to_row(result)
-                results.append(row)
-            except Exception as e:
-                self.logger.error(f"Failed to parse {filepath}: {e}")
-                continue
+        # Expand patterns to file list
+        for pattern in patterns:
+            if os.path.isfile(pattern):
+                self.files.append(pattern)
+            else:
+                self.files.extend(glob.glob(pattern, recursive=True))
         
-        if not results:
+        self.files = sorted(set(self.files))
+        self.logger.info(f"Initialized with {len(patterns)} pattern(s), found {len(self.files)} files")
+    
+    def parse_files(self, filepaths: List[str]) -> pd.DataFrame:
+        """Parse a list of file paths."""
+        self.files = filepaths
+        self.logger.info(f"Parsing {len(filepaths)} files")
+        return self.parse_all(verbose=False)
+    
+    def parse_folder(self, folder: str, pattern: str = "**/*.out") -> pd.DataFrame:
+        """Parse all matching files in folder."""
+        folder_path = Path(folder)
+        glob_pattern = str(folder_path / pattern)
+        self.files = sorted(glob.glob(glob_pattern, recursive=True))
+        self.logger.info(f"Parsing folder {folder}: found {len(self.files)} files")
+        return self.parse_all(verbose=False)
+    
+    def parse_all(self, verbose: bool = True, limit_files: Optional[int] = None) -> pd.DataFrame:
+        """Parse all files and return DataFrame."""
+        files = self.files[:limit_files] if limit_files else self.files
+        
+        if not files:
+            self.logger.warning("No files to parse")
             return pd.DataFrame()
         
-        df = pd.DataFrame(results)
+        self.logger.info(f"Starting batch parse of {len(files)} files")
         
-        # Extract molecule_id from geometry filename
-        if "geometry_filename" in df.columns:
-            df["molecule_id"] = df["geometry_filename"].apply(
-                lambda x: self._extract_molecule_id(x) if x else None
-            )
+        factory = ParserFactory()
+        rows = []
+        success_count = 0
+        error_count = 0
         
-        self.logger.info(f"Parsed {len(df)} files")
+        for i, filepath in enumerate(files):
+            if verbose and (i + 1) % 5 == 0:
+                self.logger.info(f"Progress: {i+1}/{len(files)} ({100*(i+1)/len(files):.0f}%)")
+            
+            try:
+                result = factory.parse(filepath)
+                row = result.to_dict()
+                
+                # Extract molecule_id
+                row["molecule_id"] = self._extract_molecule_id(filepath, result.geometry.filename)
+                
+                rows.append(row)
+                success_count += 1
+            except Exception as e:
+                self.logger.warning(f"Failed to parse {filepath}: {e}")
+                error_count += 1
+                continue
+        
+        if not rows:
+            self.logger.warning("No files parsed successfully")
+            return pd.DataFrame()
+        
+        df = pd.DataFrame(rows)
+        
+        # Final summary
+        self.logger.info("=" * 50)
+        self.logger.info(f"BATCH COMPLETE: {success_count}/{len(files)} parsed, {error_count} errors")
+        self._log_batch_summary(df)
+        self.logger.info("=" * 50)
+        
         return df
     
-    def parse_folder(self, folder: str, pattern: str = "*.out") -> pd.DataFrame:
-        """
-        Parse all .out files in a folder.
+    def _log_batch_summary(self, df: pd.DataFrame):
+        """Log batch summary statistics."""
+        self.logger.info(f"  Total molecules: {len(df)}")
         
-        Args:
-            folder: Folder path
-            pattern: Glob pattern (default: *.out)
-            
-        Returns:
-            DataFrame with parsed data
-        """
-        path = Path(folder)
-        files = list(path.rglob(pattern))
-        self.logger.info(f"Found {len(files)} files in {folder}")
-        return self.parse_files([str(f) for f in files])
-    
-    def _result_to_row(self, result: ParseResult) -> Dict:
-        """Convert ParseResult to DataFrame row."""
-        return {
-            "filename": result.filename,
-            "geometry_filename": result.geometry.filename,
-            "smiles": result.geometry.smiles,
-            "charge": result.geometry.charge,
-            "multiplicity": result.geometry.multiplicity,
-            "cart_coords": result.geometry.cart_coords,
-            "gibbs_Eh": result.energy.gibbs_Eh,
-            "single_point_Eh": result.energy.single_point_Eh,
-            "orbitals": result.orbitals.orbitals,
-            "homo_energy": result.orbitals.homo_energy,
-            "lumo_energy": result.orbitals.lumo_energy,
-            "homo_lumo_gap": result.orbitals.homo_lumo_gap,
-            "ir": result.spectra.ir,
-            "raman": result.spectra.raman,
-            "vibrations": result.spectra.vibrations,
-            "tddft_states": result.tddft.states,
-            "electric_dipole": result.tddft.electric_dipole,
-            "is_optimization": result.is_optimization,
-            "has_tddft": result.has_tddft,
-            "optimized_state": result.optimized_state,
+        # Count data availability
+        stats = {
+            "smiles": df["smiles"].notna().sum() if "smiles" in df else 0,
+            "gibbs_Eh": df["gibbs_Eh"].notna().sum() if "gibbs_Eh" in df else 0,
+            "single_point_Eh": df["single_point_Eh"].notna().sum() if "single_point_Eh" in df else 0,
+            "homo_energy": df["homo_energy"].notna().sum() if "homo_energy" in df else 0,
+            "lumo_energy": df["lumo_energy"].notna().sum() if "lumo_energy" in df else 0,
         }
+        
+        for key, count in stats.items():
+            if count > 0:
+                pct = 100 * count / len(df)
+                self.logger.info(f"  {key}: {count}/{len(df)} ({pct:.0f}%)")
+        
+        # Calc class distribution
+        if "calc_class" in df:
+            classes = df["calc_class"].value_counts().to_dict()
+            self.logger.info(f"  Calc classes: {classes}")
     
-    def _extract_molecule_id(self, filename: str) -> str:
+    @staticmethod
+    def _extract_molecule_id(filename: str, geometry_filename: Optional[str]) -> str:
         """Extract molecule ID from filename."""
-        # Remove common suffixes to get base molecule ID
-        import re
+        if geometry_filename:
+            return geometry_filename
         
-        # Remove extension
-        name = Path(filename).stem
-        
-        # Remove state suffixes like _s0, _t1, _sp, _opt
-        name = re.sub(r'[_-]?(s[0-9]+|t[0-9]+|sp|opt|freq|tddft)$', '', name, flags=re.IGNORECASE)
-        
-        return name
+        base = os.path.splitext(os.path.basename(filename))[0]
+        cleaned = re.sub(r'[-_](opt|sp|freq|td|esd|vg|ahas|ah)$', '', base, flags=re.I)
+        return cleaned
