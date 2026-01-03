@@ -20,8 +20,6 @@
 | **HTML Export** | Single-file interactive reports with embedded Plotly.js |
 | **Interactive Viz** | Plotly charts + py3Dmol 3D molecular viewer |
 
-📖 **See [ARCHITECTURE.md](ARCHITECTURE.md) for the full conceptual data model and design philosophy.**
-
 ---
 
 ## 🏗️ System Architecture
@@ -253,10 +251,137 @@ graph TB
 | | electric_dipole_soc | tddft.py | Electric dipole SOC |
 | | velocity_dipole_abs | tddft.py | Velocity dipole absorption |
 | | velocity_dipole_soc | tddft.py | Velocity dipole SOC |
+| **Method** | method_id | method.py | Composite method identifier |
+| | functional | method.py | XC functional (B3LYP, PBE0...) |
+| | basis_set | method.py | Basis set (def2-TZVP...) |
+| | dispersion | method.py | Dispersion (D3BJ, D4...) |
+| | solvent | method.py | Solvent (water, ethanol...) |
 | **Metadata** | is_optimization | energy.py | Optimization calc? |
 | | optimized_state | energy.py | S0, S1, T1 |
 | | calc_class | energy.py | single_point/optimization/tddft |
 | | esd_type | energy.py | VG/AH/AHAS spectrum type |
+
+---
+
+### 🧬 ORCA Data Architecture
+
+> **Core Principle**: ORCA does not produce files — it produces solutions to Hamiltonians under specific approximations.
+
+The data architecture ensures scientifically correct storage while providing ergonomic access for analysis.
+
+#### The Five Architectural Layers
+
+```mermaid
+graph TB
+    subgraph "Layer 1: Molecule"
+        MOL[Molecule]
+        MOL --> ID[molecule_id]
+        MOL --> SMILES[smiles]
+        MOL --> CHG["charge / multiplicity"]
+    end
+    
+    subgraph "Layer 2: Method"
+        MTH[Method Descriptor]
+        MTH --> FUNC["functional<br/>B3LYP / PBE0"]
+        MTH --> BASIS["basis_set<br/>def2-TZVP"]
+        MTH --> DISP["dispersion<br/>D3BJ / D4"]
+        MTH --> SOL["solvent<br/>water / gas"]
+    end
+    
+    subgraph "Layer 3: State"
+        STATE[Electronic State]
+        STATE --> S0[S0]
+        STATE --> S1[S1]
+        STATE --> T1[T1]
+    end
+    
+    subgraph "Layer 4: Task"
+        TASK[Task]
+        TASK --> OPT[OPT]
+        TASK --> SP[SP]
+        TASK --> TDDFT[TDDFT]
+    end
+    
+    subgraph "Layer 5: Properties"
+        PROP[Properties]
+        PROP --> GEO[geometry]
+        PROP --> ORB[orbitals]
+        PROP --> SPEC[spectra]
+    end
+    
+    MOL --> MTH --> STATE --> TASK --> PROP
+```
+
+#### Method Descriptor (Layer 2)
+
+A method is defined by a **composite descriptor**, not a single keyword:
+
+| Dimension | Examples |
+|-----------|----------|
+| Formalism | DFT, HF, MP2, CCSD, CASSCF |
+| Functional | B3LYP, ωB97X, PBE0 |
+| Basis set | def2-SVP, def2-TZVP, def2-QZVP |
+| Dispersion | D3BJ, D4, none |
+| Relativistic | none, ZORA, DKH, X2C |
+| Environment | gas, CPCM, SMD |
+| Solvent | water, ethanol, acetonitrile |
+
+> **Changing any of these creates a new method.**
+
+#### MoleculeStore: Hierarchical Storage
+
+```mermaid
+graph TD
+    subgraph "MoleculeStore"
+        STORE[MoleculeStore]
+        
+        subgraph "p1x"
+            M1[p1x]
+            subgraph "B3LYP/def2-TZVP/D3BJ"
+                MTH1["Method 1"]
+                S0_1[S0] --> OPT1[OPT] & SP1[SP]
+                S1_1[S1] --> TDDFT1[TDDFT]
+            end
+        end
+    end
+    
+    STORE --> M1
+    M1 --> MTH1 --> S0_1 & S1_1
+```
+
+#### Storage vs Access
+
+| Layer | Purpose | Example |
+|-------|---------|---------|
+| **Storage** | Full data, all methods, reproducibility | `store._data[mol][method][state][task]` |
+| **Access** | Simple queries, canonical projection | `store.get("p1x")` → best result |
+
+#### Canonical Projection
+
+For simple analysis, the system auto-selects the "canonical" (best) result:
+
+- **State priority**: S0 > S1 > T1
+- **Task priority**: OPT > SP > TDDFT
+- **Basis priority**: def2-QZVP > def2-TZVP > def2-SVP
+
+```python
+# Simple access (uses projection)
+store = MoleculeStore()
+result = store.get("p1x")  # Returns canonical result
+
+# Explicit access (for comparison)
+result = store.get("p1x", method_id="DFT/B3LYP/def2-TZVP/D3BJ", state="S0")
+```
+
+#### Architectural Principles
+
+1. **Method identity is composite** - not a single keyword
+2. **Filenames are never identity** - molecule_id is extracted
+3. **States are not identity** - S0 from method A ≠ S0 from method B
+4. **Storage reflects physics** - all methods preserved
+5. **Access reflects thinking** - simple queries return projected view
+6. **Projection is mandatory** - hides complexity by default
+7. **Method awareness is opt-in** - explicit only when comparing
 
 ---
 
