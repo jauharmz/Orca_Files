@@ -379,24 +379,102 @@ def download_hf_data():
         st.error(f"❌ Download failed: {e}")
 
 
+
 def parse_folder(folder):
-    """Parse folder of .out files."""
-    from src.parser.batch import BatchParser
+    """Parse folder of .out files - one record per file with state extraction."""
+    from src.parser.factory import ParserFactory
     import pandas as pd
+    import re
     
     pattern = f"{folder}/**/*.out"
+    files = sorted(glob.glob(pattern, recursive=True))
     
-    with st.spinner(f"Parsing {pattern}..."):
-        batch = BatchParser(pattern)
-        df = batch.parse_all(verbose=False)
+    if not files:
+        st.warning(f"No .out files found in {folder}")
+        return
     
-    if df is not None and len(df) > 0:
-        set_df(df)
-        st.success(f"✅ Parsed {len(df)} files")
-        st.rerun()
-    else:
-        st.warning("No files found or parsing failed")
+    st.info(f"🔄 Parsing {len(files)} files (one record per file)...")
+    
+    factory = ParserFactory()
+    results = []
+    
+    progress = st.progress(0, "Parsing files...")
+    for i, filepath in enumerate(files):
+        try:
+            result = factory.parse(filepath)
+            row = result.to_dict()
+            
+            # Extract molecule_id and state from path
+            mol_id, state = extract_molecule_and_state(filepath)
+            row["molecule_id"] = mol_id
+            row["optimized_state"] = state
+            row["_filepath"] = filepath
+            
+            results.append(row)
+        except Exception as e:
+            pass  # Skip failed files silently
+        progress.progress((i + 1) / len(files))
+    
+    if not results:
+        st.warning("No files parsed successfully")
+        return
+    
+    df = pd.DataFrame(results)
+    set_df(df)
+    
+    # Show stats
+    state_counts = df["optimized_state"].value_counts()
+    st.success(f"✅ Parsed {len(df)} files: " + ", ".join([f"{s}={c}" for s, c in state_counts.items()]))
+    st.rerun()
 
+
+def extract_molecule_and_state(filepath: str) -> tuple:
+    """Extract molecule ID and state from filepath."""
+    import os
+    import re
+    
+    # Get folder name and filename
+    parts = Path(filepath).parts
+    
+    # Check folder name for state patterns like p1xs0, p1xs0p, p1xvg
+    state_pattern = re.compile(r'(s0p?|s1|t1|vg|ah|ahas|opt)$', re.I)
+    
+    # Try to get from parent folder name
+    parent_folder = parts[-2] if len(parts) >= 2 else ""
+    
+    # Extract base molecule and state
+    match = state_pattern.search(parent_folder)
+    if match:
+        state = match.group(1).upper()
+        # Map to standard names
+        state_map = {
+            "S0": "S0",
+            "S0P": "S0-SP",
+            "S1": "S1",
+            "T1": "T1",
+            "VG": "VG",
+            "AH": "AH",
+            "AHAS": "AHAS",
+            "OPT": "OPT"
+        }
+        state = state_map.get(state.upper(), state)
+        mol_id = state_pattern.sub('', parent_folder).strip('_-')
+    else:
+        # Fallback: try filename
+        filename = os.path.splitext(os.path.basename(filepath))[0]
+        match = state_pattern.search(filename)
+        if match:
+            state = match.group(1).upper()
+            mol_id = state_pattern.sub('', filename).strip('_-')
+        else:
+            state = "unknown"
+            mol_id = filename
+    
+    return mol_id, state
+
+
+import glob
 
 if __name__ == "__main__":
     main()
+
