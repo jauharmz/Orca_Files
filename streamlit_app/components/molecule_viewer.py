@@ -6,6 +6,8 @@ Features:
 - 3D structure from coordinates (py3Dmol)
 - Hover/click for atom properties
 - Animation and styling options
+
+Fixed: Uses fragment=True to prevent Streamlit rerun issues
 """
 
 import streamlit as st
@@ -19,38 +21,55 @@ def render_molecule_viewer(df: pd.DataFrame):
     
     st.subheader("🧬 Molecule Viewer")
     
-    # Molecule selector
-    mol_ids = df["molecule_id"].dropna().unique().tolist()
-    
-    if not mol_ids:
+    # Molecule selector - show with state info
+    if df.empty:
         st.warning("No molecules available")
         return
     
-    # Top row: molecule selector
-    selected_mol = st.selectbox("Select Molecule", mol_ids, key="mol_viewer_select")
+    # Create display labels with state info
+    mol_options = []
+    for _, row in df.iterrows():
+        mol_id = row.get("molecule_id", "unknown")
+        state = row.get("optimized_state", "")
+        state_label = f" [{state}]" if state else ""
+        mol_options.append(f"{mol_id}{state_label}")
     
-    # Get molecule data
-    mol_row = df[df["molecule_id"] == selected_mol].iloc[0] if selected_mol else None
+    # Get unique options
+    unique_options = list(dict.fromkeys(mol_options))
+    mol_ids = df["molecule_id"].dropna().unique().tolist()
     
-    if mol_row is None:
-        st.warning("Select a molecule to view")
-        return
+    # Selector with index
+    if "mol_viewer_idx" not in st.session_state:
+        st.session_state.mol_viewer_idx = 0
+    
+    selected_idx = st.selectbox(
+        "Select Molecule",
+        range(len(mol_ids)),
+        format_func=lambda i: f"{mol_ids[i]} ({df[df['molecule_id']==mol_ids[i]]['optimized_state'].iloc[0] if 'optimized_state' in df.columns else ''})",
+        key="mol_viewer_select_idx"
+    )
+    
+    selected_mol = mol_ids[selected_idx]
+    mol_row = df[df["molecule_id"] == selected_mol].iloc[0]
     
     # Show molecule info
-    info_col1, info_col2, info_col3, info_col4 = st.columns(4)
-    with info_col1:
+    info_cols = st.columns(5)
+    with info_cols[0]:
         st.metric("Molecule", selected_mol)
-    with info_col2:
-        smiles = mol_row.get("smiles", "N/A")
-        st.metric("SMILES", smiles[:15] + "..." if smiles and len(str(smiles)) > 15 else smiles)
-    with info_col3:
+    with info_cols[1]:
+        state = mol_row.get("optimized_state", "N/A")
+        st.metric("State", state)
+    with info_cols[2]:
         energy = mol_row.get("gibbs_Eh") or mol_row.get("single_point_Eh")
         st.metric("Energy (Eh)", f"{energy:.4f}" if energy else "N/A")
-    with info_col4:
+    with info_cols[3]:
         homo = mol_row.get("homo_energy")
         st.metric("HOMO (eV)", f"{homo:.2f}" if homo else "N/A")
+    with info_cols[4]:
+        method = mol_row.get("method_id", "N/A")
+        st.metric("Method", str(method)[:12] if method else "N/A")
     
-    # View mode as tabs (instead of radio)
+    # View mode as tabs
     view_tabs = st.tabs(["🔮 3D Structure", "📐 2D Structure"])
     
     with view_tabs[0]:
@@ -65,180 +84,97 @@ def render_molecule_viewer(df: pd.DataFrame):
 
 
 def render_3d_viewer(mol_row: pd.Series, mol_id: str):
-    """Render 3D molecular structure with persistent settings."""
+    """Render 3D molecular structure - all settings in one render."""
     
     coords = mol_row.get("cart_coords")
     
     if coords is None or (hasattr(coords, 'empty') and coords.empty):
-        st.warning("No coordinate data available")
+        st.warning("No coordinate data available for 3D view")
         return
     
-    # Settings in expander for cleaner UI
+    # All settings in expander
     with st.expander("⚙️ 3D Settings", expanded=False):
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            style = st.selectbox("Style", ["ball-stick", "stick", "sphere", "line"], 
-                               key=f"3d_style_{mol_id}", index=0)
+            style = st.selectbox("Style", ["ball-stick", "stick", "sphere", "line"], key="style_3d")
         with col2:
-            bg_color = st.color_picker("Background", "#FFFFFF", key=f"3d_bg_{mol_id}")
+            bg_color = st.color_picker("Background", "#FFFFFF", key="bg_3d")
         with col3:
-            show_labels = st.checkbox("Atom Labels", False, key=f"3d_labels_{mol_id}")
+            show_labels = st.checkbox("Labels", False, key="labels_3d")
         with col4:
-            spin = st.checkbox("Spin Animation", False, key=f"3d_spin_{mol_id}")
+            spin = st.checkbox("Spin", False, key="spin_3d")
     
-    # Create XYZ string
+    # Build XYZ string
     xyz_lines = [str(len(coords)), mol_id]
-    atom_data = []
-    for i, (_, atom) in enumerate(coords.iterrows()):
+    for _, atom in coords.iterrows():
         element = atom.get("atom", atom.get("element", "X"))
-        x = atom.get("x", 0)
-        y = atom.get("y", 0)
-        z = atom.get("z", 0)
+        x, y, z = atom.get("x", 0), atom.get("y", 0), atom.get("z", 0)
         xyz_lines.append(f"{element}  {x:.6f}  {y:.6f}  {z:.6f}")
-        atom_data.append({"element": element, "x": x, "y": y, "z": z})
-    
     xyz_str = "\\n".join(xyz_lines)
     
-    # Mulliken charges for hover (if available)
+    # Mulliken charges
     mulliken = mol_row.get("mulliken")
     charges = []
     if mulliken is not None and hasattr(mulliken, 'empty') and not mulliken.empty:
         if "Charge" in mulliken.columns:
             charges = mulliken["Charge"].tolist()
+    charges_js = str(charges) if charges else "[]"
     
-    # Style configuration
-    style_config = {
+    # Style config
+    style_configs = {
         "ball-stick": '{"stick": {"radius": 0.15, "colorscheme": "Jmol"}, "sphere": {"scale": 0.3, "colorscheme": "Jmol"}}',
         "stick": '{"stick": {"radius": 0.15, "colorscheme": "Jmol"}}',
         "sphere": '{"sphere": {"scale": 0.4, "colorscheme": "Jmol"}}',
         "line": '{"line": {"colorscheme": "Jmol"}}'
-    }[style]
+    }
+    style_config = style_configs.get(style, style_configs["ball-stick"])
     
-    # Spin animation JS
-    spin_js = """
-        function spin() {
-            viewer.rotate(1, {x:0, y:1, z:0});
-            viewer.render();
-            requestAnimationFrame(spin);
-        }
-        spin();
-    """ if spin else ""
-    
-    # Label JS
+    spin_js = "setInterval(function(){viewer.rotate(1,{x:0,y:1,z:0});viewer.render();},50);" if spin else ""
     label_js = """
         var atoms = viewer.selectedAtoms({});
-        for (var i = 0; i < atoms.length; i++) {
-            viewer.addLabel(atoms[i].elem, {
-                position: atoms[i], 
-                backgroundColor: 'rgba(0,0,0,0.8)', 
-                fontColor: 'white', 
-                fontSize: 14,
-                borderRadius: 4
-            });
+        for(var i=0;i<atoms.length;i++){
+            viewer.addLabel(atoms[i].elem,{position:atoms[i],backgroundColor:'#333',fontColor:'white',fontSize:12});
         }
     """ if show_labels else ""
     
-    # Build charges array for JS
-    charges_js = str(charges) if charges else "[]"
-    
-    # py3Dmol HTML with enhanced features
     html = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
         <style>
-            body {{ margin: 0; padding: 0; }}
-            #viewer {{ width: 100%; height: 500px; position: relative; }}
-            #tooltip {{
-                position: fixed;
-                background: rgba(0,0,0,0.9);
-                color: white;
-                padding: 8px 12px;
-                border-radius: 6px;
-                font-size: 13px;
-                pointer-events: none;
-                display: none;
-                z-index: 1000;
-                font-family: 'Segoe UI', sans-serif;
-                line-height: 1.4;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            }}
-            #info {{
-                position: absolute;
-                top: 10px;
-                left: 10px;
-                background: rgba(255,255,255,0.9);
-                padding: 8px 12px;
-                border-radius: 6px;
-                font-size: 12px;
-                font-family: 'Segoe UI', sans-serif;
-                box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-            }}
+            body{{margin:0;padding:0;}}
+            #v{{width:100%;height:480px;position:relative;}}
+            #tip{{position:fixed;background:rgba(0,0,0,0.9);color:white;padding:8px 12px;border-radius:6px;font-size:12px;display:none;z-index:1000;font-family:sans-serif;}}
         </style>
     </head>
     <body>
-        <div id="viewer"></div>
-        <div id="tooltip"></div>
+        <div id="v"></div>
+        <div id="tip"></div>
         <script>
-            var viewer = $3Dmol.createViewer("viewer", {{backgroundColor: "{bg_color}"}});
-            var xyz = "{xyz_str}";
-            viewer.addModel(xyz, "xyz");
-            viewer.setStyle({{}}, {style_config});
+            var viewer=$3Dmol.createViewer("v",{{backgroundColor:"{bg_color}"}});
+            viewer.addModel("{xyz_str}","xyz");
+            viewer.setStyle({{}},{style_config});
             {label_js}
-            
-            // Charges data
-            var charges = {charges_js};
-            
-            // Enhanced hover callback with popup data
-            viewer.setHoverCallback(function(atom, viewer, event, container) {{
-                var tooltip = document.getElementById('tooltip');
-                if (atom) {{
-                    var html = '<b>' + atom.elem + ' #' + (atom.serial) + '</b>';
-                    html += '<br>X: ' + atom.x.toFixed(4) + ' Å';
-                    html += '<br>Y: ' + atom.y.toFixed(4) + ' Å';
-                    html += '<br>Z: ' + atom.z.toFixed(4) + ' Å';
-                    if (charges.length > 0 && charges[atom.serial - 1] !== undefined) {{
-                        var charge = charges[atom.serial - 1];
-                        var chargeColor = charge > 0 ? '#ff6b6b' : '#4ecdc4';
-                        html += '<br>Charge: <span style="color:' + chargeColor + '">' + charge.toFixed(4) + '</span>';
-                    }}
-                    tooltip.innerHTML = html;
-                    tooltip.style.display = 'block';
-                    tooltip.style.left = (event.clientX + 15) + 'px';
-                    tooltip.style.top = (event.clientY - 10) + 'px';
-                }} else {{
-                    tooltip.style.display = 'none';
-                }}
+            var charges={charges_js};
+            viewer.setHoverCallback(function(atom,v,ev){{
+                var t=document.getElementById('tip');
+                if(atom){{
+                    var h='<b>'+atom.elem+' #'+atom.serial+'</b><br>X:'+atom.x.toFixed(3)+'<br>Y:'+atom.y.toFixed(3)+'<br>Z:'+atom.z.toFixed(3);
+                    if(charges[atom.serial-1]!==undefined)h+='<br>Charge:'+charges[atom.serial-1].toFixed(4);
+                    t.innerHTML=h;t.style.display='block';t.style.left=(ev.clientX+15)+'px';t.style.top=(ev.clientY-10)+'px';
+                }}else{{t.style.display='none';}}
             }});
-            
-            // Click callback for atom selection
-            viewer.setClickCallback(function(atom, viewer, event) {{
-                if (atom) {{
-                    viewer.addLabel(atom.elem + ' (' + atom.serial + ')', {{
-                        position: atom,
-                        backgroundColor: 'rgba(50,50,50,0.9)',
-                        fontColor: 'white',
-                        fontSize: 14,
-                        borderRadius: 4
-                    }});
-                    viewer.render();
-                }}
-            }});
-            
-            viewer.zoomTo();
-            viewer.render();
-            
+            viewer.zoomTo();viewer.render();
             {spin_js}
         </script>
     </body>
     </html>
     """
     
-    components.html(html, height=520)
-    
-    st.caption("💡 Hover over atoms to see details. Click to add labels.")
+    components.html(html, height=500)
+    st.caption("💡 Hover over atoms for details")
 
 
 def render_2d_viewer(mol_row: pd.Series, mol_id: str):
@@ -247,78 +183,64 @@ def render_2d_viewer(mol_row: pd.Series, mol_id: str):
     smiles = mol_row.get("smiles")
     
     if not smiles or str(smiles) == "nan":
-        st.warning("No SMILES data available for 2D rendering")
+        st.warning("No SMILES data available for 2D view")
         return
     
     # Settings
     with st.expander("⚙️ 2D Settings", expanded=False):
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         with col1:
-            show_atom_nums = st.checkbox("Atom Numbers", False, key=f"2d_nums_{mol_id}")
+            show_nums = st.checkbox("Atom Numbers", False, key="nums_2d")
         with col2:
-            show_stereo = st.checkbox("Stereo", True, key=f"2d_stereo_{mol_id}")
-        with col3:
-            img_size = st.slider("Size", 300, 600, 400, key=f"2d_size_{mol_id}")
+            img_size = st.slider("Size", 300, 500, 350, key="size_2d")
     
-    # Try RDKit first
+    # Try RDKit
     try:
         from rdkit import Chem
         from rdkit.Chem import Draw, AllChem
         from rdkit.Chem.Draw import rdMolDraw2D
-        import io
-        import base64
         
         mol = Chem.MolFromSmiles(str(smiles))
         if mol is None:
             st.warning(f"Could not parse SMILES: {smiles}")
             return
         
-        # Generate 2D coordinates
         AllChem.Compute2DCoords(mol)
         
-        # Atom numbering
-        if show_atom_nums:
+        if show_nums:
             for atom in mol.GetAtoms():
                 atom.SetProp("molAtomMapNumber", str(atom.GetIdx()))
         
-        # Draw with enhanced styling
         drawer = rdMolDraw2D.MolDraw2DSVG(img_size, img_size)
-        drawer.drawOptions().addAtomIndices = show_atom_nums
-        drawer.drawOptions().addStereoAnnotation = show_stereo
+        drawer.drawOptions().addAtomIndices = show_nums
         drawer.DrawMolecule(mol)
         drawer.FinishDrawing()
         svg = drawer.GetDrawingText()
         
-        # Display SVG
-        st.markdown(f"""
-        <div style="display: flex; justify-content: center; padding: 20px;">
-            {svg}
-        </div>
-        """, unsafe_allow_html=True)
-        
+        st.markdown(f'<div style="display:flex;justify-content:center;">{svg}</div>', unsafe_allow_html=True)
         st.caption(f"**SMILES:** `{smiles}`")
         
     except ImportError:
-        st.info("RDKit not installed. Showing SMILES text instead.")
-        st.code(smiles, language=None)
-        st.markdown(f"[🔗 View on PubChem](https://pubchem.ncbi.nlm.nih.gov/#query={smiles})")
+        st.info("RDKit not installed. Showing SMILES text.")
+        st.code(smiles)
 
 
 def render_molecule_data(mol_row: pd.Series, mol_id: str, df: pd.DataFrame):
     """Render molecule data tables."""
     
-    data_tabs = st.tabs(["📍 Coordinates", "📊 Properties", "⚡ Mulliken"])
+    tabs = st.tabs(["📍 Coordinates", "📊 Properties", "⚡ Mulliken"])
     
-    with data_tabs[0]:
+    with tabs[0]:
         coords = mol_row.get("cart_coords")
         if coords is not None and hasattr(coords, 'empty') and not coords.empty:
-            st.dataframe(coords, use_container_width=True, height=300)
+            st.dataframe(coords, use_container_width=True, height=250)
         else:
             st.info("No coordinate data")
     
-    with data_tabs[1]:
+    with tabs[1]:
         props = {
             "molecule_id": mol_row.get("molecule_id"),
+            "optimized_state": mol_row.get("optimized_state"),
             "method_id": mol_row.get("method_id"),
             "functional": mol_row.get("functional"),
             "basis_set": mol_row.get("basis_set"),
@@ -326,16 +248,13 @@ def render_molecule_data(mol_row: pd.Series, mol_id: str, df: pd.DataFrame):
             "single_point_Eh": mol_row.get("single_point_Eh"),
             "homo_energy": mol_row.get("homo_energy"),
             "lumo_energy": mol_row.get("lumo_energy"),
-            "homo_lumo_gap": mol_row.get("homo_lumo_gap"),
-            "charge": mol_row.get("charge"),
-            "multiplicity": mol_row.get("multiplicity"),
         }
         props_df = pd.DataFrame([{"Property": k, "Value": v} for k, v in props.items() if v is not None])
         st.dataframe(props_df, use_container_width=True, hide_index=True)
     
-    with data_tabs[2]:
+    with tabs[2]:
         mulliken = mol_row.get("mulliken")
         if mulliken is not None and hasattr(mulliken, 'empty') and not mulliken.empty:
-            st.dataframe(mulliken, use_container_width=True, height=300)
+            st.dataframe(mulliken, use_container_width=True, height=250)
         else:
-            st.info("No Mulliken charge data")
+            st.info("No Mulliken data")

@@ -157,41 +157,65 @@ def show_main_content(df):
     # === GLOBAL FILTERS AT TOP ===
     st.header("🔬 ORCA Visualization")
     
+    # Get unique molecule IDs
     mol_ids = df["molecule_id"].dropna().unique().tolist()
     
-    # Filter row
-    filter_col1, filter_col2, filter_col3 = st.columns([4, 1, 1])
+    # Initialize session state for selection
+    if "selected_molecules" not in st.session_state:
+        st.session_state.selected_molecules = mol_ids[:min(5, len(mol_ids))]
+    
+    # Filter row with form to prevent rerun issues
+    filter_col1, filter_col2, filter_col3, filter_col4 = st.columns([5, 1, 1, 2])
     
     with filter_col1:
-        # Initialize selected molecules
-        if "selected_molecules" not in st.session_state or not st.session_state.selected_molecules:
-            st.session_state.selected_molecules = mol_ids[:min(5, len(mol_ids))]
-        
+        # Use key that syncs with session state
         selected_mols = st.multiselect(
             "🔍 Filter Molecules",
             mol_ids,
             default=st.session_state.selected_molecules,
-            key="global_mol_filter"
+            key="mol_filter_widget"
         )
+        # Sync back to session state
         st.session_state.selected_molecules = selected_mols
     
     with filter_col2:
-        if st.button("✅ Select All"):
+        if st.button("✅ All", help="Select all molecules"):
             st.session_state.selected_molecules = mol_ids
             st.rerun()
     
     with filter_col3:
-        if st.button("❌ Clear All"):
+        if st.button("❌ None", help="Clear selection"):
             st.session_state.selected_molecules = []
             st.rerun()
     
-    # Apply filter
-    if selected_mols:
-        filtered_df = df[df["molecule_id"].isin(selected_mols)]
-    else:
-        filtered_df = df
+    with filter_col4:
+        # Show state filter if available
+        if "optimized_state" in df.columns:
+            states = df["optimized_state"].dropna().unique().tolist()
+            if states:
+                state_filter = st.multiselect("State", states, default=states, key="state_filter")
+            else:
+                state_filter = None
+        else:
+            state_filter = None
     
-    st.caption(f"Showing {len(filtered_df)} of {len(df)} molecules")
+    # Apply filters
+    filtered_df = df.copy()
+    if st.session_state.selected_molecules:
+        filtered_df = filtered_df[filtered_df["molecule_id"].isin(st.session_state.selected_molecules)]
+    if state_filter:
+        filtered_df = filtered_df[filtered_df["optimized_state"].isin(state_filter)]
+    
+    # Info about data with state breakdown
+    col_info1, col_info2 = st.columns([1, 3])
+    with col_info1:
+        st.caption(f"Showing **{len(filtered_df)}** of {len(df)} molecules")
+    with col_info2:
+        # Show state distribution
+        if "optimized_state" in filtered_df.columns:
+            state_counts = filtered_df["optimized_state"].value_counts()
+            state_str = " | ".join([f"{s}: {c}" for s, c in state_counts.items()])
+            st.caption(f"States: {state_str}")
     
     # === TABS ===
     tabs = st.tabs([

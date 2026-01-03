@@ -1,20 +1,31 @@
 """
-Node Editor Component - Enhanced reaction pathway visualization
+Node Editor Component - React Flow based reaction pathway visualization
 
-A visual flow-based editor for molecular reaction pathways.
+Uses streamlit-flow-component for interactive node-based editing.
+Install: pip install streamlit-flow-component
+
 Features:
-- Visual node canvas with connections
-- Clickable nodes with popup data
-- Auto-layout algorithms
-- Energy-based positioning
+- Drag-and-drop nodes
+- Connect with edges
+- Click nodes for details popup
+- Energy-based vertical positioning
+- ComfyUI/n8n style interface
 """
 
 import streamlit as st
 import pandas as pd
-from typing import Dict, List, Tuple, Optional
-import plotly.graph_objects as go
+from typing import Dict, List, Tuple
 import json
-import streamlit.components.v1 as components
+
+# Try to import streamlit-flow-component
+try:
+    from streamlit_flow import streamlit_flow
+    from streamlit_flow.elements import StreamlitFlowNode, StreamlitFlowEdge
+    from streamlit_flow.state import StreamlitFlowState
+    from streamlit_flow.layouts import TreeLayout, LayeredLayout
+    FLOW_AVAILABLE = True
+except ImportError:
+    FLOW_AVAILABLE = False
 
 
 def render_node_editor(df: pd.DataFrame):
@@ -22,408 +33,96 @@ def render_node_editor(df: pd.DataFrame):
     
     st.subheader("🔗 Reaction Pathway Editor")
     
-    # Initialize reaction state
-    if "reaction_nodes" not in st.session_state:
-        st.session_state.reaction_nodes = []
-    if "reaction_edges" not in st.session_state:
-        st.session_state.reaction_edges = []
-    if "selected_node" not in st.session_state:
-        st.session_state.selected_node = None
+    if not FLOW_AVAILABLE:
+        st.error("""
+        **streamlit-flow-component not installed!**
+        
+        Install it with:
+        ```
+        pip install streamlit-flow-component
+        ```
+        """)
+        render_fallback_editor(df)
+        return
+    
+    # Initialize flow state in session
+    if "flow_state" not in st.session_state:
+        st.session_state.flow_state = None
     
     # Tabs
-    tabs = st.tabs(["📐 Visual Editor", "📋 Node List", "📊 Details"])
+    tabs = st.tabs(["📐 Visual Editor", "📋 Setup", "📊 Details"])
     
     with tabs[0]:
-        render_visual_editor(df)
+        render_react_flow_editor(df)
     
     with tabs[1]:
-        render_node_list(df)
+        render_flow_setup(df)
     
     with tabs[2]:
         render_node_details(df)
 
 
-def render_visual_editor(df: pd.DataFrame):
-    """Render visual flow-based editor using custom HTML/JS."""
+def render_react_flow_editor(df: pd.DataFrame):
+    """Render React Flow based editor."""
     
-    nodes = st.session_state.reaction_nodes
-    edges = st.session_state.reaction_edges
-    
-    # Control panel
-    col1, col2, col3, col4 = st.columns(4)
+    # Control buttons
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         if st.button("🔄 Auto-detect Pathway"):
             mol_ids = df["molecule_id"].dropna().unique().tolist()
-            auto_detect_pathway(mol_ids)
+            state = create_auto_pathway(df, mol_ids)
+            st.session_state.flow_state = state
             st.rerun()
     
     with col2:
-        if st.button("📐 Auto-layout"):
-            st.info("Layout applied based on energy")
+        layout_type = st.selectbox("Layout", ["Layered", "Tree"], key="flow_layout")
     
     with col3:
         if st.button("🗑️ Clear All"):
-            st.session_state.reaction_nodes = []
-            st.session_state.reaction_edges = []
+            st.session_state.flow_state = None
             st.rerun()
     
-    with col4:
-        if nodes:
-            pathway_data = {
-                "nodes": nodes,
-                "edges": edges
-            }
-            st.download_button(
-                "📤 Export",
-                json.dumps(pathway_data, indent=2),
-                "pathway.json"
-            )
+    # Get or create flow state
+    if st.session_state.flow_state is None:
+        # Create empty state
+        st.session_state.flow_state = StreamlitFlowState(nodes=[], edges=[])
     
-    if not nodes:
-        st.info("👆 Click 'Auto-detect Pathway' or add molecules in the 'Node List' tab")
-        return
+    # Layout configuration
+    if layout_type == "Tree":
+        layout = TreeLayout(direction="right")
+    else:
+        layout = LayeredLayout(direction="right")
     
-    # Build node positions and data
-    node_data = []
-    for i, mol_id in enumerate(nodes):
-        mol_row = df[df["molecule_id"] == mol_id]
-        energy = None
-        smiles = None
-        if not mol_row.empty:
-            energy = mol_row.iloc[0].get("gibbs_Eh") or mol_row.iloc[0].get("single_point_Eh")
-            smiles = mol_row.iloc[0].get("smiles", "")
-        
-        node_data.append({
-            "id": mol_id,
-            "energy": energy,
-            "smiles": str(smiles)[:30] if smiles else "",
-            "x": 100 + i * 180,
-            "y": 150
-        })
+    # Render the flow component
+    state = streamlit_flow(
+        key="reaction_flow",
+        state=st.session_state.flow_state,
+        layout=layout,
+        fit_view=True,
+        height=500,
+        enable_node_menu=True,
+        enable_edge_menu=True,
+        enable_pane_menu=True,
+        allow_new_edges=True,
+        animate_new_edges=True,
+        style={"backgroundColor": "#1a1a2e"}
+    )
     
-    # If we have energy data, position by energy
-    energies = [n["energy"] for n in node_data if n["energy"] is not None]
-    if energies:
-        min_e = min(energies)
-        for n in node_data:
-            if n["energy"] is not None:
-                rel_e = (n["energy"] - min_e) * 627.509  # kcal/mol
-                n["y"] = 350 - rel_e * 3  # Higher energy = higher position
+    # Update state
+    st.session_state.flow_state = state
     
-    # Create edge data
-    edge_data = []
-    for src, dst, label in edges:
-        src_node = next((n for n in node_data if n["id"] == src), None)
-        dst_node = next((n for n in node_data if n["id"] == dst), None)
-        if src_node and dst_node:
-            edge_data.append({
-                "from": src,
-                "to": dst,
-                "label": label,
-                "fromX": src_node["x"],
-                "fromY": src_node["y"],
-                "toX": dst_node["x"],
-                "toY": dst_node["y"]
-            })
-    
-    # Render interactive canvas
-    render_flow_canvas(node_data, edge_data)
+    # Show selected node info
+    if state.selected_id:
+        st.info(f"Selected: **{state.selected_id}**")
+        show_node_popup(df, state.selected_id)
 
 
-def render_flow_canvas(nodes: List[dict], edges: List[dict]):
-    """Render the interactive flow canvas using HTML/CSS/JS."""
-    
-    nodes_json = json.dumps(nodes)
-    edges_json = json.dumps(edges)
-    
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body {{ font-family: 'Segoe UI', sans-serif; background: #1a1a2e; }}
-            
-            #canvas {{
-                width: 100%;
-                height: 450px;
-                position: relative;
-                overflow: hidden;
-                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                border-radius: 12px;
-            }}
-            
-            .node {{
-                position: absolute;
-                background: linear-gradient(180deg, #4a4e69 0%, #22223b 100%);
-                border: 2px solid #9a8c98;
-                border-radius: 12px;
-                padding: 12px 16px;
-                min-width: 120px;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-                text-align: center;
-            }}
-            
-            .node:hover {{
-                transform: scale(1.05);
-                border-color: #c9ada7;
-                box-shadow: 0 6px 25px rgba(154, 140, 152, 0.4);
-            }}
-            
-            .node-title {{
-                color: #f2e9e4;
-                font-weight: 600;
-                font-size: 14px;
-                margin-bottom: 4px;
-            }}
-            
-            .node-energy {{
-                color: #c9ada7;
-                font-size: 11px;
-            }}
-            
-            .node-smiles {{
-                color: #9a8c98;
-                font-size: 10px;
-                font-family: monospace;
-                margin-top: 4px;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                max-width: 100px;
-            }}
-            
-            svg {{
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                pointer-events: none;
-            }}
-            
-            .edge {{
-                stroke: #9a8c98;
-                stroke-width: 2;
-                fill: none;
-            }}
-            
-            .edge-label {{
-                fill: #f2e9e4;
-                font-size: 11px;
-            }}
-            
-            .arrow {{
-                fill: #9a8c98;
-            }}
-            
-            #tooltip {{
-                position: absolute;
-                background: rgba(0,0,0,0.9);
-                color: white;
-                padding: 12px 16px;
-                border-radius: 8px;
-                font-size: 12px;
-                pointer-events: none;
-                display: none;
-                z-index: 1000;
-                max-width: 250px;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-            }}
-            
-            .legend {{
-                position: absolute;
-                bottom: 10px;
-                right: 10px;
-                background: rgba(0,0,0,0.5);
-                padding: 8px 12px;
-                border-radius: 6px;
-                color: #c9ada7;
-                font-size: 11px;
-            }}
-        </style>
-    </head>
-    <body>
-        <div id="canvas">
-            <svg id="svg"></svg>
-            <div id="tooltip"></div>
-            <div class="legend">💡 Click nodes for details | Drag to move</div>
-        </div>
-        
-        <script>
-            const nodes = {nodes_json};
-            const edges = {edges_json};
-            const canvas = document.getElementById('canvas');
-            const svg = document.getElementById('svg');
-            const tooltip = document.getElementById('tooltip');
-            
-            // Render edges
-            edges.forEach(edge => {{
-                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                const midX = (edge.fromX + edge.toX) / 2;
-                const midY = (edge.fromY + edge.toY) / 2;
-                
-                // Curved path
-                const d = `M ${{edge.fromX + 60}} ${{edge.fromY + 25}} 
-                           Q ${{midX}} ${{midY - 30}} ${{edge.toX + 60}} ${{edge.toY + 25}}`;
-                path.setAttribute('d', d);
-                path.setAttribute('class', 'edge');
-                path.setAttribute('marker-end', 'url(#arrow)');
-                svg.appendChild(path);
-                
-                // Edge label
-                if (edge.label) {{
-                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                    text.setAttribute('x', midX + 60);
-                    text.setAttribute('y', midY - 10);
-                    text.setAttribute('class', 'edge-label');
-                    text.textContent = edge.label;
-                    svg.appendChild(text);
-                }}
-            }});
-            
-            // Arrow marker
-            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-            defs.innerHTML = `
-                <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5"
-                        markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                    <path d="M 0 0 L 10 5 L 0 10 z" class="arrow"/>
-                </marker>
-            `;
-            svg.insertBefore(defs, svg.firstChild);
-            
-            // Render nodes
-            nodes.forEach(node => {{
-                const div = document.createElement('div');
-                div.className = 'node';
-                div.style.left = node.x + 'px';
-                div.style.top = node.y + 'px';
-                
-                let energyStr = 'N/A';
-                if (node.energy !== null) {{
-                    const relE = (node.energy - Math.min(...nodes.filter(n => n.energy).map(n => n.energy))) * 627.509;
-                    energyStr = relE.toFixed(2) + ' kcal/mol';
-                }}
-                
-                div.innerHTML = `
-                    <div class="node-title">${{node.id}}</div>
-                    <div class="node-energy">${{energyStr}}</div>
-                    <div class="node-smiles">${{node.smiles || ''}}</div>
-                `;
-                
-                div.addEventListener('click', () => {{
-                    // Send message to Streamlit
-                    window.parent.postMessage({{
-                        type: 'streamlit:setComponentValue',
-                        data: node.id
-                    }}, '*');
-                }});
-                
-                div.addEventListener('mouseenter', (e) => {{
-                    tooltip.innerHTML = `
-                        <b>${{node.id}}</b><br>
-                        Energy: ${{energyStr}}<br>
-                        SMILES: ${{node.smiles || 'N/A'}}
-                    `;
-                    tooltip.style.display = 'block';
-                    tooltip.style.left = (e.clientX + 15) + 'px';
-                    tooltip.style.top = (e.clientY - 10) + 'px';
-                }});
-                
-                div.addEventListener('mouseleave', () => {{
-                    tooltip.style.display = 'none';
-                }});
-                
-                canvas.appendChild(div);
-            }});
-        </script>
-    </body>
-    </html>
-    """
-    
-    components.html(html, height=480)
-
-
-def render_node_list(df: pd.DataFrame):
-    """Render node management list."""
-    
-    mol_ids = df["molecule_id"].dropna().unique().tolist()
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.markdown("##### ➕ Add Molecules")
-        
-        available = [m for m in mol_ids if m not in st.session_state.reaction_nodes]
-        new_nodes = st.multiselect(
-            "Select molecules to add",
-            available,
-            key="new_nodes_select"
-        )
-        
-        if st.button("Add Selected", type="primary") and new_nodes:
-            for node in new_nodes:
-                if node not in st.session_state.reaction_nodes:
-                    st.session_state.reaction_nodes.append(node)
-            st.rerun()
-    
-    with col2:
-        st.markdown("##### 🔗 Add Connection")
-        
-        nodes = st.session_state.reaction_nodes
-        if len(nodes) >= 2:
-            from_node = st.selectbox("From", nodes, key="edge_from")
-            to_node = st.selectbox("To", [n for n in nodes if n != from_node], key="edge_to")
-            edge_label = st.text_input("Label", "", key="edge_label")
-            
-            if st.button("Connect", type="primary"):
-                edge = (from_node, to_node, edge_label)
-                if edge not in st.session_state.reaction_edges:
-                    st.session_state.reaction_edges.append(edge)
-                st.rerun()
-        else:
-            st.info("Add at least 2 nodes")
-    
-    # Current nodes and edges
-    st.divider()
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("##### 📦 Current Nodes")
-        for node in st.session_state.reaction_nodes:
-            c1, c2 = st.columns([4, 1])
-            with c1:
-                st.write(f"• {node}")
-            with c2:
-                if st.button("❌", key=f"del_node_{node}"):
-                    st.session_state.reaction_nodes.remove(node)
-                    st.session_state.reaction_edges = [
-                        e for e in st.session_state.reaction_edges
-                        if e[0] != node and e[1] != node
-                    ]
-                    st.rerun()
-    
-    with col2:
-        st.markdown("##### ➡️ Current Connections")
-        for i, (src, dst, label) in enumerate(st.session_state.reaction_edges):
-            c1, c2 = st.columns([4, 1])
-            with c1:
-                label_str = f" ({label})" if label else ""
-                st.write(f"• {src} → {dst}{label_str}")
-            with c2:
-                if st.button("❌", key=f"del_edge_{i}"):
-                    st.session_state.reaction_edges.pop(i)
-                    st.rerun()
-
-
-def auto_detect_pathway(mol_ids: List[str]):
-    """Auto-detect pathway from molecule naming patterns."""
+def create_auto_pathway(df: pd.DataFrame, mol_ids: List[str]) -> StreamlitFlowState:
+    """Create automatic pathway from molecule naming."""
     import re
     
+    # Group by base molecule name
     pattern = re.compile(r'^(p\d+)([a-z]*).*$', re.I)
     groups = {}
     
@@ -435,110 +134,194 @@ def auto_detect_pathway(mol_ids: List[str]):
                 groups[base] = []
             groups[base].append(mol)
     
-    sorted_bases = sorted(groups.keys(), key=lambda x: int(re.search(r'\d+', x).group()))
+    # Sort by base name
+    sorted_bases = sorted(groups.keys(), key=lambda x: int(re.search(r'\d+', x).group()) if re.search(r'\d+', x) else 0)
     
-    nodes = []
+    # Take first variant from each base (up to 10)
+    selected_mols = []
     for base in sorted_bases[:10]:
         variants = sorted(groups[base])
         if variants:
-            nodes.append(variants[0])
+            selected_mols.append(variants[0])
     
+    # Create nodes with energy data
+    nodes = []
+    energies = []
+    
+    for i, mol_id in enumerate(selected_mols):
+        mol_row = df[df["molecule_id"] == mol_id]
+        energy = None
+        state = ""
+        if not mol_row.empty:
+            energy = mol_row.iloc[0].get("gibbs_Eh") or mol_row.iloc[0].get("single_point_Eh")
+            state = mol_row.iloc[0].get("optimized_state", "")
+        
+        energies.append(energy)
+        
+        # Calculate y position based on energy
+        y_pos = 100
+        if energy is not None and energies[0] is not None:
+            rel_e = (energy - min(e for e in energies if e)) * 627.509  # kcal/mol
+            y_pos = 100 + rel_e * 2
+        
+        energy_str = f"{energy:.4f} Eh" if energy else "N/A"
+        
+        nodes.append(StreamlitFlowNode(
+            id=mol_id,
+            pos=(i * 200, y_pos),
+            data={
+                "content": f"**{mol_id}**\n\n{state}\n\n{energy_str}"
+            },
+            node_type="default",
+            source_position="right",
+            target_position="left",
+            draggable=True
+        ))
+    
+    # Create edges
     edges = []
-    for i in range(len(nodes) - 1):
-        edges.append((nodes[i], nodes[i + 1], ""))
+    for i in range(len(selected_mols) - 1):
+        edges.append(StreamlitFlowEdge(
+            id=f"e{i}",
+            source=selected_mols[i],
+            target=selected_mols[i + 1],
+            animated=True,
+            edge_type="smoothstep"
+        ))
     
-    st.session_state.reaction_nodes = nodes
-    st.session_state.reaction_edges = edges
+    return StreamlitFlowState(nodes=nodes, edges=edges)
+
+
+def render_flow_setup(df: pd.DataFrame):
+    """Setup nodes and edges manually."""
+    
+    mol_ids = df["molecule_id"].dropna().unique().tolist()
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("##### ➕ Add Nodes")
+        selected_mols = st.multiselect("Select molecules", mol_ids, key="flow_add_mols")
+        
+        if st.button("Add Selected", type="primary") and selected_mols:
+            if st.session_state.flow_state is None:
+                st.session_state.flow_state = StreamlitFlowState(nodes=[], edges=[])
+            
+            existing_ids = [n.id for n in st.session_state.flow_state.nodes]
+            
+            for i, mol_id in enumerate(selected_mols):
+                if mol_id not in existing_ids:
+                    mol_row = df[df["molecule_id"] == mol_id]
+                    energy = None
+                    if not mol_row.empty:
+                        energy = mol_row.iloc[0].get("gibbs_Eh")
+                    
+                    st.session_state.flow_state.nodes.append(
+                        StreamlitFlowNode(
+                            id=mol_id,
+                            pos=(len(existing_ids) * 200, 100),
+                            data={"content": f"**{mol_id}**\n\n{energy:.4f} Eh" if energy else f"**{mol_id}**"},
+                            node_type="default",
+                            draggable=True
+                        )
+                    )
+            st.rerun()
+    
+    with col2:
+        st.markdown("##### Current Nodes")
+        if st.session_state.flow_state:
+            for node in st.session_state.flow_state.nodes:
+                st.write(f"• {node.id}")
+        else:
+            st.info("No nodes yet")
+
+
+def show_node_popup(df: pd.DataFrame, node_id: str):
+    """Show popup with node details."""
+    
+    mol_row = df[df["molecule_id"] == node_id]
+    if mol_row.empty:
+        return
+    
+    data = mol_row.iloc[0]
+    
+    with st.expander(f"📊 Details: {node_id}", expanded=True):
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            energy = data.get("gibbs_Eh") or data.get("single_point_Eh")
+            st.metric("Energy (Eh)", f"{energy:.6f}" if energy else "N/A")
+        
+        with col2:
+            homo = data.get("homo_energy")
+            st.metric("HOMO (eV)", f"{homo:.3f}" if homo else "N/A")
+        
+        with col3:
+            state = data.get("optimized_state", "N/A")
+            st.metric("State", state)
 
 
 def render_node_details(df: pd.DataFrame):
-    """Render details for selected node."""
+    """Render detailed view for nodes."""
     
-    nodes = st.session_state.reaction_nodes
-    
-    if not nodes:
-        st.info("Add molecules to view details")
-        return
-    
-    selected = st.selectbox("Select Node", nodes, key="node_detail")
-    
-    mol_row = df[df["molecule_id"] == selected]
-    if mol_row.empty:
-        st.warning("No data for selected molecule")
-        return
-    
-    mol_data = mol_row.iloc[0]
-    
-    # Quick stats
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Molecule", selected)
-    with col2:
-        energy = mol_data.get("gibbs_Eh") or mol_data.get("single_point_Eh")
-        st.metric("Energy (Eh)", f"{energy:.6f}" if energy else "N/A")
-    with col3:
-        homo = mol_data.get("homo_energy")
-        st.metric("HOMO (eV)", f"{homo:.3f}" if homo else "N/A")
-    with col4:
-        method = mol_data.get("method_id", "N/A")
-        st.metric("Method", method[:15] + "..." if len(str(method)) > 15 else method)
-    
-    # Chart selection
-    with st.expander("📊 View Charts", expanded=False):
-        chart = st.selectbox("Select Chart", ["IR Spectrum", "Raman Spectrum", "Properties"])
+    if st.session_state.flow_state and st.session_state.flow_state.nodes:
+        node_ids = [n.id for n in st.session_state.flow_state.nodes]
+        selected = st.selectbox("Select Node", node_ids, key="detail_node")
         
-        if chart == "IR Spectrum":
-            ir = mol_data.get("ir")
-            if ir is not None and hasattr(ir, 'empty') and not ir.empty:
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=ir["freq_cm-1"],
-                    y=ir.get("intensity_km/mol", ir.iloc[:, 1]),
-                    mode="lines",
-                    fill="tozeroy"
-                ))
-                fig.update_layout(
-                    title=f"IR - {selected}",
-                    xaxis_title="Frequency (cm⁻¹)",
-                    xaxis=dict(autorange="reversed"),
-                    height=300
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("No IR data")
-        
-        elif chart == "Raman Spectrum":
-            raman = mol_data.get("raman")
-            if raman is not None and hasattr(raman, 'empty') and not raman.empty:
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=raman["freq_cm-1"],
-                    y=raman.get("activity", raman.iloc[:, 1]),
-                    mode="lines",
-                    line=dict(color="green"),
-                    fill="tozeroy",
-                    fillcolor="rgba(0,255,0,0.1)"
-                ))
-                fig.update_layout(
-                    title=f"Raman - {selected}",
-                    xaxis_title="Frequency (cm⁻¹)",
-                    height=300
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("No Raman data")
-        
-        elif chart == "Properties":
-            props_data = {
-                "gibbs_Eh": mol_data.get("gibbs_Eh"),
-                "single_point_Eh": mol_data.get("single_point_Eh"),
-                "homo_energy": mol_data.get("homo_energy"),
-                "lumo_energy": mol_data.get("lumo_energy"),
-                "functional": mol_data.get("functional"),
-                "basis_set": mol_data.get("basis_set"),
+        mol_row = df[df["molecule_id"] == selected]
+        if not mol_row.empty:
+            data = mol_row.iloc[0]
+            
+            # Show properties table
+            props = {
+                "molecule_id": data.get("molecule_id"),
+                "optimized_state": data.get("optimized_state"),
+                "gibbs_Eh": data.get("gibbs_Eh"),
+                "single_point_Eh": data.get("single_point_Eh"),
+                "homo_energy": data.get("homo_energy"),
+                "lumo_energy": data.get("lumo_energy"),
             }
             st.dataframe(
-                pd.DataFrame([{"Property": k, "Value": v} for k, v in props_data.items() if v is not None]),
+                pd.DataFrame([{"Property": k, "Value": v} for k, v in props.items() if v is not None]),
                 use_container_width=True,
                 hide_index=True
             )
+    else:
+        st.info("Add nodes to view details")
+
+
+def render_fallback_editor(df: pd.DataFrame):
+    """Fallback editor when streamlit-flow-component is not available."""
+    
+    st.warning("Using fallback editor. Install `streamlit-flow-component` for the full experience.")
+    
+    mol_ids = df["molecule_id"].dropna().unique().tolist()
+    
+    # Simple node management
+    if "simple_nodes" not in st.session_state:
+        st.session_state.simple_nodes = []
+    if "simple_edges" not in st.session_state:
+        st.session_state.simple_edges = []
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("##### Add Nodes")
+        new_nodes = st.multiselect("Select", [m for m in mol_ids if m not in st.session_state.simple_nodes])
+        if st.button("Add") and new_nodes:
+            st.session_state.simple_nodes.extend(new_nodes)
+            st.rerun()
+    
+    with col2:
+        st.markdown("##### Add Edge")
+        if len(st.session_state.simple_nodes) >= 2:
+            src = st.selectbox("From", st.session_state.simple_nodes, key="fb_src")
+            dst = st.selectbox("To", [n for n in st.session_state.simple_nodes if n != src], key="fb_dst")
+            if st.button("Connect"):
+                st.session_state.simple_edges.append((src, dst))
+                st.rerun()
+    
+    # Display
+    st.markdown("##### Current Pathway")
+    st.write("Nodes:", st.session_state.simple_nodes)
+    st.write("Edges:", st.session_state.simple_edges)
