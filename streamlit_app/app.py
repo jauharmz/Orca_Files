@@ -54,8 +54,20 @@ def main():
                 parse_uploaded_files(uploaded)
         
         elif data_source == "HuggingFace":
-            if st.button("📥 Download Sample Data", type="primary"):
-                download_hf_data()
+            # Check if data already exists
+            data_path = Path("./test_data_hf")
+            if data_path.exists() and list(data_path.rglob("*.out")):
+                st.info(f"📁 Sample data exists ({len(list(data_path.rglob('*.out')))} files)")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🚀 Parse Existing", type="primary"):
+                        parse_folder("./test_data_hf")
+                with col2:
+                    if st.button("📥 Re-download"):
+                        download_hf_data()
+            else:
+                if st.button("📥 Download & Parse", type="primary"):
+                    download_hf_data()
         
         elif data_source == "Local Folder":
             folder = st.text_input("Folder path", "./test_data_hf")
@@ -275,11 +287,12 @@ def parse_uploaded_files(files):
 
 
 def download_hf_data():
-    """Download from HuggingFace."""
+    """Download from HuggingFace and auto-parse."""
     try:
         from huggingface_hub import snapshot_download
         
-        with st.spinner("Downloading from HuggingFace..."):
+        st.info("📥 Step 1/2: Downloading from HuggingFace...")
+        with st.spinner("Downloading..."):
             snapshot_download(
                 repo_id="JauharMz/Orca",
                 repo_type="dataset",
@@ -287,9 +300,15 @@ def download_hf_data():
                 local_dir_use_symlinks=False
             )
         st.success("✅ Downloaded to ./test_data_hf")
+        
+        # Auto-parse immediately
+        st.info("🔄 Step 2/2: Parsing files...")
         parse_folder("./test_data_hf")
+        
+    except ImportError:
+        st.error("❌ huggingface_hub not installed. Run: pip install huggingface_hub")
     except Exception as e:
-        st.error(f"Download failed: {e}")
+        st.error(f"❌ Download failed: {e}")
 
 
 def parse_folder(folder):
