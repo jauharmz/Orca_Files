@@ -20,6 +20,8 @@
 | **HTML Export** | Single-file interactive reports with embedded Plotly.js |
 | **Interactive Viz** | Plotly charts + py3Dmol 3D molecular viewer |
 
+📖 **See [ARCHITECTURE.md](ARCHITECTURE.md) for the full conceptual data model and design philosophy.**
+
 ---
 
 ## 🏗️ System Architecture
