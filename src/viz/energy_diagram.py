@@ -1,4 +1,4 @@
-"""Energy diagram visualizer."""
+"""Energy diagram visualizer with logging."""
 
 from typing import List, Optional
 import pandas as pd
@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 from ..core.base_visualizer import BaseVisualizer
+from ..logger import get_logger
 
 
 class EnergyDiagramVisualizer(BaseVisualizer):
@@ -21,6 +22,7 @@ class EnergyDiagramVisualizer(BaseVisualizer):
         """
         super().__init__(df)
         self.id_column = id_column
+        self.logger = get_logger("EnergyDiagramVisualizer")
     
     def create_figure(self, energy_col: str = "gibbs_Eh") -> go.Figure:
         """
@@ -32,15 +34,26 @@ class EnergyDiagramVisualizer(BaseVisualizer):
         Returns:
             Plotly figure
         """
+        self.logger.info(f"Creating energy diagram using '{energy_col}'")
+        
         if energy_col not in self.data.columns:
             self.logger.warning(f"Column {energy_col} not found")
             return go.Figure()
         
-        df = self.data.copy()
+        df = self.data.dropna(subset=[energy_col]).copy()
+        
+        if df.empty:
+            self.logger.warning("No energy data available")
+            return go.Figure()
+        
+        self.logger.info(f"  Plotting {len(df)} molecules")
         
         # Calculate relative energy in kcal/mol
         ref = df[energy_col].min()
         df["relative_kcal"] = (df[energy_col] - ref) * 627.509
+        
+        self.logger.debug(f"  Reference energy: {ref:.6f} Eh")
+        self.logger.debug(f"  Energy range: 0 to {df['relative_kcal'].max():.2f} kcal/mol")
         
         # Create figure
         fig = px.bar(
@@ -62,7 +75,7 @@ class EnergyDiagramVisualizer(BaseVisualizer):
         )
         
         self._apply_theme(fig)
-        self._log_created("energy diagram")
+        self.logger.info("  Energy diagram created successfully")
         
         return fig
     
@@ -81,14 +94,23 @@ class EnergyDiagramVisualizer(BaseVisualizer):
         Returns:
             Plotly figure
         """
+        self.logger.info(f"Creating pathway diagram with {len(pathway)} steps")
+        
         # Filter and order by pathway
         df = self.data[self.data[self.id_column].isin(pathway)].copy()
+        
+        if df.empty:
+            self.logger.warning("No molecules found in pathway")
+            return go.Figure()
+        
         df["order"] = df[self.id_column].apply(lambda x: pathway.index(x))
         df = df.sort_values("order")
         
         # Calculate relative energy
         ref = df[energy_col].min()
         df["relative_kcal"] = (df[energy_col] - ref) * 627.509
+        
+        self.logger.info(f"  Pathway: {' -> '.join(df[self.id_column].tolist())}")
         
         fig = go.Figure()
         
@@ -110,4 +132,6 @@ class EnergyDiagramVisualizer(BaseVisualizer):
         )
         
         self._apply_theme(fig)
+        self.logger.info("  Pathway diagram created successfully")
+        
         return fig
