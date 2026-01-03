@@ -107,6 +107,8 @@ def main():
     # Add counts for nested data
     nested_cols = ['cart_coords', 'orbitals', 'vibrations', 'ir', 'raman', 
                    'nmr_shielding', 'nmr_coupling', 'tddft_states', 
+                   'electric_dipole_abs', 'electric_dipole_soc',
+                   'velocity_dipole_abs', 'velocity_dipole_soc',
                    'bonds', 'angles', 'dihedrals']
     
     for col in nested_cols:
@@ -220,6 +222,36 @@ def main():
         dihedrals_df = pd.concat(all_dihedrals, ignore_index=True)
         dihedrals_df.to_csv("parsed_internal_dihedrals.csv", index=False)
         logger.info(f"  Saved: parsed_internal_dihedrals.csv ({len(dihedrals_df)} dihedrals)")
+    
+    # 3I. Electric dipole absorption CSV
+    all_elec_abs = []
+    for _, row in df_modular.iterrows():
+        mol_id = row["molecule_id"]
+        elec = row.get("electric_dipole_abs")
+        if isinstance(elec, pd.DataFrame) and not elec.empty:
+            elec_copy = elec.copy()
+            elec_copy.insert(0, "molecule_id", mol_id)
+            all_elec_abs.append(elec_copy)
+    
+    if all_elec_abs:
+        elec_abs_df = pd.concat(all_elec_abs, ignore_index=True)
+        elec_abs_df.to_csv("parsed_electric_dipole.csv", index=False)
+        logger.info(f"  Saved: parsed_electric_dipole.csv ({len(elec_abs_df)} transitions)")
+    
+    # 3J. Velocity dipole absorption CSV
+    all_vel_abs = []
+    for _, row in df_modular.iterrows():
+        mol_id = row["molecule_id"]
+        vel = row.get("velocity_dipole_abs")
+        if isinstance(vel, pd.DataFrame) and not vel.empty:
+            vel_copy = vel.copy()
+            vel_copy.insert(0, "molecule_id", mol_id)
+            all_vel_abs.append(vel_copy)
+    
+    if all_vel_abs:
+        vel_abs_df = pd.concat(all_vel_abs, ignore_index=True)
+        vel_abs_df.to_csv("parsed_velocity_dipole.csv", index=False)
+        logger.info(f"  Saved: parsed_velocity_dipole.csv ({len(vel_abs_df)} transitions)")
     
     # 4. Create JSON export with ALL data
     logger.info("\n[STEP 4] Creating JSON export with ALL data...")
