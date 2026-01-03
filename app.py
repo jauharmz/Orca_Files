@@ -116,11 +116,12 @@ def parse_files(uploaded_files):
 
 
 def download_hf_data():
-    """Download sample data from HuggingFace."""
+    """Download sample data from HuggingFace and auto-parse."""
     try:
         from huggingface_hub import snapshot_download
         
-        with st.spinner("Downloading from HuggingFace..."):
+        st.info("📥 Step 1/2: Downloading from HuggingFace...")
+        with st.spinner("Downloading..."):
             snapshot_download(
                 repo_id="JauharMz/Orca",
                 repo_type="dataset",
@@ -129,12 +130,37 @@ def download_hf_data():
             )
         st.success("✅ Downloaded to ./data")
         
-        # Parse downloaded files
-        files = list(Path("./data").rglob("*.out"))
-        st.info(f"Found {len(files)} files. Click 'Parse Folder' to process.")
+        # Auto-parse immediately
+        st.info("🔄 Step 2/2: Parsing files...")
+        parse_data_folder()
         
+    except ImportError:
+        st.error("❌ huggingface_hub not installed. Run: pip install huggingface_hub")
     except Exception as e:
-        st.error(f"Download failed: {e}")
+        st.error(f"❌ Download failed: {e}")
+
+
+def parse_data_folder():
+    """Parse the ./data folder."""
+    from src.parser.batch import BatchParser
+    
+    pattern = "./data/**/*.out"
+    files = list(Path("./data").rglob("*.out"))
+    
+    if not files:
+        st.warning("No .out files found in ./data")
+        return
+    
+    with st.spinner(f"Parsing {len(files)} files..."):
+        batch = BatchParser(pattern)
+        df = batch.parse_all(verbose=False)
+    
+    if df is not None and len(df) > 0:
+        st.session_state.df = df
+        st.success(f"✅ Parsed {len(df)} files")
+        st.rerun()
+    else:
+        st.warning("Parsing failed or no valid files found")
 
 
 def show_data_view():
