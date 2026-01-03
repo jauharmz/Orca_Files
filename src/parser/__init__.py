@@ -20,6 +20,7 @@ from .energy import EnergyParser
 from .orbitals import OrbitalParser
 from .spectroscopy import SpectroscopyParser
 from .tddft import TDDFTParser
+from .method import MethodParser
 from .spectrum_file import SpectrumFileParser
 
 __all__ = [
@@ -30,5 +31,7 @@ __all__ = [
     "OrbitalParser",
     "SpectroscopyParser",
     "TDDFTParser",
+    "MethodParser",
     "SpectrumFileParser",
 ]
+

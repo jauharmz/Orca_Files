@@ -14,6 +14,7 @@ from .energy import EnergyParser
 from .orbitals import OrbitalParser
 from .spectroscopy import SpectroscopyParser
 from .tddft import TDDFTParser
+from .method import MethodParser
 from .spectrum_file import SpectrumFileParser
 from ..core.data_models import ParseResult
 from ..logger import get_logger
@@ -54,6 +55,10 @@ class ParserFactory:
         self.logger.debug("=" * 50)
         
         # Run all parsers
+        self.logger.debug("--- Method Parser ---")
+        method_parser = MethodParser(text)
+        method = method_parser.parse()
+        
         self.logger.debug("--- Geometry Parser ---")
         geo_parser = GeometryParser(text)
         geometry = geo_parser.parse()
@@ -83,10 +88,11 @@ class ParserFactory:
         # Summary
         self.logger.debug("=" * 50)
         self.logger.info(f"Parse complete: {filename}")
-        self._log_summary(geometry, energy, orbitals, spectra, tddft, internal_coords, calc_info)
+        self._log_summary(method, geometry, energy, orbitals, spectra, tddft, internal_coords, calc_info)
         
         return ParseResult(
             filename=filename,
+            method=method,
             geometry=geometry,
             energy=energy,
             orbitals=orbitals,
@@ -101,10 +107,12 @@ class ParserFactory:
             calc_class=calc_info.get("calc_class", "single_point")
         )
     
-    def _log_summary(self, geometry, energy, orbitals, spectra, tddft, internal_coords, calc_info):
+    def _log_summary(self, method, geometry, energy, orbitals, spectra, tddft, internal_coords, calc_info):
         """Log parsing summary."""
         summary = []
         
+        if method.to_id() != "unknown":
+            summary.append(f"method={method.to_id()}")
         if geometry.filename:
             summary.append(f"mol={geometry.filename}")
         if geometry.smiles:
@@ -132,10 +140,11 @@ class ParserFactory:
     
     def _empty_result(self, filepath: str) -> ParseResult:
         """Return empty result."""
-        from ..core.data_models import GeometryData, EnergyData, OrbitalData, SpectraData, TDDFTData, MullikenData, InternalCoordsData
+        from ..core.data_models import GeometryData, EnergyData, OrbitalData, SpectraData, TDDFTData, MullikenData, InternalCoordsData, MethodData
         
         return ParseResult(
             filename=filepath,
+            method=MethodData(),
             geometry=GeometryData(),
             energy=EnergyData(),
             orbitals=OrbitalData(),

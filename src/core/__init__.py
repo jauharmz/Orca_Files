@@ -9,8 +9,10 @@ from .data_models import (
     OrbitalData,
     SpectraData,
     TDDFTData,
+    MethodData,
     ParseResult,
 )
+from .molecule_store import MoleculeStore
 from .exceptions import (
     ORCAParseError,
     ORCAFileError,
@@ -25,8 +27,11 @@ __all__ = [
     "OrbitalData",
     "SpectraData",
     "TDDFTData",
+    "MethodData",
     "ParseResult",
+    "MoleculeStore",
     "ORCAParseError",
     "ORCAFileError",
     "ORCAValidationError",
 ]
+
