@@ -1,18 +1,16 @@
-"""Base visualizer abstract class."""
+"""Base visualizer class."""
 
-from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 import plotly.graph_objects as go
 
 from ..logger import get_logger
 
 
-class BaseVisualizer(ABC):
+class BaseVisualizer:
     """
-    Abstract base class for all visualizers.
+    Base class for all visualizers.
     
-    Each visualizer creates a specific type of Plotly figure
-    from parsed ORCA data.
+    Each visualizer creates specific Plotly figures from parsed ORCA data.
     """
     
     def __init__(self, data: Any, config: Optional[Dict] = None):
@@ -26,16 +24,6 @@ class BaseVisualizer(ABC):
         self.data = data
         self.config = config or {}
         self.logger = get_logger(self.__class__.__name__)
-    
-    @abstractmethod
-    def create_figure(self) -> go.Figure:
-        """
-        Create and return a Plotly figure.
-        
-        Returns:
-            Plotly Figure object
-        """
-        pass
     
     def _apply_theme(self, fig: go.Figure) -> go.Figure:
         """Apply default theme to figure."""
