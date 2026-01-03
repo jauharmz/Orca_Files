@@ -1,10 +1,7 @@
 """
 Original Parser Test - Uses orca_praser.py directly for comparison
 
-Creates:
-- original_parsed_data.csv - scalar columns
-- original_parsed_data.json - ALL data
-- original_parse_log.txt - detailed parsing info
+Uses rglob to find .out files and parses each with ORCAParser.
 
 Run: python tests/test_original_parser.py
 """
@@ -13,6 +10,7 @@ import sys
 from pathlib import Path
 import json
 import pandas as pd
+from tqdm import tqdm
 
 # Add root to path
 ROOT = Path(__file__).parent.parent
@@ -54,91 +52,88 @@ def main():
             local_dir_use_symlinks=False
         )
     
-    out_files = list(data_dir.rglob("*.out"))
-    print(f"  Found: {len(out_files)} .out files")
+    # 2. Find all .out files using rglob
+    print("\n[STEP 2] Finding .out files...")
+    all_files = list(data_dir.rglob("*.out"))
+    print(f"  Found: {len(all_files)} .out files")
     
-    # 2. Parse using ORIGINAL parser
-    print("\n[STEP 2] Parsing with ORIGINAL orca_praser.py...")
-    from orca_praser import ORCABatchParser
+    if not all_files:
+        print("ERROR: No .out files found!")
+        return None
     
-    pattern = str(data_dir / "**/*.out")
-    batch = ORCABatchParser(pattern)
-    df = batch.parse_all(verbose=True)
+    # Show first few files
+    for f in all_files[:5]:
+        print(f"    - {f}")
+    if len(all_files) > 5:
+        print(f"    ... and {len(all_files) - 5} more")
     
-    print(f"\n  Parsed: {len(df)} molecule records")
+    # 3. Parse each file using ORCAParser
+    print("\n[STEP 3] Parsing with ORCAParser...")
+    from orca_praser import ORCAParser
     
-    # 3. Analyze columns
-    print("\n[STEP 3] Analyzing parsed data...")
-    print(f"  Columns in DataFrame: {list(df.columns)}")
+    molecules = []
+    errors = []
     
-    scalar_cols = []
-    nested_cols = []
+    for file_path in tqdm(all_files, desc="Parsing ORCA files"):
+        file_path_str = str(file_path)
+        
+        try:
+            parser = ORCAParser(file_path_str)
+            result = parser.parse(as_df=True)
+            
+            # Add filename to result
+            result["source_file"] = file_path.name
+            result["source_path"] = file_path_str
+            
+            # Extract molecule_id from filename
+            base_name = file_path.stem  # filename without extension
+            # Remove common suffixes
+            import re
+            mol_id = re.sub(r'(_?s0p?|_?s0|_?s1|_?t1|_?vg|_?ah|_?ahas|_?p|_?opt)$', '', base_name, flags=re.I)
+            result["molecule_id"] = mol_id.strip("_-")
+            
+            molecules.append(result)
+            
+        except Exception as e:
+            errors.append({"file": file_path.name, "error": str(e)})
+            print(f"\n  Error parsing {file_path.name}: {e}")
     
-    for col in df.columns:
-        sample = df[col].dropna()
-        if sample.empty:
-            scalar_cols.append(col)
-        elif isinstance(sample.iloc[0], (pd.DataFrame, dict, list)):
-            count = sum(1 for x in df[col] if x is not None and (not isinstance(x, pd.DataFrame) or not x.empty))
-            if count > 0:
-                nested_cols.append((col, count))
-        else:
-            scalar_cols.append(col)
+    print(f"\n  Successfully parsed: {len(molecules)} files")
+    print(f"  Errors: {len(errors)} files")
     
-    print(f"\n  Scalar columns ({len(scalar_cols)}):")
-    for col in scalar_cols:
-        count = df[col].notna().sum()
-        pct = 100 * count / len(df)
-        print(f"    {col}: {count}/{len(df)} ({pct:.0f}%)")
+    if not molecules:
+        print("ERROR: No molecules parsed!")
+        return None
     
-    print(f"\n  Nested data ({len(nested_cols)}):")
-    for col, count in nested_cols:
-        pct = 100 * count / len(df)
-        print(f"    {col}: {count}/{len(df)} ({pct:.0f}%)")
+    # 4. Convert to DataFrame
+    print("\n[STEP 4] Converting to DataFrame...")
+    df = pd.DataFrame(molecules)
+    print(f"  DataFrame shape: {df.shape}")
+    print(f"  Columns: {list(df.columns)}")
     
-    # 4. Export scalar CSV
-    print("\n[STEP 4] Exporting scalar data to CSV...")
+    # 5. Export scalar CSV
+    print("\n[STEP 5] Exporting scalar data to CSV...")
     csv_path = "original_parsed_data.csv"
     
-    # Flatten some common scalar fields
     export_df = pd.DataFrame()
+    export_df["molecule_id"] = df["molecule_id"]
+    export_df["source_file"] = df["source_file"]
     
-    # Get molecule_id
-    if "molecule_id" in df.columns:
-        export_df["molecule_id"] = df["molecule_id"]
-    else:
-        # Try to extract from index or other sources
-        export_df["molecule_id"] = df.index.astype(str)
-    
+    # SMILES
     if "smiles" in df.columns:
         export_df["smiles"] = df["smiles"]
     
-    # Get geometry info
+    # Geometry info
     if "geometry" in df.columns:
         export_df["charge"] = df["geometry"].apply(lambda x: x.get("charge") if isinstance(x, dict) else None)
         export_df["multiplicity"] = df["geometry"].apply(lambda x: x.get("multiplicity") if isinstance(x, dict) else None)
-        export_df["filename"] = df["geometry"].apply(lambda x: x.get("filename") if isinstance(x, dict) else None)
+        export_df["mol_filename"] = df["geometry"].apply(lambda x: x.get("filename") if isinstance(x, dict) else None)
     
-    # Get energies from energies dict
-    if "energies" in df.columns:
-        def get_gibbs(energies):
-            if not isinstance(energies, dict):
-                return None
-            for key, val in energies.items():
-                if isinstance(val, dict) and "gibbs_Eh" in val:
-                    return val["gibbs_Eh"]
-            return None
-        
-        def get_sp(energies):
-            if not isinstance(energies, dict):
-                return None
-            for key, val in energies.items():
-                if isinstance(val, dict) and "single_point_Eh" in val:
-                    return val["single_point_Eh"]
-            return None
-        
-        export_df["gibbs_Eh"] = df["energies"].apply(get_gibbs)
-        export_df["single_point_Eh"] = df["energies"].apply(get_sp)
+    # Energies (direct columns from parse())
+    if "gibbs_energy_Eh" in df.columns:
+        export_df["gibbs_Eh"] = df["gibbs_energy_Eh"]
+    if "single_point_energy_Eh" in df.columns:
+        export_df["single_point_Eh"] = df["single_point_energy_Eh"]
     
     # Get HOMO/LUMO from orbitals
     if "orbitals" in df.columns:
@@ -153,7 +148,7 @@ def main():
                     
                     homo = occupied["eV"].max() if not occupied.empty else None
                     lumo = virtual["eV"].min() if not virtual.empty else None
-                    gap = lumo - homo if homo and lumo else None
+                    gap = lumo - homo if homo is not None and lumo is not None else None
                     return homo, lumo, gap
             return None, None, None
         
@@ -162,10 +157,22 @@ def main():
         export_df["lumo_eV"] = [x[1] for x in hl]
         export_df["homo_lumo_gap"] = [x[2] for x in hl]
     
+    # Calc info
+    if "is_optimization" in df.columns:
+        export_df["is_optimization"] = df["is_optimization"]
+    if "optimized_state" in df.columns:
+        export_df["optimized_state"] = df["optimized_state"]
+    if "calc_class" in df.columns:
+        export_df["calc_class"] = df["calc_class"]
+    if "esd_type" in df.columns:
+        export_df["esd_type"] = df["esd_type"]
+    
     # Count nested data
     def count_df(x):
         if isinstance(x, pd.DataFrame):
             return len(x) if not x.empty else 0
+        if isinstance(x, list):
+            return len(x)
         return 0
     
     if "cart_coords" in df.columns:
@@ -173,9 +180,9 @@ def main():
     if "tddft_states" in df.columns:
         export_df["n_tddft_states"] = df["tddft_states"].apply(count_df)
     if "ir_spectrum" in df.columns:
-        export_df["n_ir_peaks"] = df["ir_spectrum"].apply(lambda x: len(x) if isinstance(x, list) else 0)
+        export_df["n_ir_peaks"] = df["ir_spectrum"].apply(count_df)
     if "vibrations" in df.columns:
-        export_df["n_vibrations"] = df["vibrations"].apply(lambda x: len(x) if isinstance(x, list) else 0)
+        export_df["n_vibrations"] = df["vibrations"].apply(count_df)
     
     # Internal coords
     if "internal" in df.columns:
@@ -195,38 +202,44 @@ def main():
     export_df.to_csv(csv_path, index=False)
     print(f"  Saved: {csv_path}")
     
-    # 5. Export full JSON
-    print("\n[STEP 5] Exporting ALL data to JSON...")
+    # 6. Export full JSON
+    print("\n[STEP 6] Exporting ALL data to JSON...")
     json_path = "original_parsed_data.json"
     
     json_data = []
-    for idx, row in df.iterrows():
+    for mol in molecules:
         record = {}
-        for col in df.columns:
-            record[col] = df_to_serializable(row[col])
+        for key, val in mol.items():
+            record[key] = df_to_serializable(val)
         json_data.append(record)
     
     with open(json_path, "w") as f:
         json.dump(json_data, f, indent=2, default=str)
     print(f"  Saved: {json_path}")
     
-    # 6. Summary
+    # 7. Summary
     print("\n" + "=" * 70)
     print("ORIGINAL PARSER TEST COMPLETE!")
     print("=" * 70)
-    print(f"  Molecules: {len(df)}")
+    print(f"  Files found: {len(all_files)}")
+    print(f"  Files parsed: {len(molecules)}")
+    print(f"  Errors: {len(errors)}")
     print(f"  CSV: {csv_path}")
     print(f"  JSON: {json_path}")
-    print("")
-    print("Compare with modular parser:")
-    print("  python tests/test_comprehensive.py")
     print("=" * 70)
     
-    # 7. Show sample
+    # 8. Show sample
     print("\nSample data (first 5):")
-    display_cols = [c for c in ["molecule_id", "smiles", "gibbs_Eh", "homo_eV", "lumo_eV", "n_atoms"] 
+    display_cols = [c for c in ["molecule_id", "smiles", "gibbs_Eh", "homo_eV", "lumo_eV", "n_atoms", "calc_class"] 
                    if c in export_df.columns]
     print(export_df[display_cols].head().to_string())
+    
+    # 9. Show column stats
+    print("\n--- Column Statistics ---")
+    for col in export_df.columns:
+        count = export_df[col].notna().sum()
+        pct = 100 * count / len(export_df)
+        print(f"  {col}: {count}/{len(export_df)} ({pct:.0f}%)")
     
     return df
 
