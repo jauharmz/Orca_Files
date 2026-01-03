@@ -158,6 +158,8 @@ graph TB
 
 ### Parser Module Architecture
 
+The modular parser is refactored from `orca_praser.py` into independent, focused modules:
+
 ```mermaid
 graph TB
     subgraph "📄 Input"
@@ -167,25 +169,23 @@ graph TB
     
     subgraph "🏭 Factory"
         PF[ParserFactory]
-        PR[ParserRegistry]
+        BP[BatchParser]
     end
     
-    subgraph "🔧 Base"
-        BP[BaseParser]
+    subgraph "🔧 Core"
+        BASE[BaseParser]
         LOG[Logger]
         RX[RegexPatterns]
-        UT[ParseUtils]
+        DM[DataModels]
     end
     
-    subgraph "📦 Parsers"
+    subgraph "📦 Modular Parsers"
         GP[GeometryParser]
         EP[EnergyParser]
         OP[OrbitalParser]
         SCP[SpectroscopyParser]
         TP[TDDFTParser]
-        DP[DipoleParser]
-        MP[MullikenParser]
-        ICP[InternalCoordsParser]
+        SFP[SpectrumFileParser]
     end
     
     subgraph "📊 Data Models"
@@ -194,34 +194,67 @@ graph TB
         OMD[OrbitalData]
         SMD[SpectraData]
         TMD[TDDFTData]
-        DMD[DipoleData]
         MMD[MullikenData]
-        IMD[InternalData]
+        IMD[InternalCoordsData]
     end
     
     subgraph "📋 Output"
         RES[ParseResult]
         DF[(DataFrame)]
+        CSV[(CSV Files)]
+        JSON[(JSON)]
     end
     
     TXT & FN --> PF
-    PF --> PR
-    PR --> GP & EP & OP & SCP & TP & DP & MP & ICP
+    PF --> GP & EP & OP & SCP & TP
+    BP --> PF
     
-    GP & EP & OP & SCP & TP & DP & MP & ICP -.-> BP
-    BP --> LOG & RX & UT
+    GP & EP & OP & SCP & TP -.-> BASE
+    BASE --> LOG & RX
     
-    GP --> GMD
+    GP --> GMD & IMD
     EP --> EMD
     OP --> OMD
-    SCP --> SMD
+    SCP --> SMD & MMD
     TP --> TMD
-    DP --> DMD
-    MP --> MMD
-    ICP --> IMD
     
-    GMD & EMD & OMD & SMD & TMD & DMD & MMD & IMD --> RES --> DF
+    GMD & EMD & OMD & SMD & TMD & MMD & IMD --> RES
+    RES --> DF --> CSV & JSON
 ```
+
+#### Data Components (28 fields)
+
+| Category | Field | Source Module | Description |
+|----------|-------|---------------|-------------|
+| **Identity** | molecule_id | batch.py | Extracted from filename |
+| | smiles | geometry.py | SMILES from coordinates |
+| | charge | geometry.py | Molecular charge |
+| | multiplicity | geometry.py | Spin multiplicity |
+| **Energy** | gibbs_Eh | energy.py | Gibbs free energy (Eh) |
+| | single_point_Eh | energy.py | Single-point energy (Eh) |
+| **Orbitals** | homo_energy | orbitals.py | HOMO energy (eV) |
+| | lumo_energy | orbitals.py | LUMO energy (eV) |
+| | homo_lumo_gap | orbitals.py | HOMO-LUMO gap (eV) |
+| | orbitals | orbitals.py | Full orbital DataFrame |
+| **Geometry** | cart_coords | geometry.py | Cartesian coordinates |
+| | bonds | geometry.py | Internal bond coords |
+| | angles | geometry.py | Internal angle coords |
+| | dihedrals | geometry.py | Internal dihedral coords |
+| **Spectroscopy** | ir | spectroscopy.py | IR spectrum |
+| | vibrations | spectroscopy.py | Vibrational frequencies |
+| | raman | spectroscopy.py | Raman spectrum |
+| | mulliken | spectroscopy.py | Mulliken charges |
+| | nmr_shielding | spectroscopy.py | NMR chemical shielding |
+| | nmr_coupling | spectroscopy.py | NMR J-coupling |
+| **TD-DFT** | tddft_states | tddft.py | Excited states |
+| | electric_dipole_abs | tddft.py | Electric dipole absorption |
+| | electric_dipole_soc | tddft.py | Electric dipole SOC |
+| | velocity_dipole_abs | tddft.py | Velocity dipole absorption |
+| | velocity_dipole_soc | tddft.py | Velocity dipole SOC |
+| **Metadata** | is_optimization | energy.py | Optimization calc? |
+| | optimized_state | energy.py | S0, S1, T1 |
+| | calc_class | energy.py | single_point/optimization/tddft |
+| | esd_type | energy.py | VG/AH/AHAS spectrum type |
 
 ---
 
@@ -666,30 +699,46 @@ Orca_Files/
 │
 ├── tests/                              # Test suite
 │   ├── __init__.py
-│   ├── conftest.py                     # Fixtures
-│   ├── test_parsers/
-│   │   ├── test_geometry.py
-│   │   ├── test_energy.py
-│   │   ├── test_orbitals.py
-│   │   └── test_spectroscopy.py
-│   ├── test_analysis/
-│   │   ├── test_hierarchy.py
-│   │   ├── test_partition.py
-│   │   └── test_pathway.py
-│   ├── test_viz/
-│   ├── test_export/
-│   └── test_data/
-│       └── *.out
+│   ├── README.md                       # Test documentation
+│   ├── test_comprehensive.py           # Full parser test → 16 CSV exports
+│   ├── test_original_parser.py         # Original orca_praser.py test
+│   ├── test_comparison.py              # Side-by-side parser comparison
+│   ├── test_visualizations.py          # Visualization tests → HTML plots
+│   ├── test_parsers.py                 # Unit tests for parsers
+│   ├── test_analysis.py                # Analysis module tests
+│   └── test_real.py                    # Integration tests
 │
 ├── notebooks/                          # Demo notebooks
 │   ├── 01_parser_demo.ipynb
 │   ├── 02_analysis_demo.ipynb
 │   └── 03_viz_demo.ipynb
 │
-└── legacy/                             # Original code
-    ├── orca_praser.py
-    └── *.ipynb
+├── orca_praser.py                      # Original reference parser
+└── requirements.txt                    # Dependencies
 ```
+
+### CSV Export Structure
+
+When running `python tests/test_comprehensive.py`, up to 16 CSV files are generated:
+
+| File | Contents | Rows |
+|------|----------|------|
+| `parsed_molecules.csv` | Scalar data + counts | 1 per molecule |
+| `parsed_cart_coords.csv` | x, y, z coordinates | All atoms |
+| `parsed_orbitals.csv` | OCC, Eh, eV, spin, lvl | All orbitals |
+| `parsed_tddft_states.csv` | Excited state transitions | All states |
+| `parsed_ir_spectra.csv` | freq, eps, intensity | All IR peaks |
+| `parsed_vibrations.csv` | freq, imaginary flag | All modes |
+| `parsed_raman.csv` | freq, activity, depolarization | All peaks |
+| `parsed_mulliken.csv` | Nucleus, Element, Pop, Charge | All atoms |
+| `parsed_nmr_shielding.csv` | Isotropic, Anisotropy | All nuclei |
+| `parsed_nmr_coupling.csv` | Nucleus1, Nucleus2, J_Hz | All couplings |
+| `parsed_internal_bonds.csv` | Bond definitions, values | All bonds |
+| `parsed_internal_angles.csv` | Angle definitions, values | All angles |
+| `parsed_internal_dihedrals.csv` | Dihedral definitions, values | All dihedrals |
+| `parsed_electric_dipole.csv` | Absorption spectrum | All transitions |
+| `parsed_velocity_dipole.csv` | Velocity dipole spectrum | All transitions |
+| `parsed_data.json` | Complete nested data | All data |
 
 ---
 
@@ -809,10 +858,22 @@ LOG_FORMAT = '%(asctime)s | %(name)s | %(levelname)s | %(message)s'
 # Install
 pip install -r requirements.txt
 
-# Run tests
+# Parse with modular parser (exports 16 CSVs)
+python tests/test_comprehensive.py
+
+# Parse with original parser (for comparison)
+python tests/test_original_parser.py
+
+# Compare both parsers
+python tests/test_comparison.py
+
+# Generate visualization HTML
+python tests/test_visualizations.py
+
+# Run unit tests
 pytest tests/ -v -s
 
-# Run Streamlit
+# Run Streamlit app
 streamlit run app.py
 ```
 
