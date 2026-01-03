@@ -11,21 +11,41 @@ Features:
 - Energy-based vertical positioning
 - ComfyUI/n8n style interface
 """
+from __future__ import annotations  # Enable string-based type hints
 
 import streamlit as st
 import pandas as pd
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, TYPE_CHECKING, Any
 import json
 
-# Try to import streamlit-flow-component
-try:
-    from streamlit_flow import streamlit_flow
-    from streamlit_flow.elements import StreamlitFlowNode, StreamlitFlowEdge
+# Type hints only for static analysis, not runtime
+if TYPE_CHECKING:
     from streamlit_flow.state import StreamlitFlowState
-    from streamlit_flow.layouts import TreeLayout, LayeredLayout
+
+# Try to import streamlit-flow-component at runtime
+FLOW_AVAILABLE = False
+streamlit_flow = None
+StreamlitFlowNode = None
+StreamlitFlowEdge = None
+StreamlitFlowStateClass = None
+TreeLayout = None
+LayeredLayout = None
+
+try:
+    from streamlit_flow import streamlit_flow as sf_func
+    from streamlit_flow.elements import StreamlitFlowNode as SFNode, StreamlitFlowEdge as SFEdge
+    from streamlit_flow.state import StreamlitFlowState as SFState
+    from streamlit_flow.layouts import TreeLayout as TLayout, LayeredLayout as LLayout
+    
+    streamlit_flow = sf_func
+    StreamlitFlowNode = SFNode
+    StreamlitFlowEdge = SFEdge
+    StreamlitFlowStateClass = SFState
+    TreeLayout = TLayout
+    LayeredLayout = LLayout
     FLOW_AVAILABLE = True
 except ImportError:
-    FLOW_AVAILABLE = False
+    pass
 
 
 def render_node_editor(df: pd.DataFrame):
@@ -86,7 +106,7 @@ def render_react_flow_editor(df: pd.DataFrame):
     # Get or create flow state
     if st.session_state.flow_state is None:
         # Create empty state
-        st.session_state.flow_state = StreamlitFlowState(nodes=[], edges=[])
+        st.session_state.flow_state = StreamlitFlowStateClass(nodes=[], edges=[])
     
     # Layout configuration
     if layout_type == "Tree":
@@ -118,7 +138,7 @@ def render_react_flow_editor(df: pd.DataFrame):
         show_node_popup(df, state.selected_id)
 
 
-def create_auto_pathway(df: pd.DataFrame, mol_ids: List[str]) -> StreamlitFlowState:
+def create_auto_pathway(df: pd.DataFrame, mol_ids: List[str]):
     """Create automatic pathway from molecule naming."""
     import re
     
@@ -189,7 +209,7 @@ def create_auto_pathway(df: pd.DataFrame, mol_ids: List[str]) -> StreamlitFlowSt
             edge_type="smoothstep"
         ))
     
-    return StreamlitFlowState(nodes=nodes, edges=edges)
+    return StreamlitFlowStateClass(nodes=nodes, edges=edges)
 
 
 def render_flow_setup(df: pd.DataFrame):
@@ -205,7 +225,7 @@ def render_flow_setup(df: pd.DataFrame):
         
         if st.button("Add Selected", type="primary") and selected_mols:
             if st.session_state.flow_state is None:
-                st.session_state.flow_state = StreamlitFlowState(nodes=[], edges=[])
+                st.session_state.flow_state = StreamlitFlowStateClass(nodes=[], edges=[])
             
             existing_ids = [n.id for n in st.session_state.flow_state.nodes]
             
