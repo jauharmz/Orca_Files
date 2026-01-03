@@ -69,6 +69,7 @@ def main():
     
     # 3. Analyze columns
     print("\n[STEP 3] Analyzing parsed data...")
+    print(f"  Columns in DataFrame: {list(df.columns)}")
     
     scalar_cols = []
     nested_cols = []
@@ -101,8 +102,16 @@ def main():
     
     # Flatten some common scalar fields
     export_df = pd.DataFrame()
-    export_df["molecule_id"] = df["molecule_id"]
-    export_df["smiles"] = df.get("smiles")
+    
+    # Get molecule_id
+    if "molecule_id" in df.columns:
+        export_df["molecule_id"] = df["molecule_id"]
+    else:
+        # Try to extract from index or other sources
+        export_df["molecule_id"] = df.index.astype(str)
+    
+    if "smiles" in df.columns:
+        export_df["smiles"] = df["smiles"]
     
     # Get geometry info
     if "geometry" in df.columns:
