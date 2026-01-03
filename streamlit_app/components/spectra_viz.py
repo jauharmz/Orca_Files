@@ -25,20 +25,35 @@ def render_spectra_viz(df: pd.DataFrame):
     
     st.subheader("📈 Spectroscopy")
     
-    # Molecule selector with Select All (shared across all tabs)
-    mol_ids = df["molecule_id"].dropna().unique().tolist()
+    if df.empty:
+        st.warning("No data available")
+        return
     
-    # Initialize spectra selection in session state
+    # Molecule selector with Select All (shared across all tabs)
+    mol_ids = sorted(df["molecule_id"].dropna().unique().tolist())
+    
+    if not mol_ids:
+        st.warning("No molecules available")
+        return
+    
+    # Initialize and validate spectra selection in session state
     if "spectra_selected_mols" not in st.session_state:
         st.session_state.spectra_selected_mols = mol_ids[:min(3, len(mol_ids))]
+    else:
+        # Validate against current options
+        st.session_state.spectra_selected_mols = [
+            m for m in st.session_state.spectra_selected_mols if m in mol_ids
+        ]
     
     col1, col2, col3 = st.columns([6, 1, 1])
     
     with col1:
+        # Use validated defaults
+        valid_defaults = [m for m in st.session_state.spectra_selected_mols if m in mol_ids]
         selected_mols = st.multiselect(
             "Select Molecules to Compare",
             mol_ids,
-            default=st.session_state.spectra_selected_mols,
+            default=valid_defaults if valid_defaults else mol_ids[:min(3, len(mol_ids))],
             key="spectra_mol_select"
         )
         st.session_state.spectra_selected_mols = selected_mols

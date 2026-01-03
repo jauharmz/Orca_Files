@@ -157,25 +157,31 @@ def show_main_content(df):
     # === GLOBAL FILTERS AT TOP ===
     st.header("🔬 ORCA Visualization")
     
-    # Get unique molecule IDs
-    mol_ids = df["molecule_id"].dropna().unique().tolist()
+    # Get unique molecule IDs from current data
+    mol_ids = sorted(df["molecule_id"].dropna().unique().tolist())
     
-    # Initialize session state for selection
+    # Initialize or validate session state for selection
     if "selected_molecules" not in st.session_state:
         st.session_state.selected_molecules = mol_ids[:min(5, len(mol_ids))]
+    else:
+        # Filter out any molecules that no longer exist in the data
+        st.session_state.selected_molecules = [
+            m for m in st.session_state.selected_molecules if m in mol_ids
+        ]
     
-    # Filter row with form to prevent rerun issues
+    # Filter row
     filter_col1, filter_col2, filter_col3, filter_col4 = st.columns([5, 1, 1, 2])
     
     with filter_col1:
-        # Use key that syncs with session state
+        # Validate defaults before passing to multiselect
+        valid_defaults = [m for m in st.session_state.selected_molecules if m in mol_ids]
+        
         selected_mols = st.multiselect(
             "🔍 Filter Molecules",
             mol_ids,
-            default=st.session_state.selected_molecules,
+            default=valid_defaults if valid_defaults else None,
             key="mol_filter_widget"
         )
-        # Sync back to session state
         st.session_state.selected_molecules = selected_mols
     
     with filter_col2:
@@ -193,7 +199,12 @@ def show_main_content(df):
         if "optimized_state" in df.columns:
             states = df["optimized_state"].dropna().unique().tolist()
             if states:
-                state_filter = st.multiselect("State", states, default=states, key="state_filter")
+                # Initialize state filter
+                if "selected_states" not in st.session_state:
+                    st.session_state.selected_states = states
+                valid_states = [s for s in st.session_state.selected_states if s in states]
+                state_filter = st.multiselect("State", states, default=valid_states if valid_states else states, key="state_filter")
+                st.session_state.selected_states = state_filter
             else:
                 state_filter = None
         else:
@@ -211,10 +222,11 @@ def show_main_content(df):
     with col_info1:
         st.caption(f"Showing **{len(filtered_df)}** of {len(df)} molecules")
     with col_info2:
-        # Show state distribution
-        if "optimized_state" in filtered_df.columns:
+        if "optimized_state" in filtered_df.columns and len(filtered_df) > 0:
             state_counts = filtered_df["optimized_state"].value_counts()
             state_str = " | ".join([f"{s}: {c}" for s, c in state_counts.items()])
+            st.caption(f"States: {state_str}")
+    
             st.caption(f"States: {state_str}")
     
     # === TABS ===
