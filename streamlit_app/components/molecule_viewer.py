@@ -166,7 +166,7 @@ v.zoomTo();v.render();
 </script>
 </body></html>"""
     
-    components.html(html, height=480, key=f"mol3d_{settings_hash}")
+    components.html(html, height=480)
     st.caption("Hover atoms for details")
 
 
