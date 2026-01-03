@@ -178,6 +178,81 @@ def main():
         ir_df.to_csv("parsed_ir_spectra.csv", index=False)
         logger.info(f"  Saved: parsed_ir_spectra.csv ({len(ir_df)} peaks)")
     
+    # 3E2. Vibrations CSV
+    all_vibs = []
+    for _, row in df_modular.iterrows():
+        mol_id = row["molecule_id"]
+        vibs = row.get("vibrations")
+        if isinstance(vibs, pd.DataFrame) and not vibs.empty:
+            vibs_copy = vibs.copy()
+            vibs_copy.insert(0, "molecule_id", mol_id)
+            all_vibs.append(vibs_copy)
+    
+    if all_vibs:
+        vibs_df = pd.concat(all_vibs, ignore_index=True)
+        vibs_df.to_csv("parsed_vibrations.csv", index=False)
+        logger.info(f"  Saved: parsed_vibrations.csv ({len(vibs_df)} modes)")
+    
+    # 3E3. Raman CSV
+    all_raman = []
+    for _, row in df_modular.iterrows():
+        mol_id = row["molecule_id"]
+        raman = row.get("raman")
+        if isinstance(raman, pd.DataFrame) and not raman.empty:
+            raman_copy = raman.copy()
+            raman_copy.insert(0, "molecule_id", mol_id)
+            all_raman.append(raman_copy)
+    
+    if all_raman:
+        raman_df = pd.concat(all_raman, ignore_index=True)
+        raman_df.to_csv("parsed_raman.csv", index=False)
+        logger.info(f"  Saved: parsed_raman.csv ({len(raman_df)} peaks)")
+    
+    # 3E4. Mulliken CSV
+    all_mulliken = []
+    for _, row in df_modular.iterrows():
+        mol_id = row["molecule_id"]
+        mull = row.get("mulliken")
+        if isinstance(mull, pd.DataFrame) and not mull.empty:
+            mull_copy = mull.copy()
+            mull_copy.insert(0, "molecule_id", mol_id)
+            all_mulliken.append(mull_copy)
+    
+    if all_mulliken:
+        mull_df = pd.concat(all_mulliken, ignore_index=True)
+        mull_df.to_csv("parsed_mulliken.csv", index=False)
+        logger.info(f"  Saved: parsed_mulliken.csv ({len(mull_df)} atoms)")
+    
+    # 3E5. NMR Shielding CSV
+    all_nmr_shield = []
+    for _, row in df_modular.iterrows():
+        mol_id = row["molecule_id"]
+        nmr = row.get("nmr_shielding")
+        if isinstance(nmr, pd.DataFrame) and not nmr.empty:
+            nmr_copy = nmr.copy()
+            nmr_copy.insert(0, "molecule_id", mol_id)
+            all_nmr_shield.append(nmr_copy)
+    
+    if all_nmr_shield:
+        nmr_shield_df = pd.concat(all_nmr_shield, ignore_index=True)
+        nmr_shield_df.to_csv("parsed_nmr_shielding.csv", index=False)
+        logger.info(f"  Saved: parsed_nmr_shielding.csv ({len(nmr_shield_df)} nuclei)")
+    
+    # 3E6. NMR Coupling CSV
+    all_nmr_coup = []
+    for _, row in df_modular.iterrows():
+        mol_id = row["molecule_id"]
+        nmr = row.get("nmr_coupling")
+        if isinstance(nmr, pd.DataFrame) and not nmr.empty:
+            nmr_copy = nmr.copy()
+            nmr_copy.insert(0, "molecule_id", mol_id)
+            all_nmr_coup.append(nmr_copy)
+    
+    if all_nmr_coup:
+        nmr_coup_df = pd.concat(all_nmr_coup, ignore_index=True)
+        nmr_coup_df.to_csv("parsed_nmr_coupling.csv", index=False)
+        logger.info(f"  Saved: parsed_nmr_coupling.csv ({len(nmr_coup_df)} couplings)")
+    
     # 3F. Internal coordinates - Bonds CSV
     all_bonds = []
     for _, row in df_modular.iterrows():

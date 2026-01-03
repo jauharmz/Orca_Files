@@ -206,6 +206,10 @@ class BatchParser:
             "angles": None,
             "dihedrals": None,
             "tddft_states": None,
+            "electric_dipole_abs": None,
+            "electric_dipole_soc": None,
+            "velocity_dipole_abs": None,
+            "velocity_dipole_soc": None,
             "is_optimization": False,
             "has_tddft": False,
             "optimized_state": "S0",
@@ -227,7 +231,7 @@ class BatchParser:
                 if not _is_empty_obj(s0.get(col)):
                     row[col] = s0[col]
         
-        # Get energies (prefer OPT for Gibbs, any for SP)
+        # Get energies, orbitals, tddft, dipole from all calcs
         for _, calc in mol_rows.iterrows():
             if calc.get("gibbs_Eh") and row["gibbs_Eh"] is None:
                 row["gibbs_Eh"] = calc["gibbs_Eh"]
@@ -249,6 +253,16 @@ class BatchParser:
                         row["tddft_states"] = pd.concat([row["tddft_states"], calc["tddft_states"]], ignore_index=True)
                     except Exception:
                         pass
+            # Dipole spectra
+            if not _is_empty_obj(calc.get("electric_dipole_abs")) and row["electric_dipole_abs"] is None:
+                row["electric_dipole_abs"] = calc["electric_dipole_abs"]
+            if not _is_empty_obj(calc.get("electric_dipole_soc")) and row["electric_dipole_soc"] is None:
+                row["electric_dipole_soc"] = calc["electric_dipole_soc"]
+            if not _is_empty_obj(calc.get("velocity_dipole_abs")) and row["velocity_dipole_abs"] is None:
+                row["velocity_dipole_abs"] = calc["velocity_dipole_abs"]
+            if not _is_empty_obj(calc.get("velocity_dipole_soc")) and row["velocity_dipole_soc"] is None:
+                row["velocity_dipole_soc"] = calc["velocity_dipole_soc"]
+            
             if calc.get("is_optimization"):
                 row["is_optimization"] = True
             if calc.get("has_tddft"):
