@@ -1,7 +1,7 @@
 """
 TD-DFT Parser - Refactored from orca_praser.py
 
-Parses: TD-DFT states, electric/velocity dipole spectra
+Parses: TD-DFT states, electric/velocity dipole spectra, state->orbital mapping
 """
 
 import re
@@ -30,6 +30,11 @@ class TDDFTParser(BaseParser):
         self.logger = get_logger("TDDFTParser")
         self._state_orbital_cache = None
         self._orbital_label_cache = None
+        self._orbitals_df = None
+    
+    def set_orbitals(self, orbitals_df: pd.DataFrame):
+        """Set orbital data for HOMO/LUMO label conversion."""
+        self._orbitals_df = orbitals_df
     
     def parse(self) -> TDDFTData:
         """Parse all TD-DFT data."""
@@ -139,16 +144,82 @@ class TDDFTParser(BaseParser):
             triplet_count = sum(1 for s in states if s["mult"] == 3)
             self.logger.info(f"  TD-DFT states: {unique_states} states, {len(states)} transitions")
             self.logger.info(f"    Singlets: {singlet_count}, Triplets: {triplet_count}")
-            
-            # Log first few states
-            first_states = sorted(set(s["state"] for s in states))[:3]
-            for sn in first_states:
-                st = next(s for s in states if s["state"] == sn)
-                self.logger.debug(f"    State {sn}: {st['energy_ev']:.3f} eV (mult={st['mult']})")
         else:
             self.logger.debug("  No TD-DFT states found")
         
         return pd.DataFrame(states)
+    
+    def _build_state_to_orbital_map(self) -> Dict[int, Tuple[int, int]]:
+        """Map TDDFT state number to the dominant orbital transition (from_orb, to_orb)."""
+        tddft = self.parse_tddft_states()
+        if tddft.empty:
+            return {}
+        
+        state_orbs = {}
+        for state_num in sorted(tddft['state'].unique()):
+            state_data = tddft[tddft['state'] == state_num]
+            state_data = state_data.sort_values('weight', key=abs, ascending=False)
+            if not state_data.empty:
+                top = state_data.iloc[0]
+                state_orbs[int(state_num)] = (int(top['from_orb']), int(top['to_orb']))
+        
+        return state_orbs
+    
+    def _build_orbital_homo_lumo_map(self) -> Dict[int, str]:
+        """Build mapping from orbital index to HOMO/LUMO label."""
+        if self._orbitals_df is None or self._orbitals_df.empty:
+            return {}
+        
+        label_map = {}
+        for idx, row in self._orbitals_df.iterrows():
+            lvl = int(row['lvl'])
+            occ = row['OCC']
+            
+            if occ > 0.0:
+                if lvl == 0:
+                    label_map[idx] = 'H'
+                else:
+                    label_map[idx] = f'H-{lvl}'
+            else:
+                if lvl == 0:
+                    label_map[idx] = 'L'
+                else:
+                    label_map[idx] = f'L+{lvl}'
+        
+        return label_map
+    
+    def _convert_state_label(self, state_label: str) -> str:
+        """Convert ORCA state label to HOMO/LUMO notation."""
+        match = re.match(r'(\d+)([a-zA-Z0-9]*)', state_label.strip())
+        if not match:
+            return state_label
+        
+        try:
+            state_num = int(match.group(1))
+        except ValueError:
+            return state_label
+        
+        # Ground state (0) - keep as is
+        if state_num == 0:
+            return state_label
+        
+        # Build maps on first call
+        if self._state_orbital_cache is None:
+            self._state_orbital_cache = self._build_state_to_orbital_map()
+            self._orbital_label_cache = self._build_orbital_homo_lumo_map()
+        
+        orb_pair = self._state_orbital_cache.get(state_num)
+        if orb_pair is None:
+            return state_label
+        
+        from_orb_idx, to_orb_idx = orb_pair
+        from_label = self._orbital_label_cache.get(from_orb_idx)
+        to_label = self._orbital_label_cache.get(to_orb_idx)
+        
+        if from_label is None or to_label is None:
+            return state_label
+        
+        return f"{from_label}→{to_label}"
     
     def parse_electric_dipole_spectrum(self) -> Dict[str, pd.DataFrame]:
         """Parse electric dipole absorption spectrum."""
@@ -199,7 +270,7 @@ class TDDFTParser(BaseParser):
         return {"abs": abs_df, "soc": soc_df}
     
     def _parse_abs_block(self, section_start: str) -> pd.DataFrame:
-        """Parse absorption spectrum block."""
+        """Parse absorption spectrum block with HOMO/LUMO conversion."""
         if not self.text:
             return pd.DataFrame()
         
@@ -231,9 +302,18 @@ class TDDFTParser(BaseParser):
                     parts = s.split()
                     if len(parts) >= 10:
                         try:
+                            from_state_raw = parts[0]
+                            to_state_raw = parts[2]
+                            
+                            # Convert to HOMO/LUMO notation
+                            from_state_homo_lumo = self._convert_state_label(from_state_raw)
+                            to_state_homo_lumo = self._convert_state_label(to_state_raw)
+                            
                             rows.append({
-                                "from_state": parts[0],
-                                "to_state": parts[2],
+                                "from_state": from_state_raw,
+                                "to_state": to_state_raw,
+                                "from_state_homo_lumo": from_state_homo_lumo,
+                                "to_state_homo_lumo": to_state_homo_lumo,
                                 "energy_ev": float(parts[3]),
                                 "energy_cm": float(parts[4]),
                                 "wavelength_nm": float(parts[5]),

@@ -586,19 +586,17 @@ Orca_Files/
 │   │   ├── exceptions.py               # Custom exceptions
 │   │   └── registry.py                 # Registry pattern
 │   │
-│   ├── parser/                         # Parser modules
-│   │   ├── __init__.py
-│   │   ├── factory.py                  # ParserFactory
-│   │   ├── geometry.py                 # Coords, SMILES
-│   │   ├── energy.py                   # Gibbs, SP energy
-│   │   ├── orbitals.py                 # HOMO/LUMO
-│   │   ├── spectroscopy.py             # IR, Raman, NMR
-│   │   ├── tddft.py                    # TD-DFT states
-│   │   ├── dipole.py                   # Electric/velocity
-│   │   ├── mulliken.py                 # Charges
-│   │   ├── internal_coords.py          # Bonds, angles
-│   │   ├── batch.py                    # Multi-file
-│   │   └── regex_patterns.py           # Shared patterns
+│   ├── parser/                         # Parser modules (refactored from orca_praser.py)
+│   │   ├── __init__.py                 # Package exports
+│   │   ├── factory.py                  # ParserFactory - orchestrates all parsers
+│   │   ├── batch.py                    # BatchParser - multi-file with molecule grouping
+│   │   ├── geometry.py                 # Coords, SMILES, internal coords (B/A/D)
+│   │   ├── energy.py                   # Gibbs, SP energy, ESD flag, calc type
+│   │   ├── orbitals.py                 # HOMO/LUMO, spin handling, orbital levels
+│   │   ├── spectroscopy.py             # IR, Raman, Mulliken, NMR
+│   │   ├── tddft.py                    # TD-DFT states, dipole spectra, H→L labels
+│   │   ├── spectrum_file.py            # External spectrum files (VG/AH/AHAS/FLUOR)
+│   │   └── regex_patterns.py           # Shared regex patterns
 │   │
 │   ├── analysis/                       # Analysis modules
 │   │   ├── __init__.py
@@ -836,4 +834,4 @@ snapshot_download(
 
 ---
 
-*Last Updated: 2026-01-02*
+*Last Updated: 2026-01-03*

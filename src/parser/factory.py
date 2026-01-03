@@ -14,6 +14,7 @@ from .energy import EnergyParser
 from .orbitals import OrbitalParser
 from .spectroscopy import SpectroscopyParser
 from .tddft import TDDFTParser
+from .spectrum_file import SpectrumFileParser
 from ..core.data_models import ParseResult
 from ..logger import get_logger
 
@@ -74,12 +75,15 @@ class ParserFactory:
         
         self.logger.debug("--- TD-DFT Parser ---")
         tddft_parser = TDDFTParser(text)
+        # Pass orbital info for HOMO/LUMO label conversion
+        if orbitals.orbitals is not None:
+            tddft_parser.set_orbitals(orbitals.orbitals)
         tddft = tddft_parser.parse()
         
         # Summary
         self.logger.debug("=" * 50)
         self.logger.info(f"Parse complete: {filename}")
-        self._log_summary(geometry, energy, orbitals, spectra, tddft, calc_info)
+        self._log_summary(geometry, energy, orbitals, spectra, tddft, internal_coords, calc_info)
         
         return ParseResult(
             filename=filename,
@@ -97,7 +101,7 @@ class ParserFactory:
             calc_class=calc_info.get("calc_class", "single_point")
         )
     
-    def _log_summary(self, geometry, energy, orbitals, spectra, tddft, calc_info):
+    def _log_summary(self, geometry, energy, orbitals, spectra, tddft, internal_coords, calc_info):
         """Log parsing summary."""
         summary = []
         
@@ -105,7 +109,7 @@ class ParserFactory:
             summary.append(f"mol={geometry.filename}")
         if geometry.smiles:
             summary.append(f"smiles=yes")
-        if geometry.cart_coords is not None:
+        if geometry.cart_coords is not None and not geometry.cart_coords.empty:
             summary.append(f"atoms={len(geometry.cart_coords)}")
         if energy.gibbs_Eh:
             summary.append(f"gibbs={energy.gibbs_Eh:.4f}")
@@ -119,6 +123,8 @@ class ParserFactory:
             summary.append(f"ir={len(spectra.ir)}peaks")
         if tddft.states is not None and not tddft.states.empty:
             summary.append(f"tddft={len(tddft.states)}trans")
+        if internal_coords.bonds is not None and not internal_coords.bonds.empty:
+            summary.append(f"bonds={len(internal_coords.bonds)}")
         
         summary.append(f"class={calc_info.get('calc_class')}")
         
