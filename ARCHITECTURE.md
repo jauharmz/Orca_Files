@@ -113,6 +113,114 @@ Answers: *What observables were derived from this solution?*
 
 ## ORCA Data Hierarchy Graph
 
+### Architectural Layers
+
+```mermaid
+graph TB
+    subgraph "Layer 1: Molecule"
+        MOL[Molecule]
+        MOL --> ID[molecule_id]
+        MOL --> SMILES[smiles]
+        MOL --> CHG["charge / multiplicity"]
+    end
+    
+    subgraph "Layer 2: Method"
+        MTH[Method Descriptor]
+        MTH --> FORM["formalism<br/>DFT / HF / MP2 / CCSD"]
+        MTH --> FUNC["functional<br/>B3LYP / PBE0 / ωB97X"]
+        MTH --> BASIS["basis_set<br/>def2-TZVP"]
+        MTH --> DISP["dispersion<br/>D3BJ / D4"]
+        MTH --> REL["relativistic<br/>ZORA / DKH / X2C"]
+        MTH --> SOC["SOC<br/>off / perturbative"]
+        MTH --> ENV["environment<br/>gas / CPCM / SMD"]
+    end
+    
+    subgraph "Layer 3: State"
+        STATE[Electronic State]
+        STATE --> S0[S0]
+        STATE --> S1[S1]
+        STATE --> T1[T1]
+    end
+    
+    subgraph "Layer 4: Task"
+        TASK[Computational Task]
+        TASK --> OPT[OPT]
+        TASK --> SP[SP]
+        TASK --> TDDFT[TDDFT]
+        TASK --> ESD["ESD / Spectrum"]
+    end
+    
+    subgraph "Layer 5: Properties"
+        PROP[Properties]
+        PROP --> GEO["geometry<br/>cart_coords"]
+        PROP --> ORB["orbitals<br/>HOMO / LUMO"]
+        PROP --> SPEC["spectra<br/>IR / Raman / UV-Vis"]
+        PROP --> TDDFT_P["TDDFT<br/>states / dipole"]
+        PROP --> NMR["NMR<br/>shielding / coupling"]
+    end
+    
+    subgraph "Access Layer: Canonical Projection"
+        PROJ[Canonical View]
+        PROJ --> PROJ_GEO[representative geometry]
+        PROJ --> PROJ_IR[IR spectrum]
+        PROJ --> PROJ_RAMAN[Raman spectrum]
+        PROJ --> PROJ_ORB[orbitals]
+        PROJ --> PROJ_TDDFT[TDDFT summary]
+    end
+    
+    MOL --> MTH
+    MTH --> STATE
+    STATE --> TASK
+    TASK --> PROP
+    
+    PROP -.->|"projection rules"| PROJ
+```
+
+### Hierarchical Storage Structure
+
+```mermaid
+graph TD
+    subgraph "MoleculeStore"
+        STORE[MoleculeStore]
+        
+        subgraph "Molecule: p1x"
+            M1[p1x]
+            
+            subgraph "Method: B3LYP/def2-TZVP/D3BJ"
+                MTH1["B3LYP/def2-TZVP/D3BJ"]
+                
+                S0_1[S0]
+                S0_1 --> OPT1["OPT<br/>geometry, vibrations, IR"]
+                S0_1 --> SP1["SP<br/>orbitals, charges"]
+                
+                S1_1[S1]
+                S1_1 --> TDDFT1["TDDFT<br/>excitations, dipole"]
+            end
+            
+            subgraph "Method: PBE0/def2-TZVP/D3BJ"
+                MTH2["PBE0/def2-TZVP/D3BJ"]
+                S0_2[S0]
+                S0_2 --> OPT2[OPT]
+            end
+        end
+        
+        subgraph "Molecule: p2x"
+            M2[p2x]
+            MTH3[...]
+        end
+    end
+    
+    STORE --> M1
+    STORE --> M2
+    M1 --> MTH1
+    M1 --> MTH2
+    MTH1 --> S0_1
+    MTH1 --> S1_1
+    MTH2 --> S0_2
+```
+
+### Text Representation
+
 ```
 Molecule
 │
