@@ -4,9 +4,10 @@ Spectra Visualization Component - IR/Raman/UV-Vis with customization
 Features:
 - Interactive Plotly charts
 - Frequency range sliders
-- Peak width/broadening controls
+- Peak smoothing
 - Multi-molecule overlay
 - Normalization options
+- Shared molecule selection across all tabs
 - Data table with export
 """
 
@@ -16,21 +17,41 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from typing import Dict, List, Optional
+from scipy.ndimage import gaussian_filter1d
 
 
 def render_spectra_viz(df: pd.DataFrame):
     """Render spectra visualization tab."""
     
-    st.header("📈 Spectroscopy")
+    st.subheader("📈 Spectroscopy")
     
-    # Molecule selector (multi-select for comparison)
+    # Molecule selector with Select All (shared across all tabs)
     mol_ids = df["molecule_id"].dropna().unique().tolist()
-    selected_mols = st.multiselect(
-        "Select Molecules to Compare",
-        mol_ids,
-        default=mol_ids[:min(3, len(mol_ids))],
-        key="spectra_mol_select"
-    )
+    
+    # Initialize spectra selection in session state
+    if "spectra_selected_mols" not in st.session_state:
+        st.session_state.spectra_selected_mols = mol_ids[:min(3, len(mol_ids))]
+    
+    col1, col2, col3 = st.columns([6, 1, 1])
+    
+    with col1:
+        selected_mols = st.multiselect(
+            "Select Molecules to Compare",
+            mol_ids,
+            default=st.session_state.spectra_selected_mols,
+            key="spectra_mol_select"
+        )
+        st.session_state.spectra_selected_mols = selected_mols
+    
+    with col2:
+        if st.button("✅ All", key="spectra_select_all"):
+            st.session_state.spectra_selected_mols = mol_ids
+            st.rerun()
+    
+    with col3:
+        if st.button("❌ Clear", key="spectra_clear_all"):
+            st.session_state.spectra_selected_mols = []
+            st.rerun()
     
     if not selected_mols:
         st.warning("Select at least one molecule")
@@ -52,13 +73,27 @@ def render_spectra_viz(df: pd.DataFrame):
         render_ir_raman_comparison(df, selected_mols)
 
 
+def smooth_spectrum(x: np.ndarray, y: np.ndarray, sigma: float) -> tuple:
+    """Apply Gaussian smoothing to spectrum."""
+    if sigma <= 0:
+        return x, y
+    
+    # Create interpolated spectrum for smoothing
+    x_min, x_max = x.min(), x.max()
+    x_smooth = np.linspace(x_min, x_max, 1000)
+    y_interp = np.interp(x_smooth, np.sort(x), y[np.argsort(x)])
+    
+    # Apply Gaussian smoothing
+    y_smoothed = gaussian_filter1d(y_interp, sigma=sigma)
+    
+    return x_smooth, y_smoothed
+
+
 def render_ir_spectra(df: pd.DataFrame, selected_mols: List[str]):
     """Render IR spectra with customization."""
     
-    st.subheader("🔴 IR Spectrum")
-    
     # Customization options
-    with st.expander("⚙️ Customization", expanded=True):
+    with st.expander("⚙️ Customization", expanded=False):
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -68,11 +103,16 @@ def render_ir_spectra(df: pd.DataFrame, selected_mols: List[str]):
                 key="ir_freq_range"
             )
         with col2:
-            normalize = st.checkbox("Normalize", False, key="ir_normalize")
+            smoothing = st.slider(
+                "Smoothing",
+                0, 50, 0,
+                key="ir_smoothing",
+                help="Gaussian smoothing sigma (0 = no smoothing)"
+            )
         with col3:
-            invert_x = st.checkbox("Invert X-axis", True, key="ir_invert")
+            normalize = st.checkbox("Normalize", False, key="ir_normalize")
         with col4:
-            show_peaks = st.checkbox("Show Peak Labels", False, key="ir_peaks")
+            invert_x = st.checkbox("Invert X-axis", True, key="ir_invert")
     
     # Collect IR data
     ir_data = {}
@@ -97,12 +137,19 @@ def render_ir_spectra(df: pd.DataFrame, selected_mols: List[str]):
         freq_col = "freq_cm-1"
         int_col = "intensity_km/mol" if "intensity_km/mol" in ir.columns else ir.columns[1]
         
-        x = ir[freq_col]
-        y = ir[int_col]
+        x = ir[freq_col].values
+        y = ir[int_col].values
         
         # Apply frequency filter
         mask = (x >= freq_range[0]) & (x <= freq_range[1])
         x, y = x[mask], y[mask]
+        
+        if len(x) == 0:
+            continue
+        
+        # Apply smoothing
+        if smoothing > 0:
+            x, y = smooth_spectrum(x, y, smoothing)
         
         # Normalize if requested
         if normalize and len(y) > 0:
@@ -118,20 +165,6 @@ def render_ir_spectra(df: pd.DataFrame, selected_mols: List[str]):
             fillcolor=f"rgba{tuple(list(int(colors[i % len(colors)][j:j+2], 16) for j in (1, 3, 5)) + [0.2])}" if len(ir_data) == 1 else None,
             hovertemplate=f"<b>{mol_id}</b><br>Freq: %{{x:.1f}} cm⁻¹<br>Intensity: %{{y:.2f}}<extra></extra>"
         ))
-        
-        # Peak labels
-        if show_peaks and len(y) > 0:
-            peak_idx = y.nlargest(5).index
-            for idx in peak_idx:
-                fig.add_annotation(
-                    x=x.loc[idx],
-                    y=y.loc[idx],
-                    text=f"{x.loc[idx]:.0f}",
-                    showarrow=True,
-                    arrowhead=2,
-                    arrowsize=0.5,
-                    font=dict(size=10)
-                )
     
     fig.update_layout(
         title="IR Spectrum",
@@ -144,8 +177,8 @@ def render_ir_spectra(df: pd.DataFrame, selected_mols: List[str]):
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # Data table
-    with st.expander("📋 View Data Table"):
+    # Data table - collapsed
+    with st.expander("📋 View Data Table", expanded=False):
         from components.data_table import render_data_table
         render_data_table(
             ir_data,
@@ -158,18 +191,16 @@ def render_ir_spectra(df: pd.DataFrame, selected_mols: List[str]):
 def render_raman_spectra(df: pd.DataFrame, selected_mols: List[str]):
     """Render Raman spectra with customization."""
     
-    st.subheader("🟢 Raman Spectrum")
-    
     # Customization
-    with st.expander("⚙️ Customization", expanded=True):
+    with st.expander("⚙️ Customization", expanded=False):
         col1, col2, col3 = st.columns(3)
         
         with col1:
             freq_range = st.slider("Frequency Range", 0, 4000, (400, 4000), key="raman_freq")
         with col2:
-            normalize = st.checkbox("Normalize", False, key="raman_norm")
+            smoothing = st.slider("Smoothing", 0, 50, 0, key="raman_smoothing")
         with col3:
-            show_depol = st.checkbox("Show Depolarization", False, key="raman_depol")
+            normalize = st.checkbox("Normalize", False, key="raman_norm")
     
     # Collect Raman data
     raman_data = {}
@@ -190,11 +221,17 @@ def render_raman_spectra(df: pd.DataFrame, selected_mols: List[str]):
     colors = ['#00CC96', '#636EFA', '#EF553B', '#AB63FA', '#FFA15A']
     
     for i, (mol_id, raman) in enumerate(raman_data.items()):
-        x = raman["freq_cm-1"]
-        y = raman["activity"] if "activity" in raman.columns else raman.iloc[:, 1]
+        x = raman["freq_cm-1"].values
+        y = raman["activity"].values if "activity" in raman.columns else raman.iloc[:, 1].values
         
         mask = (x >= freq_range[0]) & (x <= freq_range[1])
         x, y = x[mask], y[mask]
+        
+        if len(x) == 0:
+            continue
+        
+        if smoothing > 0:
+            x, y = smooth_spectrum(x, y, smoothing)
         
         if normalize and len(y) > 0:
             y = y / y.max()
@@ -217,13 +254,13 @@ def render_raman_spectra(df: pd.DataFrame, selected_mols: List[str]):
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # Data table
-    with st.expander("📋 View Data Table"):
+    # Data table - collapsed
+    with st.expander("📋 View Data Table", expanded=False):
         from components.data_table import render_data_table
         render_data_table(
             raman_data,
             coordinate_col="freq_cm-1",
-            data_cols=["activity", "depolarization"] if show_depol else ["activity"],
+            data_cols=["activity"],
             title="Raman Spectrum Data"
         )
 
@@ -231,10 +268,8 @@ def render_raman_spectra(df: pd.DataFrame, selected_mols: List[str]):
 def render_uvvis_spectra(df: pd.DataFrame, selected_mols: List[str]):
     """Render UV-Vis spectra from TDDFT data."""
     
-    st.subheader("🟣 UV-Vis Spectrum")
-    
     # Customization
-    with st.expander("⚙️ Customization", expanded=True):
+    with st.expander("⚙️ Customization", expanded=False):
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -272,8 +307,8 @@ def render_uvvis_spectra(df: pd.DataFrame, selected_mols: List[str]):
         
         # Filter by wavelength
         mask = (wavelength >= wl_range[0]) & (wavelength <= wl_range[1])
-        wavelength_f = wavelength[mask]
-        fosc_f = fosc[mask]
+        wavelength_f = wavelength[mask].values
+        fosc_f = fosc[mask].values
         
         # Stick spectrum
         if show_sticks:
@@ -315,13 +350,13 @@ def render_uvvis_spectra(df: pd.DataFrame, selected_mols: List[str]):
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # Data table
-    with st.expander("📋 View TDDFT States"):
+    # Data table - collapsed
+    with st.expander("📋 View TDDFT States", expanded=False):
         from components.data_table import render_data_table
         render_data_table(
             tddft_data,
             coordinate_col="energy_ev",
-            data_cols=["weight", "from_orb", "to_orb"] if "from_orb" in next(iter(tddft_data.values())).columns else ["weight"],
+            data_cols=["weight"],
             title="TDDFT States"
         )
 
@@ -329,31 +364,47 @@ def render_uvvis_spectra(df: pd.DataFrame, selected_mols: List[str]):
 def render_ir_raman_comparison(df: pd.DataFrame, selected_mols: List[str]):
     """Render IR-Raman dual-axis comparison."""
     
-    st.subheader("📊 IR-Raman Comparison")
-    
     if len(selected_mols) < 1:
         st.warning("Select at least one molecule")
         return
     
     mol_id = st.selectbox("Select Molecule for Comparison", selected_mols, key="ir_raman_mol")
     
-    mol_row = df[df["molecule_id"] == mol_id].iloc[0]
-    
-    ir = mol_row.get("ir")
-    raman = mol_row.get("raman")
-    
-    if ir is None or raman is None:
-        st.warning("Both IR and Raman data required for comparison")
+    mol_row = df[df["molecule_id"] == mol_id]
+    if mol_row.empty:
         return
+    
+    mol_data = mol_row.iloc[0]
+    ir = mol_data.get("ir")
+    raman = mol_data.get("raman")
+    
+    if ir is None or (hasattr(ir, 'empty') and ir.empty):
+        st.warning("No IR data available")
+        return
+    if raman is None or (hasattr(raman, 'empty') and raman.empty):
+        st.warning("No Raman data available")
+        return
+    
+    # Smoothing option
+    smoothing = st.slider("Smoothing", 0, 30, 10, key="ir_raman_smooth")
+    
+    # Get data
+    ir_x = ir["freq_cm-1"].values
+    ir_y = ir["intensity_km/mol"].values if "intensity_km/mol" in ir.columns else ir.iloc[:, 1].values
+    raman_x = raman["freq_cm-1"].values
+    raman_y = raman["activity"].values if "activity" in raman.columns else raman.iloc[:, 1].values
+    
+    if smoothing > 0:
+        ir_x, ir_y = smooth_spectrum(ir_x, ir_y, smoothing)
+        raman_x, raman_y = smooth_spectrum(raman_x, raman_y, smoothing)
     
     # Create dual-axis plot
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     
-    # IR trace
     fig.add_trace(
         go.Scatter(
-            x=ir["freq_cm-1"],
-            y=ir["intensity_km/mol"] if "intensity_km/mol" in ir.columns else ir.iloc[:, 1],
+            x=ir_x,
+            y=ir_y,
             mode="lines",
             name="IR",
             line=dict(color="blue", width=1.5),
@@ -364,11 +415,10 @@ def render_ir_raman_comparison(df: pd.DataFrame, selected_mols: List[str]):
         secondary_y=False
     )
     
-    # Raman trace
     fig.add_trace(
         go.Scatter(
-            x=raman["freq_cm-1"],
-            y=raman["activity"] if "activity" in raman.columns else raman.iloc[:, 1],
+            x=raman_x,
+            y=raman_y,
             mode="lines",
             name="Raman",
             line=dict(color="green", width=1.5),

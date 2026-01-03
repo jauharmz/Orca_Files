@@ -20,6 +20,32 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Custom CSS to reduce padding
+st.markdown("""
+<style>
+    /* Reduce top padding */
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+    /* Reduce spacing between elements */
+    .element-container {
+        margin-bottom: 0.5rem;
+    }
+    /* Reduce expander padding */
+    .streamlit-expanderHeader {
+        padding: 0.5rem 1rem;
+    }
+    /* Reduce tab padding */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+    }
+    .stTabs [data-baseweb="tab"] {
+        padding: 0.5rem 1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Import utilities
 from utils.session_state import init_session_state, get_df, set_df
 
@@ -30,7 +56,7 @@ init_session_state()
 def main():
     """Main app entry."""
     
-    # Sidebar - Data Loading
+    # Sidebar - Data Loading only
     with st.sidebar:
         st.title("🔬 ORCA Platform")
         st.divider()
@@ -54,7 +80,6 @@ def main():
                 parse_uploaded_files(uploaded)
         
         elif data_source == "HuggingFace":
-            # Check if data already exists
             data_path = Path("./test_data_hf")
             if data_path.exists() and list(data_path.rglob("*.out")):
                 st.info(f"📁 Sample data exists ({len(list(data_path.rglob('*.out')))} files)")
@@ -76,34 +101,10 @@ def main():
         
         st.divider()
         
-        # Data status
+        # Data status only
         df = get_df()
         if df is not None:
             st.success(f"✅ {len(df)} molecules loaded")
-            
-            # Quick filters
-            st.subheader("🔍 Quick Filters")
-            
-            # Molecule filter
-            mol_ids = df["molecule_id"].dropna().unique().tolist()
-            selected_mols = st.multiselect(
-                "Filter Molecules",
-                mol_ids,
-                default=mol_ids[:min(5, len(mol_ids))],
-                key="global_mol_filter"
-            )
-            st.session_state.selected_molecules = selected_mols
-            
-            # State filter
-            if "optimized_state" in df.columns:
-                states = df["optimized_state"].dropna().unique().tolist()
-                selected_states = st.multiselect(
-                    "Filter States",
-                    states,
-                    default=states,
-                    key="global_state_filter"
-                )
-                st.session_state.selected_states = selected_states
     
     # Main content
     df = get_df()
@@ -151,14 +152,48 @@ def show_welcome():
 
 
 def show_main_content(df):
-    """Main content with tabs."""
+    """Main content with filters above tabs."""
     
-    # Apply global filters
-    filtered_df = df.copy()
-    if hasattr(st.session_state, 'selected_molecules') and st.session_state.selected_molecules:
-        filtered_df = filtered_df[filtered_df["molecule_id"].isin(st.session_state.selected_molecules)]
+    # === GLOBAL FILTERS AT TOP ===
+    st.header("🔬 ORCA Visualization")
     
-    # Tabs
+    mol_ids = df["molecule_id"].dropna().unique().tolist()
+    
+    # Filter row
+    filter_col1, filter_col2, filter_col3 = st.columns([4, 1, 1])
+    
+    with filter_col1:
+        # Initialize selected molecules
+        if "selected_molecules" not in st.session_state or not st.session_state.selected_molecules:
+            st.session_state.selected_molecules = mol_ids[:min(5, len(mol_ids))]
+        
+        selected_mols = st.multiselect(
+            "🔍 Filter Molecules",
+            mol_ids,
+            default=st.session_state.selected_molecules,
+            key="global_mol_filter"
+        )
+        st.session_state.selected_molecules = selected_mols
+    
+    with filter_col2:
+        if st.button("✅ Select All"):
+            st.session_state.selected_molecules = mol_ids
+            st.rerun()
+    
+    with filter_col3:
+        if st.button("❌ Clear All"):
+            st.session_state.selected_molecules = []
+            st.rerun()
+    
+    # Apply filter
+    if selected_mols:
+        filtered_df = df[df["molecule_id"].isin(selected_mols)]
+    else:
+        filtered_df = df
+    
+    st.caption(f"Showing {len(filtered_df)} of {len(df)} molecules")
+    
+    # === TABS ===
     tabs = st.tabs([
         "📊 Dashboard",
         "🧬 Molecules", 
@@ -193,7 +228,7 @@ def show_main_content(df):
 
 def show_dashboard(df):
     """Dashboard overview."""
-    st.header("📊 Dashboard")
+    st.subheader("📊 Dashboard")
     
     # Metrics
     col1, col2, col3, col4 = st.columns(4)
@@ -202,26 +237,24 @@ def show_dashboard(df):
         st.metric("Molecules", len(df))
     
     with col2:
-        has_energy = df["gibbs_Eh"].notna().sum()
+        has_energy = df["gibbs_Eh"].notna().sum() if "gibbs_Eh" in df.columns else 0
         st.metric("With Energy", has_energy)
     
     with col3:
-        has_ir = df["ir"].apply(lambda x: x is not None and hasattr(x, '__len__') and len(x) > 0).sum()
+        has_ir = df["ir"].apply(lambda x: x is not None and hasattr(x, '__len__') and len(x) > 0).sum() if "ir" in df.columns else 0
         st.metric("With IR", has_ir)
     
     with col4:
         has_tddft = df["has_tddft"].sum() if "has_tddft" in df.columns else 0
         st.metric("With TDDFT", has_tddft)
     
-    st.divider()
-    
-    # Quick data table
-    st.subheader("📋 Data Overview")
-    scalar_cols = ["molecule_id", "method_id", "functional", "basis_set", 
-                   "gibbs_Eh", "single_point_Eh", "homo_energy", "lumo_energy",
-                   "optimized_state", "calc_class"]
-    available = [c for c in scalar_cols if c in df.columns]
-    st.dataframe(df[available], use_container_width=True, height=400)
+    # Quick data table - collapsed by default
+    with st.expander("📋 Data Overview", expanded=False):
+        scalar_cols = ["molecule_id", "method_id", "functional", "basis_set", 
+                       "gibbs_Eh", "single_point_Eh", "homo_energy", "lumo_energy",
+                       "optimized_state", "calc_class"]
+        available = [c for c in scalar_cols if c in df.columns]
+        st.dataframe(df[available], use_container_width=True, height=400)
 
 
 def show_molecules_tab(df):
@@ -301,7 +334,6 @@ def download_hf_data():
             )
         st.success("✅ Downloaded to ./test_data_hf")
         
-        # Auto-parse immediately
         st.info("🔄 Step 2/2: Parsing files...")
         parse_folder("./test_data_hf")
         
