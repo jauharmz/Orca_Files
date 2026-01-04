@@ -249,17 +249,17 @@ def render_html_export(df: pd.DataFrame):
             dark_theme = st.checkbox("Dark Theme", False, key="html_dark")
             compact_mode = st.checkbox("Compact Mode", False, key="html_compact")
     
-    # Initialize session state for HTML
-    if "generated_html" not in st.session_state:
-        st.session_state.generated_html = None
-        st.session_state.html_size = 0
+    # Report filename
+    report_name = st.text_input("Report Filename", value="orca_report.html", key="html_filename")
+    if not report_name.endswith(".html"):
+        report_name += ".html"
     
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        if st.button("🚀 Generate HTML Report", type="primary"):
+        if st.button("🚀 Generate & Save Report", type="primary"):
             try:
-                with st.spinner("Generating report..."):
+                with st.spinner("Generating comprehensive report..."):
                     html = generate_html_report(
                         df, 
                         include_3d=include_3d,
@@ -269,26 +269,21 @@ def render_html_export(df: pd.DataFrame):
                         dark_theme=dark_theme,
                         compact_mode=compact_mode
                     )
-                    st.session_state.generated_html = html
-                    st.session_state.html_size = len(html) // 1024
-                st.rerun()
+                    
+                    # Save to disk
+                    filepath = f"./{report_name}"
+                    with open(filepath, "w", encoding="utf-8") as f:
+                        f.write(html)
+                    
+                    file_size = len(html) // 1024
+                    
+                st.success(f"✅ Report saved to: **{filepath}** ({file_size} KB)")
+                st.info(f"📂 Open the file in your browser: `{filepath}`")
                 
             except Exception as e:
                 st.error(f"Failed to generate report: {e}")
                 import traceback
                 st.code(traceback.format_exc())
-    
-    with col2:
-        # Show download button if HTML was generated
-        if st.session_state.generated_html:
-            st.download_button(
-                "⬇️ Download HTML Report",
-                st.session_state.generated_html,
-                "orca_report.html",
-                "text/html",
-                key="html_download"
-            )
-            st.success(f"✅ Report ready! ({st.session_state.html_size} KB)")
 
 
 def generate_html_report(
@@ -300,24 +295,61 @@ def generate_html_report(
     dark_theme: bool = False,
     compact_mode: bool = False
 ) -> str:
-    """Generate comprehensive standalone HTML report with all visualizations."""
+    """Generate comprehensive research paper style HTML report."""
     
     # Theme colors
     if dark_theme:
-        bg_primary = "#1e1e2e"
-        bg_secondary = "#2a2a3e"
-        text_primary = "#ffffff"
+        bg_primary = "#1a1a2e"
+        bg_secondary = "#16213e"
+        bg_card = "#1f3460"
+        text_primary = "#eaeaea"
         text_secondary = "#a0a0b0"
-        accent = "#00ff88"
+        accent = "#00d4aa"
+        accent2 = "#7c3aed"
     else:
-        bg_primary = "#f8f9fa"
+        bg_primary = "#f5f7fa"
         bg_secondary = "#ffffff"
-        text_primary = "#333333"
-        text_secondary = "#666666"
-        accent = "#0066cc"
+        bg_card = "#ffffff"
+        text_primary = "#1a1a2e"
+        text_secondary = "#64748b"
+        accent = "#0ea5e9"
+        accent2 = "#8b5cf6"
+    
+    # Calculate statistics for the report
+    n_molecules = df["molecule_id"].nunique() if "molecule_id" in df.columns else 0
+    n_records = len(df)
+    n_states = df["optimized_state"].nunique() if "optimized_state" in df.columns else 0
+    n_with_energy = df["gibbs_Eh"].notna().sum() if "gibbs_Eh" in df.columns else 0
+    n_with_ir = df["ir"].apply(lambda x: x is not None and hasattr(x, 'empty') and not x.empty).sum() if "ir" in df.columns else 0
+    n_with_raman = df["raman"].apply(lambda x: x is not None and hasattr(x, 'empty') and not x.empty).sum() if "raman" in df.columns else 0
+    
+    # Get unique methods
+    methods = df["method_id"].unique().tolist() if "method_id" in df.columns else ["Unknown"]
+    methods_str = ", ".join([str(m) for m in methods[:5]]) + ("..." if len(methods) > 5 else "")
+    
+    # Energy range
+    energies = df["gibbs_Eh"].dropna() if "gibbs_Eh" in df.columns else pd.Series()
+    if len(energies) > 0:
+        e_min, e_max = energies.min(), energies.max()
+        e_range_str = f"{e_min:.4f} to {e_max:.4f} Eh"
+    else:
+        e_range_str = "N/A"
+    
+    # HOMO-LUMO gap statistics
+    gaps = df["homo_lumo_gap"].dropna() if "homo_lumo_gap" in df.columns else pd.Series()
+    if len(gaps) > 0:
+        gap_avg = gaps.mean()
+        gap_std = gaps.std()
+        gap_str = f"{gap_avg:.2f} ± {gap_std:.2f} eV"
+    else:
+        gap_str = "N/A"
     
     # Prepare molecule data as JSON
     molecules_json = prepare_molecules_json(df)
+    
+    # Current timestamp
+    timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+    date_only = pd.Timestamp.now().strftime("%B %d, %Y")
     
     # Build HTML
     html = f'''<!DOCTYPE html>
@@ -325,7 +357,7 @@ def generate_html_report(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ORCA Visualization Report</title>
+    <title>ORCA Computational Chemistry Report</title>
     
     <!-- 3Dmol.js for 3D molecules -->
     <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
@@ -333,208 +365,546 @@ def generate_html_report(
     <!-- Plotly for charts -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
     <style>
+        :root {{
+            --bg-primary: {bg_primary};
+            --bg-secondary: {bg_secondary};
+            --bg-card: {bg_card};
+            --text-primary: {text_primary};
+            --text-secondary: {text_secondary};
+            --accent: {accent};
+            --accent2: {accent2};
+        }}
+        
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: {bg_primary};
-            color: {text_primary};
-            line-height: 1.6;
-            padding: {"10px" if compact_mode else "20px"};
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+            font-size: 15px;
         }}
         
-        .container {{ max-width: 1400px; margin: 0 auto; }}
+        .container {{ max-width: 1200px; margin: 0 auto; padding: 40px 20px; }}
         
-        header {{
+        /* Header */
+        .report-header {{
             text-align: center;
-            padding: {"15px" if compact_mode else "30px"};
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 60px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f472b6 100%);
             color: white;
-            border-radius: 12px;
+            border-radius: 20px;
+            margin-bottom: 40px;
+            box-shadow: 0 20px 60px rgba(102, 126, 234, 0.3);
+        }}
+        
+        .report-header h1 {{
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 10px;
+            letter-spacing: -0.5px;
+        }}
+        
+        .report-header .subtitle {{
+            font-size: 1.2em;
+            opacity: 0.9;
             margin-bottom: 20px;
         }}
         
-        header h1 {{ font-size: {"1.5em" if compact_mode else "2em"}; margin-bottom: 5px; }}
-        header p {{ opacity: 0.9; }}
+        .report-header .meta {{
+            font-size: 0.9em;
+            opacity: 0.8;
+        }}
         
-        .section {{
-            background: {bg_secondary};
-            border-radius: 12px;
-            padding: {"15px" if compact_mode else "25px"};
+        /* Navigation */
+        .toc {{
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }}
+        
+        .toc h2 {{ 
+            color: var(--accent);
             margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            font-size: 1.3em;
+        }}
+        
+        .toc-list {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 10px;
+            list-style: none;
+        }}
+        
+        .toc-list a {{
+            color: var(--text-primary);
+            text-decoration: none;
+            padding: 12px 16px;
+            border-radius: 8px;
+            display: block;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }}
+        
+        .toc-list a:hover {{
+            background: var(--bg-primary);
+            border-left-color: var(--accent);
+            transform: translateX(5px);
+        }}
+        
+        /* Sections */
+        .section {{
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
         }}
         
         .section h2 {{
-            color: {accent};
-            border-bottom: 2px solid {accent};
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-            font-size: {"1.1em" if compact_mode else "1.3em"};
+            color: var(--accent);
+            font-size: 1.6em;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }}
+        
+        .section h3 {{
+            color: var(--text-primary);
+            font-size: 1.2em;
+            margin: 25px 0 15px 0;
+        }}
+        
+        .section p {{
+            color: var(--text-secondary);
+            margin-bottom: 15px;
+        }}
+        
+        /* Executive Summary Box */
+        .summary-box {{
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border-left: 4px solid var(--accent);
+            padding: 25px;
+            border-radius: 0 12px 12px 0;
+            margin: 20px 0;
+        }}
+        
+        .summary-box p {{
+            color: var(--text-primary);
+            font-size: 1.05em;
+        }}
+        
+        /* Stats Grid */
+        .stats-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }}
+        
+        .stat-card {{
+            background: var(--bg-primary);
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid rgba(0,0,0,0.05);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }}
+        
+        .stat-card:hover {{
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }}
+        
+        .stat-value {{
+            font-size: 2.2em;
+            font-weight: 700;
+            color: var(--accent);
+            font-family: 'JetBrains Mono', monospace;
+        }}
+        
+        .stat-label {{
+            color: var(--text-secondary);
+            font-size: 0.9em;
+            margin-top: 5px;
+            font-weight: 500;
+        }}
+        
+        /* Methods Table */
+        .methods-table {{
+            width: 100%;
+            margin: 20px 0;
+            border-collapse: collapse;
+        }}
+        
+        .methods-table th, .methods-table td {{
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }}
+        
+        .methods-table th {{
+            background: var(--bg-primary);
+            font-weight: 600;
+            color: var(--text-primary);
+        }}
+        
+        .methods-table tr:hover td {{
+            background: var(--bg-primary);
+        }}
+        
+        /* 3D Viewer */
+        .viewer-container {{
+            background: {"#0f0f1a" if dark_theme else "#f0f4f8"};
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }}
+        
+        #viewer-3d {{
+            width: 100%;
+            height: 500px;
+            border-radius: 8px;
+            border: 1px solid rgba(0,0,0,0.1);
         }}
         
         .controls {{
             display: flex;
-            gap: 15px;
+            gap: 10px;
             flex-wrap: wrap;
             margin-bottom: 20px;
             align-items: center;
         }}
         
         select, button {{
-            padding: 10px 15px;
+            padding: 10px 18px;
             border-radius: 8px;
-            border: 1px solid {"#444" if dark_theme else "#ddd"};
-            background: {bg_primary};
-            color: {text_primary};
+            border: 1px solid rgba(0,0,0,0.1);
+            background: var(--bg-card);
+            color: var(--text-primary);
             font-size: 14px;
+            font-weight: 500;
             cursor: pointer;
+            transition: all 0.2s;
         }}
         
-        button:hover {{ background: {accent}; color: white; }}
-        button.active {{ background: {accent}; color: white; }}
+        button:hover {{ 
+            background: var(--accent); 
+            color: white;
+            transform: translateY(-2px);
+        }}
         
-        #viewer-3d {{
-            width: 100%;
+        button.active {{ 
+            background: var(--accent); 
+            color: white;
+        }}
+        
+        /* Chart Container */
+        .chart-container {{ 
+            width: 100%; 
             height: 450px;
-            border-radius: 8px;
-            border: 1px solid {"#444" if dark_theme else "#ddd"};
+            margin: 20px 0;
         }}
         
-        .chart-container {{ width: 100%; height: 400px; }}
-        
-        .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }}
-        
-        table {{
-            width: 100%;
-            border-collapse: collapse;
-            font-size: {"12px" if compact_mode else "14px"};
+        /* Tabs */
+        .tabs {{
+            display: flex;
+            gap: 5px;
+            margin-bottom: 0;
+            border-bottom: 2px solid var(--bg-primary);
         }}
         
-        th, td {{
-            padding: {"6px 10px" if compact_mode else "10px 15px"};
-            text-align: left;
-            border-bottom: 1px solid {"#444" if dark_theme else "#eee"};
+        .tab {{
+            padding: 12px 24px;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            background: var(--bg-primary);
         }}
         
-        th {{ background: {"#2a2a3e" if dark_theme else "#f0f0f0"}; font-weight: 600; }}
-        tr:hover {{ background: {"#333" if dark_theme else "#f8f8f8"}; }}
+        .tab:hover {{ background: var(--accent); color: white; }}
+        .tab.active {{ background: var(--accent); color: white; }}
         
-        .metric-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }}
-        
-        .metric {{
-            background: {"#333" if dark_theme else "#f0f5ff"};
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-        }}
-        
-        .metric-value {{ font-size: 1.5em; font-weight: bold; color: {accent}; }}
-        .metric-label {{ font-size: 0.85em; color: {text_secondary}; }}
-        
-        .tabs {{ display: flex; gap: 5px; margin-bottom: 15px; }}
-        .tab {{ padding: 8px 16px; border-radius: 6px 6px 0 0; cursor: pointer; }}
-        .tab.active {{ background: {accent}; color: white; }}
-        
-        .tab-content {{ display: none; }}
+        .tab-content {{ display: none; padding-top: 20px; }}
         .tab-content.active {{ display: block; }}
         
-        .tooltip {{
-            position: absolute;
-            background: rgba(0,0,0,0.9);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            pointer-events: none;
-            z-index: 1000;
+        /* Data Table */
+        .data-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            margin-top: 20px;
         }}
         
+        .data-table th, .data-table td {{
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+        }}
+        
+        .data-table th {{
+            background: var(--bg-primary);
+            font-weight: 600;
+            color: var(--text-primary);
+            position: sticky;
+            top: 0;
+        }}
+        
+        .data-table tbody tr:hover {{
+            background: var(--bg-primary);
+        }}
+        
+        .data-table code {{
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9em;
+            background: var(--bg-primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }}
+        
+        /* Molecule Info Cards */
+        .mol-info-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }}
+        
+        /* Footer */
         footer {{
             text-align: center;
-            padding: 20px;
-            color: {text_secondary};
-            font-size: 12px;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            border-top: 1px solid rgba(0,0,0,0.1);
+            margin-top: 40px;
+        }}
+        
+        footer a {{ color: var(--accent); text-decoration: none; }}
+        
+        /* Print Styles */
+        @media print {{
+            .controls, .tabs {{ display: none !important; }}
+            .section {{ break-inside: avoid; }}
+        }}
+        
+        /* Responsive */
+        @media (max-width: 768px) {{
+            .container {{ padding: 20px 15px; }}
+            .section {{ padding: 25px; }}
+            .report-header {{ padding: 40px 20px; }}
+            .report-header h1 {{ font-size: 1.8em; }}
+            .stats-grid {{ grid-template-columns: repeat(2, 1fr); }}
+            .mol-info-grid {{ grid-template-columns: repeat(2, 1fr); }}
         }}
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🔬 ORCA Visualization Report</h1>
-            <p>Generated by ORCA Visualization Platform</p>
+        <!-- Report Header -->
+        <header class="report-header">
+            <h1>🔬 Computational Chemistry Report</h1>
+            <p class="subtitle">ORCA Quantum Chemical Calculations Analysis</p>
+            <p class="meta">Generated: {date_only} | Molecules: {n_molecules} | Dataset: {n_records} calculations</p>
         </header>
         
-        <!-- Summary Metrics -->
-        <div class="section">
-            <div class="metric-grid">
-                <div class="metric">
-                    <div class="metric-value">{len(df)}</div>
-                    <div class="metric-label">Records</div>
+        <!-- Table of Contents -->
+        <nav class="toc">
+            <h2>📑 Contents</h2>
+            <ul class="toc-list">
+                <li><a href="#executive-summary">1. Executive Summary</a></li>
+                <li><a href="#methodology">2. Computational Methods</a></li>
+                <li><a href="#molecular-structures">3. Molecular Structures</a></li>
+                <li><a href="#energy-analysis">4. Energy Analysis</a></li>
+                <li><a href="#electronic-structure">5. Electronic Structure</a></li>
+                <li><a href="#vibrational-analysis">6. Vibrational Analysis</a></li>
+                <li><a href="#data-appendix">7. Complete Data Appendix</a></li>
+            </ul>
+        </nav>
+        
+        <!-- 1. Executive Summary -->
+        <section id="executive-summary" class="section">
+            <h2>📋 1. Executive Summary</h2>
+            
+            <div class="summary-box">
+                <p>
+                    This report presents comprehensive computational chemistry results for <strong>{n_molecules} molecular system{"s" if n_molecules != 1 else ""}</strong> 
+                    analyzed using ORCA quantum chemistry software. A total of <strong>{n_records} calculations</strong> were performed 
+                    covering <strong>{n_states} electronic state{"s" if n_states != 1 else ""}</strong> (ground and excited states).
+                </p>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">{n_molecules}</div>
+                    <div class="stat-label">Molecules Studied</div>
                 </div>
-                <div class="metric">
-                    <div class="metric-value">{df["molecule_id"].nunique() if "molecule_id" in df.columns else 0}</div>
-                    <div class="metric-label">Molecules</div>
+                <div class="stat-card">
+                    <div class="stat-value">{n_records}</div>
+                    <div class="stat-label">Total Calculations</div>
                 </div>
-                <div class="metric">
-                    <div class="metric-value">{df["optimized_state"].nunique() if "optimized_state" in df.columns else 0}</div>
-                    <div class="metric-label">States</div>
+                <div class="stat-card">
+                    <div class="stat-value">{n_states}</div>
+                    <div class="stat-label">Electronic States</div>
                 </div>
-                <div class="metric">
-                    <div class="metric-value">{df["gibbs_Eh"].notna().sum() if "gibbs_Eh" in df.columns else 0}</div>
-                    <div class="metric-label">With Energy</div>
+                <div class="stat-card">
+                    <div class="stat-value">{n_with_ir}</div>
+                    <div class="stat-label">IR Spectra</div>
                 </div>
             </div>
-        </div>
+            
+            <h3>Key Findings</h3>
+            <ul style="color: var(--text-secondary); margin-left: 20px;">
+                <li><strong>Energy Range:</strong> {e_range_str}</li>
+                <li><strong>Average HOMO-LUMO Gap:</strong> {gap_str}</li>
+                <li><strong>Computational Methods:</strong> {methods_str}</li>
+                <li><strong>Vibrational Data:</strong> {n_with_ir} IR spectra, {n_with_raman} Raman spectra available</li>
+            </ul>
+        </section>
         
-        <!-- Molecule Selector -->
-        <div class="section">
-            <h2>🧬 Molecule Viewer</h2>
-            <div class="controls">
-                <label>Select Molecule:</label>
-                <select id="molecule-select" onchange="switchMolecule()">
+        <!-- 2. Methodology -->
+        <section id="methodology" class="section">
+            <h2>⚗️ 2. Computational Methods</h2>
+            
+            <p>
+                All calculations were performed using the <strong>ORCA</strong> quantum chemistry program package. 
+                The following computational methods and parameters were employed:
+            </p>
+            
+            <table class="methods-table">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Value</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Electronic Structure Method</strong></td>
+                        <td><code>{methods[0] if methods else "DFT"}</code></td>
+                        <td>Primary computational method</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Number of Calculations</strong></td>
+                        <td>{n_records}</td>
+                        <td>Total geometry optimizations and single points</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Electronic States</strong></td>
+                        <td>{", ".join([str(s) for s in df["optimized_state"].unique().tolist()[:5]]) if "optimized_state" in df.columns else "S0"}</td>
+                        <td>Ground and excited state calculations</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Vibrational Analysis</strong></td>
+                        <td>{"Frequency calculations performed" if n_with_ir > 0 else "Not included"}</td>
+                        <td>IR and Raman spectroscopy prediction</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        
+        <!-- 3. Molecular Structures -->
+        <section id="molecular-structures" class="section">
+            <h2>🧬 3. Molecular Structures</h2>
+            
+            <p>
+                Interactive 3D visualization of the optimized molecular geometries. Select a molecule from the dropdown 
+                and use the style buttons to change the representation.
+            </p>
+            
+            <div class="viewer-container">
+                <div class="controls">
+                    <label><strong>Select Molecule:</strong></label>
+                    <select id="molecule-select" onchange="switchMolecule()">
 '''
     
     # Add molecule options
     for i, row in df.iterrows():
         mol_id = row.get("molecule_id", "unknown")
         state = row.get("optimized_state", "")
+        smiles = row.get("smiles", "")
         label = f"{mol_id} [{state}]" if state and str(state) != "nan" else mol_id
-        html += f'                    <option value="{i}">{label}</option>\n'
+        html += f'                        <option value="{i}">{label}</option>\n'
     
     html += f'''                </select>
 '''
     
     if include_3d:
-        html += '''                <button onclick="setStyle('stick')">Stick</button>
-                <button onclick="setStyle('sphere')">Spacefill</button>
-                <button onclick="setStyle('ballstick')" class="active">Ball & Stick</button>
-                <button onclick="toggleSpin()">🔄 Spin</button>
+        html += '''                    <button onclick="setStyle('stick')">Stick</button>
+                    <button onclick="setStyle('sphere')">Spacefill</button>
+                    <button onclick="setStyle('ballstick')" class="active">Ball & Stick</button>
+                    <button onclick="toggleSpin()">🔄 Spin</button>
 '''
     
-    html += '''            </div>
+    html += '''                </div>
 '''
     
     if include_3d:
-        html += f'''            <div id="viewer-3d" style="background: {"#1e1e2e" if dark_theme else "#f0f0f5"};"></div>
+        html += f'''                <div id="viewer-3d" style="background: {"#1e1e2e" if dark_theme else "#f0f0f5"};"></div>
 '''
     
     html += '''            
-            <!-- Molecule Info -->
-            <div id="mol-info" class="metric-grid" style="margin-top: 20px;"></div>
-        </div>
+                <!-- Molecule Info -->
+                <div id="mol-info" class="mol-info-grid"></div>
+            </div>
+        </section>
+'''
+    
+    if include_energy:
+        html += '''        
+        <!-- 4. Energy Analysis -->
+        <section id="energy-analysis" class="section">
+            <h2>⚡ 4. Energy Analysis</h2>
+            
+            <p>
+                Comparative energy analysis of all molecular systems. The chart below shows the Gibbs free energy 
+                (or single-point energy where thermochemistry is not available) for each calculation.
+            </p>
+            
+            <div id="energy-chart" class="chart-container"></div>
+        </section>
+'''
+    
+    if include_orbitals:
+        html += '''        
+        <!-- 5. Electronic Structure -->
+        <section id="electronic-structure" class="section">
+            <h2>🔮 5. Electronic Structure</h2>
+            
+            <p>
+                HOMO (Highest Occupied Molecular Orbital) and LUMO (Lowest Unoccupied Molecular Orbital) energy levels 
+                provide insight into the electronic properties, reactivity, and optical characteristics of the molecules.
+            </p>
+            
+            <div id="orbital-chart" class="chart-container"></div>
+        </section>
 '''
     
     if include_spectra:
         html += '''        
-        <!-- Spectra Section -->
-        <div class="section">
-            <h2>📈 Spectra</h2>
+        <!-- 6. Vibrational Analysis -->
+        <section id="vibrational-analysis" class="section">
+            <h2>📈 6. Vibrational Analysis</h2>
+            
+            <p>
+                Infrared (IR) and Raman spectra provide fingerprints of molecular vibrations. Select a molecule above 
+                to view its vibrational spectra.
+            </p>
+            
             <div class="tabs">
-                <div class="tab active" onclick="showSpectraTab('ir')">IR</div>
-                <div class="tab" onclick="showSpectraTab('raman')">Raman</div>
-                <div class="tab" onclick="showSpectraTab('uv')">UV-Vis</div>
+                <div class="tab active" onclick="showSpectraTab('ir')">IR Spectrum</div>
+                <div class="tab" onclick="showSpectraTab('raman')">Raman Spectrum</div>
             </div>
             <div id="spectra-ir" class="tab-content active">
                 <div id="ir-chart" class="chart-container"></div>
@@ -542,37 +912,22 @@ def generate_html_report(
             <div id="spectra-raman" class="tab-content">
                 <div id="raman-chart" class="chart-container"></div>
             </div>
-            <div id="spectra-uv" class="tab-content">
-                <div id="uv-chart" class="chart-container"></div>
-            </div>
-        </div>
-'''
-    
-    if include_energy:
-        html += '''        
-        <!-- Energy Section -->
-        <div class="section">
-            <h2>⚡ Energy Comparison</h2>
-            <div id="energy-chart" class="chart-container"></div>
-        </div>
-'''
-    
-    if include_orbitals:
-        html += '''        
-        <!-- Orbitals Section -->
-        <div class="section">
-            <h2>🔮 Molecular Orbitals</h2>
-            <div id="orbital-chart" class="chart-container"></div>
-        </div>
+        </section>
 '''
     
     # Data table
     html += f'''        
-        <!-- Data Table -->
-        <div class="section">
-            <h2>📊 Complete Data</h2>
+        <!-- 7. Data Appendix -->
+        <section id="data-appendix" class="section">
+            <h2>📊 7. Complete Data Appendix</h2>
+            
+            <p>
+                Complete tabulated data for all calculations including molecular identities, electronic states, 
+                energies, and orbital energy levels.
+            </p>
+            
             <div style="overflow-x: auto;">
-                <table>
+                <table class="data-table">
                     <thead>
                         <tr>
                             <th>Molecule</th>
@@ -615,10 +970,14 @@ def generate_html_report(
     html += f'''                    </tbody>
                 </table>
             </div>
-        </div>
+        </section>
         
         <footer>
-            Generated by ORCA Visualization Platform | {pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")}
+            <p>Generated by <strong>ORCA Visualization Platform</strong></p>
+            <p>Report created: {pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
+            <p style="margin-top: 10px; font-size: 12px;">
+                This report was automatically generated from ORCA quantum chemistry calculation results.
+            </p>
         </footer>
     </div>
     
