@@ -257,7 +257,7 @@ def render_html_export(df: pd.DataFrame):
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        if st.button("🚀 Generate & Save Report", type="primary"):
+        if st.button("🚀 Generate Report", type="primary"):
             try:
                 with st.spinner("Generating comprehensive report..."):
                     html = generate_html_report(
@@ -270,28 +270,43 @@ def render_html_export(df: pd.DataFrame):
                         compact_mode=compact_mode
                     )
                     
+                    # Store in session state for download button
+                    st.session_state['report_html'] = html
+                    st.session_state['report_name'] = report_name
+                    
                     # Save to disk - use absolute path to project root
                     import os
                     from pathlib import Path
                     
-                    # Get the project root (parent of streamlit_app)
-                    current_dir = Path(__file__).parent.parent.parent
-                    filepath = current_dir / report_name
-                    filepath = filepath.resolve()
+                    # Debug: print current working directory
+                    cwd = Path.cwd()
+                    
+                    # Try to save to CWD (Project Root usually)
+                    filepath = cwd / report_name
                     
                     with open(filepath, "w", encoding="utf-8") as f:
                         f.write(html)
                     
                     file_size = len(html) // 1024
                     
-                st.success(f"✅ Report saved!")
-                st.code(str(filepath), language=None)
-                st.info(f"📂 File size: {file_size} KB | Open in browser to view")
+                st.success(f"✅ Report generated!")
+                st.info(f"📂 Saved to: `{filepath}`")
                 
             except Exception as e:
                 st.error(f"Failed to generate report: {e}")
                 import traceback
                 st.code(traceback.format_exc())
+
+    # Show download button if report exists in session state
+    if 'report_html' in st.session_state:
+        with col2:
+            st.download_button(
+                label="📥 Download HTML Report",
+                data=st.session_state['report_html'],
+                file_name=st.session_state['report_name'],
+                mime="text/html",
+                type="primary"
+            )
 
 
 def generate_html_report(
