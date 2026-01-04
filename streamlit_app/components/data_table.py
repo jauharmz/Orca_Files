@@ -108,12 +108,12 @@ def render_main_data_table(df: pd.DataFrame):
 
 
 def render_internal_coords_comparison(df: pd.DataFrame):
-    """Render internal coordinates comparison table."""
+    """Render internal coordinates comparison table using bonds/angles/dihedrals fields."""
     
     st.markdown("### 📐 Internal Coordinates Comparison")
     st.caption("Compare bonds, angles, and dihedrals across molecules")
     
-    # Build molecule options
+    # Build molecule options - check if any of bonds/angles/dihedrals are available
     mol_options = []
     for idx, row in df.iterrows():
         mol_id = row.get("molecule_id", "unknown")
@@ -123,9 +123,16 @@ def render_internal_coords_comparison(df: pd.DataFrame):
         else:
             label = mol_id
         
-        # Check if internal coords available
-        int_coords = row.get("internal_coords")
-        if int_coords is not None and hasattr(int_coords, 'empty') and not int_coords.empty:
+        # Check if any internal coords available (bonds, angles, or dihedrals)
+        has_data = False
+        for field in ["bonds", "angles", "dihedrals"]:
+            if field in df.columns:
+                data = df.loc[idx, field]
+                if data is not None and hasattr(data, 'empty') and not data.empty:
+                    has_data = True
+                    break
+        
+        if has_data:
             mol_options.append({"label": label, "idx": idx})
     
     if not mol_options:
@@ -146,7 +153,7 @@ def render_internal_coords_comparison(df: pd.DataFrame):
     with col2:
         coord_filter = st.selectbox(
             "Coordinate Type",
-            ["All", "Bonds (B)", "Angles (A)", "Dihedrals (D)"],
+            ["All", "Bonds", "Angles", "Dihedrals"],
             key="coord_filter"
         )
     
@@ -157,64 +164,95 @@ def render_internal_coords_comparison(df: pd.DataFrame):
     # Get selected data
     label_to_idx = {m["label"]: m["idx"] for m in mol_options}
     
-    # Collect internal coordinates
-    all_coords = {}
-    for label in selected:
-        if label in label_to_idx:
-            idx = label_to_idx[label]
-            row = df.loc[idx]
-            int_coords = row.get("internal_coords")
-            if int_coords is not None and hasattr(int_coords, "empty") and not int_coords.empty:
-                all_coords[label] = int_coords
-    
-    if not all_coords:
-        st.warning("No internal coordinate data for selected molecules")
-        return
+    # Determine which fields to process
+    if coord_filter == "Bonds":
+        fields_to_process = ["bonds"]
+    elif coord_filter == "Angles":
+        fields_to_process = ["angles"]
+    elif coord_filter == "Dihedrals":
+        fields_to_process = ["dihedrals"]
+    else:
+        fields_to_process = ["bonds", "angles", "dihedrals"]
     
     # Build comparison table
     comparison_rows = []
     
-    # Get all unique coordinate definitions
-    all_definitions = set()
-    for label, coords in all_coords.items():
-        if "definition" in coords.columns:
-            all_definitions.update(coords["definition"].tolist())
-        elif "type" in coords.columns and "atoms" in coords.columns:
-            for _, r in coords.iterrows():
-                defn = f"{r.get('type', '')}: {r.get('atoms', '')}"
-                all_definitions.add(defn)
-    
-    # Filter by coordinate type
-    filter_map = {
-        "Bonds (B)": ["B", "BOND", "STRE"],
-        "Angles (A)": ["A", "ANGLE", "BEND"],
-        "Dihedrals (D)": ["D", "DIHEDRAL", "TORS"],
-        "All": None
-    }
-    coord_types = filter_map.get(coord_filter)
-    
-    for defn in sorted(all_definitions):
-        row_data = {"Coordinate": defn}
+    for field in fields_to_process:
+        if field not in df.columns:
+            continue
         
-        # Check type filter
-        if coord_types:
-            defn_upper = defn.upper()
-            if not any(ct in defn_upper for ct in coord_types):
+        # Collect data for this field from all selected molecules
+        all_defs = set()
+        mol_data = {}
+        
+        for label in selected:
+            if label not in label_to_idx:
                 continue
-        
-        for label, coords in all_coords.items():
-            value = None
-            if "definition" in coords.columns:
-                match = coords[coords["definition"] == defn]
-                if len(match) > 0 and "value" in match.columns:
-                    value = match["value"].iloc[0]
+            idx = label_to_idx[label]
+            data = df.loc[idx, field]
             
-            row_data[label] = f"{value:.4f}" if value is not None else "—"
+            if data is None or (hasattr(data, 'empty') and data.empty):
+                continue
+            
+            mol_data[label] = data
+            
+            # Find definition column
+            def_col = None
+            for col_name in ["atoms", "definition", "coord"]:
+                if col_name in data.columns:
+                    def_col = col_name
+                    break
+            if def_col is None and len(data.columns) > 0:
+                def_col = data.columns[0]
+            
+            if def_col:
+                all_defs.update(data[def_col].astype(str).tolist())
         
-        comparison_rows.append(row_data)
+        if not mol_data:
+            continue
+        
+        # Build rows for this field
+        for defn in sorted(all_defs):
+            row_data = {"Type": field[0].upper(), "Coordinate": defn}  # B/A/D
+            
+            for label in selected:
+                if label not in mol_data:
+                    row_data[label] = "—"
+                    continue
+                
+                data = mol_data[label]
+                
+                # Find definition column
+                def_col = None
+                for col_name in ["atoms", "definition", "coord"]:
+                    if col_name in data.columns:
+                        def_col = col_name
+                        break
+                if def_col is None and len(data.columns) > 0:
+                    def_col = data.columns[0]
+                
+                # Find value column
+                val_col = None
+                for col_name in ["value", "Value", "length", "angle", "dihedral"]:
+                    if col_name in data.columns:
+                        val_col = col_name
+                        break
+                if val_col is None and len(data.columns) > 1:
+                    val_col = data.columns[1]
+                
+                if def_col and val_col:
+                    match = data[data[def_col].astype(str) == defn]
+                    if len(match) > 0:
+                        row_data[label] = f"{match[val_col].iloc[0]:.4f}"
+                    else:
+                        row_data[label] = "—"
+                else:
+                    row_data[label] = "—"
+            
+            comparison_rows.append(row_data)
     
     if not comparison_rows:
-        st.info("No coordinates match the selected filter")
+        st.info("No coordinates available for the selected filter and molecules")
         return
     
     comparison_df = pd.DataFrame(comparison_rows)

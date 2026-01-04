@@ -313,48 +313,112 @@ def build_horizontal_tddft_table(df: pd.DataFrame, labels: List[str], label_to_i
 
 
 def build_horizontal_internal_coords_table(df: pd.DataFrame, labels: List[str], label_to_idx: Dict) -> Optional[pd.DataFrame]:
-    """Build horizontal internal coords table: |Coordinate| Value_mol1 | Value_mol2 | ... |"""
+    """Build horizontal internal coords table from bonds/angles/dihedrals fields.
     
-    mol_coords = {}
-    all_definitions = set()
+    The DataFrame has separate 'bonds', 'angles', 'dihedrals' columns, each containing a DataFrame
+    with columns like: atoms, value (or similar).
+    """
     
-    for label in labels:
-        if label not in label_to_idx:
-            continue
-        idx = label_to_idx[label]
-        
-        if "internal_coords" in df.columns:
-            int_coords = df.loc[idx, "internal_coords"]
-            if int_coords is not None and hasattr(int_coords, 'empty') and not int_coords.empty:
-                mol_coords[label] = int_coords
-                if "definition" in int_coords.columns:
-                    all_definitions.update(int_coords["definition"].tolist())
+    # Determine which coordinate types are available
+    coord_types = []
+    for ct in ["bonds", "angles", "dihedrals"]:
+        if ct in df.columns:
+            for label in labels:
+                if label in label_to_idx:
+                    idx = label_to_idx[label]
+                    data = df.loc[idx, ct]
+                    if data is not None and hasattr(data, 'empty') and not data.empty:
+                        coord_types.append(ct)
+                        break
     
-    if not mol_coords or not all_definitions:
+    if not coord_types:
         return None
     
-    rows = []
-    for i, defn in enumerate(sorted(all_definitions)[:100]):  # Limit to 100
-        row_data = {"No": i + 1, "Coordinate": defn}
+    # Build combined table with type column
+    all_rows = []
+    
+    for coord_type in ["bonds", "angles", "dihedrals"]:
+        if coord_type not in df.columns:
+            continue
+        
+        # Collect all unique definitions across molecules
+        all_defs = set()
+        mol_data = {}
         
         for label in labels:
-            if label not in mol_coords:
-                row_data[f"{label}|Value"] = ""
+            if label not in label_to_idx:
+                continue
+            idx = label_to_idx[label]
+            data = df.loc[idx, coord_type]
+            
+            if data is None or (hasattr(data, 'empty') and data.empty):
                 continue
             
-            coords = mol_coords[label]
-            if "definition" in coords.columns:
-                match = coords[coords["definition"] == defn]
-                if len(match) > 0 and "value" in match.columns:
-                    row_data[f"{label}|Value"] = f"{match['value'].iloc[0]:.4f}"
+            mol_data[label] = data
+            
+            # Find definition column - could be 'atoms', 'definition', or first column
+            def_col = None
+            for col_name in ["atoms", "definition", "coord"]:
+                if col_name in data.columns:
+                    def_col = col_name
+                    break
+            if def_col is None and len(data.columns) > 0:
+                def_col = data.columns[0]
+            
+            if def_col:
+                all_defs.update(data[def_col].astype(str).tolist())
+        
+        if not mol_data:
+            continue
+        
+        # Build rows for this coordinate type
+        for defn in sorted(all_defs)[:50]:  # Limit per type
+            row_data = {"Type": coord_type.capitalize()[0], "Coordinate": defn}  # B/A/D
+            
+            for label in labels:
+                if label not in mol_data:
+                    row_data[f"{label}|Value"] = ""
+                    continue
+                
+                data = mol_data[label]
+                
+                # Find definition column
+                def_col = None
+                for col_name in ["atoms", "definition", "coord"]:
+                    if col_name in data.columns:
+                        def_col = col_name
+                        break
+                if def_col is None and len(data.columns) > 0:
+                    def_col = data.columns[0]
+                
+                # Find value column
+                val_col = None
+                for col_name in ["value", "Value", "length", "angle", "dihedral"]:
+                    if col_name in data.columns:
+                        val_col = col_name
+                        break
+                if val_col is None and len(data.columns) > 1:
+                    val_col = data.columns[1]
+                
+                if def_col and val_col:
+                    match = data[data[def_col].astype(str) == defn]
+                    if len(match) > 0:
+                        row_data[f"{label}|Value"] = f"{match[val_col].iloc[0]:.4f}"
+                    else:
+                        row_data[f"{label}|Value"] = ""
                 else:
                     row_data[f"{label}|Value"] = ""
-            else:
-                row_data[f"{label}|Value"] = ""
-        
-        rows.append(row_data)
+            
+            all_rows.append(row_data)
     
-    return pd.DataFrame(rows) if rows else None
+    if not all_rows:
+        return None
+    
+    result_df = pd.DataFrame(all_rows)
+    # Add row number
+    result_df.insert(0, "No", range(1, len(result_df) + 1))
+    
+    return result_df
 
 
 def build_horizontal_energy_table(df: pd.DataFrame, labels: List[str], label_to_idx: Dict) -> Optional[pd.DataFrame]:
