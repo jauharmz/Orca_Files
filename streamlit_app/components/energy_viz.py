@@ -1,300 +1,199 @@
 """
-Energy Visualization Component - Bar charts, comparisons, pathways
+Energy Visualization Component
 
 Features:
-- Energy comparison bar chart
-- Multi-molecule grouped bars
-- Energy pathway diagram
-- Unit conversion (Eh, kcal/mol, kJ/mol, eV)
-- Relative energy reference
-- Data table with export
+- Molecule + State comparison
+- Energy bar charts
+- HOMO-LUMO diagrams
+- Relative energy calculation
 """
 
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
-from typing import List, Optional
-
-
-# Unit conversion factors from Hartree
-UNIT_FACTORS = {
-    "Eh": 1.0,
-    "kcal/mol": 627.509,
-    "kJ/mol": 2625.5,
-    "eV": 27.2114
-}
+from typing import List
 
 
 def render_energy_viz(df: pd.DataFrame):
-    """Render energy visualization tab."""
+    """Render energy visualization with molecule+state filter."""
     
-    st.header("⚡ Energy Analysis")
+    st.subheader("⚡ Energy Analysis")
     
-    # Molecule selector
-    mol_ids = df["molecule_id"].dropna().unique().tolist()
-    selected_mols = st.multiselect(
-        "Select Molecules",
-        mol_ids,
-        default=mol_ids[:min(10, len(mol_ids))],
-        key="energy_mol_select"
-    )
-    
-    if not selected_mols:
-        st.warning("Select at least one molecule")
+    if df.empty:
+        st.warning("No data available")
         return
     
+    # Build labels
+    labels = []
+    for idx, row in df.iterrows():
+        mol_id = row.get("molecule_id", "unknown")
+        state = row.get("optimized_state", "")
+        label = f"{mol_id} [{state}]" if state else mol_id
+        labels.append({"label": label, "idx": idx})
+    
+    unique_labels = list(dict.fromkeys([l["label"] for l in labels]))
+    
+    # Filter
+    c1, c2, c3 = st.columns([4, 1, 1])
+    with c1:
+        selected = st.multiselect("Compare", unique_labels, 
+                                 default=unique_labels[:min(6, len(unique_labels))], key="energy_sel")
+    with c2:
+        if st.button("✅ All", key="energy_all"):
+            selected = unique_labels
+    with c3:
+        relative = st.checkbox("Relative", True, key="energy_rel")
+    
+    if not selected:
+        st.warning("Select molecules to compare")
+        return
+    
+    # Get data
+    sel_indices = [l["idx"] for l in labels if l["label"] in selected]
+    sel_df = df.loc[sel_indices]
+    
     # Tabs
-    tabs = st.tabs(["📊 Comparison", "🛤️ Pathway", "📈 HOMO-LUMO"])
+    tabs = st.tabs(["📊 Energy Comparison", "🔋 HOMO-LUMO"])
     
     with tabs[0]:
-        render_energy_comparison(df, selected_mols)
-    
+        render_energy_comparison(sel_df, selected, relative)
     with tabs[1]:
-        render_energy_pathway(df, selected_mols)
-    
-    with tabs[2]:
-        render_homo_lumo(df, selected_mols)
+        render_homo_lumo(sel_df, selected)
 
 
-def render_energy_comparison(df: pd.DataFrame, selected_mols: List[str]):
-    """Render energy comparison chart."""
+def render_energy_comparison(df: pd.DataFrame, labels: List[str], relative: bool):
+    """Render energy comparison bar chart."""
     
-    st.subheader("📊 Energy Comparison")
-    
-    # Customization
-    with st.expander("⚙️ Customization", expanded=True):
-        col1, col2, col3, col4 = st.columns(4)
+    # Collect energies
+    data = []
+    for idx, row in df.iterrows():
+        mol_id = row.get("molecule_id", "unknown")
+        state = row.get("optimized_state", "")
+        label = f"{mol_id} [{state}]" if state else mol_id
         
-        with col1:
-            energy_type = st.selectbox(
-                "Energy Type",
-                ["gibbs_Eh", "single_point_Eh"],
-                key="energy_type"
-            )
-        with col2:
-            unit = st.selectbox("Unit", list(UNIT_FACTORS.keys()), key="energy_unit")
-        with col3:
-            relative = st.checkbox("Relative to Minimum", True, key="energy_relative")
-        with col4:
-            sort_by = st.selectbox("Sort", ["Molecule ID", "Energy"], key="energy_sort")
+        gibbs = row.get("gibbs_Eh")
+        sp = row.get("single_point_Eh")
+        energy = gibbs if gibbs is not None else sp
+        
+        if energy is not None:
+            data.append({"label": label, "energy": energy, "type": "Gibbs" if gibbs else "SP"})
     
-    # Filter data
-    subset = df[df["molecule_id"].isin(selected_mols)].copy()
-    
-    if subset.empty or energy_type not in subset.columns:
+    if not data:
         st.warning("No energy data available")
         return
     
-    subset = subset[subset[energy_type].notna()]
+    energy_df = pd.DataFrame(data)
     
-    if subset.empty:
-        st.warning(f"No {energy_type} data for selected molecules")
-        return
-    
-    # Convert units
-    factor = UNIT_FACTORS[unit]
-    energy_col = f"energy_{unit}"
-    
+    # Calculate relative energies
     if relative:
-        min_energy = subset[energy_type].min()
-        subset[energy_col] = (subset[energy_type] - min_energy) * factor
-        y_title = f"Relative Energy ({unit})"
+        min_e = energy_df["energy"].min()
+        energy_df["rel_kcal"] = (energy_df["energy"] - min_e) * 627.509  # Eh to kcal/mol
+        y_col = "rel_kcal"
+        y_title = "Relative Energy (kcal/mol)"
     else:
-        subset[energy_col] = subset[energy_type] * factor
-        y_title = f"Energy ({unit})"
+        energy_df["energy_kcal"] = energy_df["energy"] * 627.509
+        y_col = "energy"
+        y_title = "Energy (Eh)"
     
-    # Sort
-    if sort_by == "Energy":
-        subset = subset.sort_values(energy_col)
-    else:
-        subset = subset.sort_values("molecule_id")
-    
-    # Create plot
+    # Plot
     fig = go.Figure()
     
-    # Color by state if available
-    colors = []
-    state_colors = {"S0": "#636EFA", "S1": "#EF553B", "T1": "#00CC96"}
-    for _, row in subset.iterrows():
-        state = row.get("optimized_state", "S0")
-        colors.append(state_colors.get(state, "#636EFA"))
+    colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3']
     
     fig.add_trace(go.Bar(
-        x=subset["molecule_id"],
-        y=subset[energy_col],
-        marker_color=colors,
-        text=[f"{e:.2f}" for e in subset[energy_col]],
-        textposition="outside",
-        hovertemplate="<b>%{x}</b><br>Energy: %{y:.4f} " + unit + "<extra></extra>"
+        x=energy_df["label"],
+        y=energy_df[y_col],
+        marker_color=[colors[i % len(colors)] for i in range(len(energy_df))],
+        text=[f"{v:.2f}" for v in energy_df[y_col]],
+        textposition="outside"
     ))
     
     fig.update_layout(
         title="Energy Comparison",
         xaxis_title="Molecule",
         yaxis_title=y_title,
-        hovermode="x unified",
         showlegend=False
     )
-    
-    if relative:
-        fig.update_yaxes(range=[0, subset[energy_col].max() * 1.15])
     
     st.plotly_chart(fig, use_container_width=True)
     
     # Data table
-    with st.expander("📋 View Data Table"):
-        table_cols = ["molecule_id", energy_type, energy_col]
-        if "optimized_state" in subset.columns:
-            table_cols.append("optimized_state")
-        if "method_id" in subset.columns:
-            table_cols.append("method_id")
+    with st.expander("📋 Data"):
+        st.dataframe(energy_df, use_container_width=True, hide_index=True)
+
+
+def render_homo_lumo(df: pd.DataFrame, labels: List[str]):
+    """Render HOMO-LUMO diagram."""
+    
+    data = []
+    for idx, row in df.iterrows():
+        mol_id = row.get("molecule_id", "unknown")
+        state = row.get("optimized_state", "")
+        label = f"{mol_id} [{state}]" if state else mol_id
         
-        from components.data_table import render_simple_table
-        render_simple_table(subset[table_cols], "Energy Data")
-
-
-def render_energy_pathway(df: pd.DataFrame, selected_mols: List[str]):
-    """Render energy pathway diagram."""
+        homo = row.get("homo_energy")
+        lumo = row.get("lumo_energy")
+        
+        if homo is not None:
+            data.append({"label": label, "homo": homo, "lumo": lumo, 
+                        "gap": lumo - homo if lumo else None})
     
-    st.subheader("🛤️ Energy Pathway")
-    
-    # Customization
-    col1, col2 = st.columns(2)
-    with col1:
-        unit = st.selectbox("Unit", list(UNIT_FACTORS.keys()), index=1, key="pathway_unit")
-    with col2:
-        show_barriers = st.checkbox("Show Barriers", True, key="pathway_barriers")
-    
-    # Filter and sort
-    subset = df[df["molecule_id"].isin(selected_mols)].copy()
-    energy_col = "gibbs_Eh" if "gibbs_Eh" in subset.columns else "single_point_Eh"
-    subset = subset[subset[energy_col].notna()]
-    
-    if len(subset) < 2:
-        st.warning("Need at least 2 molecules with energy for pathway")
+    if not data:
+        st.warning("No orbital energy data")
         return
     
-    # Sort by molecule_id to get pathway order
-    subset = subset.sort_values("molecule_id")
+    hl_df = pd.DataFrame(data)
     
-    # Convert to relative energy
-    factor = UNIT_FACTORS[unit]
-    min_energy = subset[energy_col].min()
-    subset["rel_energy"] = (subset[energy_col] - min_energy) * factor
-    
-    # Create pathway plot
     fig = go.Figure()
     
-    x_positions = list(range(len(subset)))
-    mol_ids = subset["molecule_id"].tolist()
-    rel_energies = subset["rel_energy"].tolist()
+    colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A']
     
-    # Draw energy levels as horizontal lines
-    for i, (mol, energy) in enumerate(zip(mol_ids, rel_energies)):
-        fig.add_trace(go.Scatter(
-            x=[i - 0.3, i + 0.3],
-            y=[energy, energy],
-            mode="lines",
-            line=dict(color="#636EFA", width=4),
-            showlegend=False,
-            hovertemplate=f"<b>{mol}</b><br>Energy: {energy:.2f} {unit}<extra></extra>"
-        ))
-    
-    # Draw connecting lines
-    for i in range(len(mol_ids) - 1):
-        fig.add_trace(go.Scatter(
-            x=[i + 0.3, i + 0.7],
-            y=[rel_energies[i], rel_energies[i + 1]],
-            mode="lines",
-            line=dict(color="gray", width=1, dash="dash"),
-            showlegend=False
-        ))
+    for i, row in hl_df.iterrows():
+        x_pos = i
         
-        # Barrier annotation
-        if show_barriers:
-            delta = rel_energies[i + 1] - rel_energies[i]
-            mid_x = i + 0.5
-            mid_y = (rel_energies[i] + rel_energies[i + 1]) / 2
+        # HOMO
+        if row["homo"] is not None:
+            fig.add_trace(go.Scatter(
+                x=[x_pos - 0.3, x_pos + 0.3],
+                y=[row["homo"], row["homo"]],
+                mode="lines",
+                line=dict(color=colors[i % len(colors)], width=4),
+                name=f"{row['label']} HOMO",
+                showlegend=False
+            ))
+        
+        # LUMO
+        if row["lumo"] is not None:
+            fig.add_trace(go.Scatter(
+                x=[x_pos - 0.3, x_pos + 0.3],
+                y=[row["lumo"], row["lumo"]],
+                mode="lines",
+                line=dict(color=colors[i % len(colors)], width=4, dash="dash"),
+                name=f"{row['label']} LUMO",
+                showlegend=False
+            ))
+        
+        # Gap arrow
+        if row["homo"] is not None and row["lumo"] is not None:
             fig.add_annotation(
-                x=mid_x,
-                y=mid_y,
-                text=f"Δ{delta:+.2f}",
+                x=x_pos,
+                y=(row["homo"] + row["lumo"]) / 2,
+                text=f"{row['gap']:.2f} eV",
                 showarrow=False,
-                font=dict(size=10, color="red" if delta > 0 else "green")
+                font=dict(size=10)
             )
     
     fig.update_layout(
-        title="Energy Pathway",
+        title="HOMO-LUMO Energy Levels",
         xaxis=dict(
-            tickmode="array",
-            tickvals=x_positions,
-            ticktext=mol_ids,
-            title="Reaction Coordinate"
+            tickvals=list(range(len(hl_df))),
+            ticktext=hl_df["label"].tolist()
         ),
-        yaxis_title=f"Relative Energy ({unit})",
+        yaxis_title="Energy (eV)",
         hovermode="x unified"
     )
     
     st.plotly_chart(fig, use_container_width=True)
-
-
-def render_homo_lumo(df: pd.DataFrame, selected_mols: List[str]):
-    """Render HOMO-LUMO comparison."""
     
-    st.subheader("📈 HOMO-LUMO Comparison")
-    
-    subset = df[df["molecule_id"].isin(selected_mols)].copy()
-    subset = subset[subset["homo_energy"].notna() & subset["lumo_energy"].notna()]
-    
-    if subset.empty:
-        st.warning("No HOMO-LUMO data available")
-        return
-    
-    # Create grouped bar chart
-    fig = go.Figure()
-    
-    fig.add_trace(go.Bar(
-        name="HOMO",
-        x=subset["molecule_id"],
-        y=subset["homo_energy"],
-        marker_color="blue",
-        hovertemplate="<b>%{x}</b><br>HOMO: %{y:.3f} eV<extra></extra>"
-    ))
-    
-    fig.add_trace(go.Bar(
-        name="LUMO",
-        x=subset["molecule_id"],
-        y=subset["lumo_energy"],
-        marker_color="red",
-        hovertemplate="<b>%{x}</b><br>LUMO: %{y:.3f} eV<extra></extra>"
-    ))
-    
-    # Add gap annotations
-    for _, row in subset.iterrows():
-        gap = row["lumo_energy"] - row["homo_energy"]
-        fig.add_annotation(
-            x=row["molecule_id"],
-            y=(row["homo_energy"] + row["lumo_energy"]) / 2,
-            text=f"Δ{gap:.2f}",
-            showarrow=False,
-            font=dict(size=10)
-        )
-    
-    fig.update_layout(
-        title="HOMO-LUMO Comparison",
-        xaxis_title="Molecule",
-        yaxis_title="Energy (eV)",
-        barmode="group",
-        legend=dict(x=0.9, y=0.95)
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Data table
-    with st.expander("📋 View Data Table"):
-        table_cols = ["molecule_id", "homo_energy", "lumo_energy"]
-        if "homo_lumo_gap" in subset.columns:
-            table_cols.append("homo_lumo_gap")
-        from components.data_table import render_simple_table
-        render_simple_table(subset[table_cols], "HOMO-LUMO Data")
+    with st.expander("📋 Data"):
+        st.dataframe(hl_df, use_container_width=True, hide_index=True)

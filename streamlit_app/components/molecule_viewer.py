@@ -1,21 +1,20 @@
 """
-Molecule Viewer Component - 2D and 3D visualization
+Molecule Viewer Component - 2D/3D molecular visualization
 
 Features:
-- Per-molecule filter with state
-- 3D viewer using py3Dmol (simplified)
-- 2D viewer using RDKit
-- Data tables
+- Molecule + State selector
+- 3D viewer with py3Dmol
+- 2D viewer with RDKit
+- Property tables
 """
 
 import streamlit as st
 import pandas as pd
-from typing import Optional
 import streamlit.components.v1 as components
 
 
 def render_molecule_viewer(df: pd.DataFrame):
-    """Render molecule viewer with its own filters."""
+    """Render molecule viewer with molecule+state filter."""
     
     st.subheader("🧬 Molecule Viewer")
     
@@ -23,38 +22,40 @@ def render_molecule_viewer(df: pd.DataFrame):
         st.warning("No data available")
         return
     
-    # Build options: molecule_id + state
-    options = []
+    # Build unique (molecule_id, state) pairs for selector
+    pairs = []
     for idx, row in df.iterrows():
         mol_id = row.get("molecule_id", "unknown")
         state = row.get("optimized_state", "")
         label = f"{mol_id} [{state}]" if state else mol_id
-        options.append({"label": label, "idx": idx, "mol_id": mol_id, "state": state})
+        pairs.append({"label": label, "idx": idx, "mol_id": mol_id, "state": state})
     
     # Unique labels
     seen = set()
-    unique_options = []
-    for opt in options:
-        if opt["label"] not in seen:
-            seen.add(opt["label"])
-            unique_options.append(opt)
+    unique = [p for p in pairs if p["label"] not in seen and not seen.add(p["label"])]
     
-    if not unique_options:
+    if not unique:
         st.warning("No molecules available")
         return
     
-    # Selector
-    labels = [opt["label"] for opt in unique_options]
-    selected_label = st.selectbox("Select Molecule", labels, key="mol_viewer_select")
+    # Dual filter
+    c1, c2 = st.columns(2)
+    with c1:
+        mol_ids = sorted(set(p["mol_id"] for p in unique))
+        sel_mol = st.selectbox("Molecule", mol_ids, key="mol_view_mol")
+    with c2:
+        mol_states = sorted([p["state"] for p in unique if p["mol_id"] == sel_mol])
+        sel_state = st.selectbox("State", mol_states, key="mol_view_state") if mol_states else None
     
     # Get selected row
-    selected_opt = next((opt for opt in unique_options if opt["label"] == selected_label), None)
-    if selected_opt is None:
+    match = [p for p in unique if p["mol_id"] == sel_mol and p["state"] == sel_state]
+    if not match:
+        st.warning("No data for selection")
         return
     
-    mol_row = df.loc[selected_opt["idx"]]
+    mol_row = df.loc[match[0]["idx"]]
     
-    # Info
+    # Info metrics
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.metric("Molecule", mol_row.get("molecule_id", "N/A"))
@@ -71,37 +72,34 @@ def render_molecule_viewer(df: pd.DataFrame):
     tabs = st.tabs(["🔮 3D View", "📐 2D View", "📊 Data"])
     
     with tabs[0]:
-        render_3d_simple(mol_row)
+        render_3d(mol_row)
     with tabs[1]:
         render_2d(mol_row)
     with tabs[2]:
         render_data(mol_row)
 
 
-def render_3d_simple(mol_row: pd.Series):
-    """Simple 3D viewer - minimal settings to avoid rerun issues."""
+def render_3d(mol_row: pd.Series):
+    """Render 3D molecular structure."""
     
     coords = mol_row.get("cart_coords")
     
     if coords is None or (hasattr(coords, 'empty') and coords.empty):
-        st.warning("No coordinate data available")
+        st.warning("No coordinate data")
         return
     
-    # Build XYZ string
+    # Build XYZ
     mol_name = mol_row.get("molecule_id", "mol")
-    n_atoms = len(coords)
-    xyz_lines = [str(n_atoms), str(mol_name)]
+    xyz_lines = [str(len(coords)), str(mol_name)]
     
     for _, atom in coords.iterrows():
         el = str(atom.get("atom", atom.get("element", "C")))
-        x = float(atom.get("x", 0))
-        y = float(atom.get("y", 0))
-        z = float(atom.get("z", 0))
+        x, y, z = float(atom.get("x", 0)), float(atom.get("y", 0)), float(atom.get("z", 0))
         xyz_lines.append(f"{el} {x:.6f} {y:.6f} {z:.6f}")
     
     xyz_str = "\\n".join(xyz_lines)
     
-    # Get Mulliken charges for hover
+    # Mulliken charges for hover
     mulliken = mol_row.get("mulliken")
     charges = []
     if mulliken is not None and hasattr(mulliken, 'empty') and not mulliken.empty:
@@ -109,66 +107,25 @@ def render_3d_simple(mol_row: pd.Series):
             charges = mulliken["Charge"].tolist()
     charges_js = str(charges) if charges else "[]"
     
-    # Simple HTML - no reactive settings
-    html = f'''<!DOCTYPE html>
-<html>
-<head>
-    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
-    <style>
-        body {{ margin: 0; padding: 0; }}
-        #container {{ width: 100%; height: 450px; position: relative; }}
-        #tip {{ 
-            position: absolute; 
-            background: rgba(0,0,0,0.85); 
-            color: white; 
-            padding: 8px 12px; 
-            border-radius: 6px; 
-            font-size: 12px; 
-            display: none; 
-            pointer-events: none;
-            font-family: sans-serif;
-            z-index: 100;
-        }}
-    </style>
-</head>
-<body>
-    <div id="container"></div>
-    <div id="tip"></div>
-    <script>
-        var viewer = $3Dmol.createViewer("container", {{backgroundColor: "#1e1e2e"}});
-        var xyz = "{xyz_str}";
-        viewer.addModel(xyz, "xyz");
-        viewer.setStyle({{}}, {{stick: {{radius: 0.12}}, sphere: {{scale: 0.25}}}});
-        
-        var charges = {charges_js};
-        
-        viewer.setHoverCallback(function(atom, v, event) {{
-            var tip = document.getElementById('tip');
-            if (atom) {{
-                var html = '<b>' + atom.elem + ' #' + atom.serial + '</b>';
-                html += '<br>X: ' + atom.x.toFixed(4);
-                html += '<br>Y: ' + atom.y.toFixed(4);
-                html += '<br>Z: ' + atom.z.toFixed(4);
-                if (charges.length > 0 && charges[atom.serial - 1] !== undefined) {{
-                    html += '<br>Charge: ' + charges[atom.serial - 1].toFixed(4);
-                }}
-                tip.innerHTML = html;
-                tip.style.display = 'block';
-                tip.style.left = (event.offsetX + 15) + 'px';
-                tip.style.top = (event.offsetY - 10) + 'px';
-            }} else {{
-                tip.style.display = 'none';
-            }}
-        }});
-        
-        viewer.zoomTo();
-        viewer.render();
-    </script>
-</body>
-</html>'''
+    html = f'''<!DOCTYPE html><html><head>
+<script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+<style>body{{margin:0;}}#v{{width:100%;height:450px;}}
+#t{{position:absolute;background:#222;color:#fff;padding:6px 10px;border-radius:4px;font-size:11px;display:none;z-index:99;}}</style>
+</head><body><div id="v"></div><div id="t"></div><script>
+var v=$3Dmol.createViewer("v",{{backgroundColor:"#1e1e2e"}});
+v.addModel("{xyz_str}","xyz");
+v.setStyle({{}},{{stick:{{radius:0.12}},sphere:{{scale:0.25}}}});
+var q={charges_js};
+v.setHoverCallback(function(a,vw,e){{var t=document.getElementById('t');
+if(a){{var h='<b>'+a.elem+' #'+a.serial+'</b><br>'+a.x.toFixed(4)+', '+a.y.toFixed(4)+', '+a.z.toFixed(4);
+if(q[a.serial-1]!==undefined)h+='<br>Charge: '+q[a.serial-1].toFixed(4);
+t.innerHTML=h;t.style.display='block';t.style.left=(e.offsetX+15)+'px';t.style.top=(e.offsetY-10)+'px';
+}}else{{t.style.display='none';}}}});
+v.zoomTo();v.render();
+</script></body></html>'''
     
     components.html(html, height=470)
-    st.caption("💡 Hover over atoms for details. Scroll to zoom, drag to rotate.")
+    st.caption("Hover atoms for details. Scroll=zoom, drag=rotate.")
 
 
 def render_2d(mol_row: pd.Series):
@@ -177,17 +134,17 @@ def render_2d(mol_row: pd.Series):
     smiles = mol_row.get("smiles")
     
     if not smiles or str(smiles) == "nan":
-        st.warning("No SMILES data available")
+        st.warning("No SMILES data")
         return
     
     try:
         from rdkit import Chem
-        from rdkit.Chem import Draw, AllChem
+        from rdkit.Chem import AllChem
         from rdkit.Chem.Draw import rdMolDraw2D
         
         mol = Chem.MolFromSmiles(str(smiles))
         if mol is None:
-            st.warning(f"Cannot parse SMILES: {smiles}")
+            st.warning(f"Invalid SMILES: {smiles}")
             return
         
         AllChem.Compute2DCoords(mol)
@@ -201,7 +158,7 @@ def render_2d(mol_row: pd.Series):
         st.code(smiles, language=None)
         
     except ImportError:
-        st.info("RDKit not installed. SMILES string:")
+        st.info("RDKit not installed")
         st.code(smiles)
 
 
@@ -215,25 +172,19 @@ def render_data(mol_row: pd.Series):
         if coords is not None and hasattr(coords, 'empty') and not coords.empty:
             st.dataframe(coords, use_container_width=True, height=300)
         else:
-            st.info("No coordinate data")
+            st.info("No coordinates")
     
     with tabs[1]:
-        props = {}
-        for key in ["molecule_id", "optimized_state", "method_id", "functional", "basis_set",
-                    "gibbs_Eh", "single_point_Eh", "homo_energy", "lumo_energy", "homo_lumo_gap",
-                    "charge", "multiplicity"]:
-            val = mol_row.get(key)
-            if val is not None and str(val) != "nan":
-                props[key] = val
+        props = {k: mol_row.get(k) for k in [
+            "molecule_id", "optimized_state", "functional", "basis_set",
+            "gibbs_Eh", "single_point_Eh", "homo_energy", "lumo_energy"
+        ] if mol_row.get(k) is not None and str(mol_row.get(k)) != "nan"}
         
         if props:
-            st.dataframe(
-                pd.DataFrame([{"Property": k, "Value": v} for k, v in props.items()]),
-                use_container_width=True,
-                hide_index=True
-            )
+            st.dataframe(pd.DataFrame([{"Property": k, "Value": v} for k, v in props.items()]),
+                        hide_index=True, use_container_width=True)
         else:
-            st.info("No property data")
+            st.info("No properties")
     
     with tabs[2]:
         mulliken = mol_row.get("mulliken")

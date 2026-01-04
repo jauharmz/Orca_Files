@@ -1,27 +1,23 @@
 """
-Spectra Visualization Component - IR/Raman/UV-Vis with customization
+Spectra Visualization Component - IR/Raman/UV-Vis
 
 Features:
+- Molecule + State filter
+- Multi-molecule comparison
+- Smoothing and normalization
 - Interactive Plotly charts
-- Frequency range sliders
-- Peak smoothing
-- Multi-molecule overlay
-- Normalization options
-- Shared molecule selection across all tabs
-- Data table with export
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from typing import Dict, List, Optional
 from scipy.ndimage import gaussian_filter1d
+from typing import List
 
 
 def render_spectra_viz(df: pd.DataFrame):
-    """Render spectra visualization tab."""
+    """Render spectra visualization with molecule+state filter."""
     
     st.subheader("📈 Spectroscopy")
     
@@ -29,213 +25,148 @@ def render_spectra_viz(df: pd.DataFrame):
         st.warning("No data available")
         return
     
-    # Molecule selector with Select All (shared across all tabs)
-    mol_ids = sorted(df["molecule_id"].dropna().unique().tolist())
+    # Build unique labels
+    labels = []
+    for idx, row in df.iterrows():
+        mol_id = row.get("molecule_id", "unknown")
+        state = row.get("optimized_state", "")
+        label = f"{mol_id} [{state}]" if state else mol_id
+        labels.append({"label": label, "idx": idx})
     
-    if not mol_ids:
-        st.warning("No molecules available")
-        return
+    unique_labels = list(dict.fromkeys([l["label"] for l in labels]))
     
-    # Initialize and validate spectra selection in session state
-    if "spectra_selected_mols" not in st.session_state:
-        st.session_state.spectra_selected_mols = mol_ids[:min(3, len(mol_ids))]
-    else:
-        # Validate against current options
-        st.session_state.spectra_selected_mols = [
-            m for m in st.session_state.spectra_selected_mols if m in mol_ids
-        ]
-    
-    col1, col2, col3 = st.columns([6, 1, 1])
-    
-    with col1:
-        # Use validated defaults
-        valid_defaults = [m for m in st.session_state.spectra_selected_mols if m in mol_ids]
-        selected_mols = st.multiselect(
-            "Select Molecules to Compare",
-            mol_ids,
-            default=valid_defaults if valid_defaults else mol_ids[:min(3, len(mol_ids))],
-            key="spectra_mol_select"
-        )
-        st.session_state.spectra_selected_mols = selected_mols
-    
-    with col2:
-        if st.button("✅ All", key="spectra_select_all"):
-            st.session_state.spectra_selected_mols = mol_ids
+    # Dual filter
+    c1, c2, c3 = st.columns([4, 1, 1])
+    with c1:
+        selected = st.multiselect("Select Molecules", unique_labels, 
+                                 default=unique_labels[:min(3, len(unique_labels))], key="spectra_sel")
+    with c2:
+        if st.button("✅ All", key="spectra_all"):
+            st.session_state.spectra_sel = unique_labels
+            st.rerun()
+    with c3:
+        if st.button("❌ None", key="spectra_none"):
+            st.session_state.spectra_sel = []
             st.rerun()
     
-    with col3:
-        if st.button("❌ Clear", key="spectra_clear_all"):
-            st.session_state.spectra_selected_mols = []
-            st.rerun()
-    
-    if not selected_mols:
+    if not selected:
         st.warning("Select at least one molecule")
         return
     
-    # Spectra type tabs
-    tabs = st.tabs(["🔴 IR", "🟢 Raman", "🟣 UV-Vis", "📊 IR-Raman Comparison"])
+    # Get selected indices
+    sel_indices = [l["idx"] for l in labels if l["label"] in selected]
+    sel_df = df.loc[sel_indices]
+    
+    # Spectra tabs
+    tabs = st.tabs(["🔴 IR", "🟢 Raman", "🟣 UV-Vis"])
     
     with tabs[0]:
-        render_ir_spectra(df, selected_mols)
-    
+        render_ir(sel_df, selected)
     with tabs[1]:
-        render_raman_spectra(df, selected_mols)
-    
+        render_raman(sel_df, selected)
     with tabs[2]:
-        render_uvvis_spectra(df, selected_mols)
-    
-    with tabs[3]:
-        render_ir_raman_comparison(df, selected_mols)
+        render_uvvis(sel_df, selected)
 
 
-def smooth_spectrum(x: np.ndarray, y: np.ndarray, sigma: float) -> tuple:
-    """Apply Gaussian smoothing to spectrum."""
+def smooth_spectrum(x, y, sigma):
+    """Apply Gaussian smoothing."""
     if sigma <= 0:
         return x, y
-    
-    # Create interpolated spectrum for smoothing
-    x_min, x_max = x.min(), x.max()
-    x_smooth = np.linspace(x_min, x_max, 1000)
+    x_smooth = np.linspace(x.min(), x.max(), 1000)
     y_interp = np.interp(x_smooth, np.sort(x), y[np.argsort(x)])
-    
-    # Apply Gaussian smoothing
-    y_smoothed = gaussian_filter1d(y_interp, sigma=sigma)
-    
-    return x_smooth, y_smoothed
+    return x_smooth, gaussian_filter1d(y_interp, sigma=sigma)
 
 
-def render_ir_spectra(df: pd.DataFrame, selected_mols: List[str]):
-    """Render IR spectra with customization."""
+def render_ir(df: pd.DataFrame, labels: List[str]):
+    """Render IR spectra."""
     
-    # Customization options
-    with st.expander("⚙️ Customization", expanded=False):
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            freq_range = st.slider(
-                "Frequency Range (cm⁻¹)",
-                0, 4000, (400, 4000),
-                key="ir_freq_range"
-            )
-        with col2:
-            smoothing = st.slider(
-                "Smoothing",
-                0, 50, 0,
-                key="ir_smoothing",
-                help="Gaussian smoothing sigma (0 = no smoothing)"
-            )
-        with col3:
-            normalize = st.checkbox("Normalize", False, key="ir_normalize")
-        with col4:
-            invert_x = st.checkbox("Invert X-axis", True, key="ir_invert")
+    # Settings
+    with st.expander("⚙️ Settings", expanded=False):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            freq_range = st.slider("Frequency (cm⁻¹)", 0, 4000, (400, 4000), key="ir_freq")
+        with c2:
+            smoothing = st.slider("Smoothing", 0, 50, 0, key="ir_smooth")
+        with c3:
+            normalize = st.checkbox("Normalize", False, key="ir_norm")
     
     # Collect IR data
     ir_data = {}
-    for mol_id in selected_mols:
-        mol_row = df[df["molecule_id"] == mol_id]
-        if not mol_row.empty:
-            ir = mol_row.iloc[0].get("ir")
-            if ir is not None and hasattr(ir, 'empty') and not ir.empty:
-                ir_data[mol_id] = ir
+    for idx, row in df.iterrows():
+        mol_id = row.get("molecule_id", "unknown")
+        state = row.get("optimized_state", "")
+        label = f"{mol_id} [{state}]" if state else mol_id
+        ir = row.get("ir")
+        if ir is not None and hasattr(ir, 'empty') and not ir.empty:
+            ir_data[label] = ir
     
     if not ir_data:
-        st.warning("No IR data available for selected molecules")
+        st.warning("No IR data available")
         return
     
-    # Create plot
+    # Plot
     fig = go.Figure()
+    colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A']
     
-    colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', 
-              '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52']
-    
-    for i, (mol_id, ir) in enumerate(ir_data.items()):
-        freq_col = "freq_cm-1"
-        int_col = "intensity_km/mol" if "intensity_km/mol" in ir.columns else ir.columns[1]
+    for i, (label, ir) in enumerate(ir_data.items()):
+        x = ir["freq_cm-1"].values
+        y = ir["intensity_km/mol"].values if "intensity_km/mol" in ir.columns else ir.iloc[:, 1].values
         
-        x = ir[freq_col].values
-        y = ir[int_col].values
-        
-        # Apply frequency filter
         mask = (x >= freq_range[0]) & (x <= freq_range[1])
         x, y = x[mask], y[mask]
         
         if len(x) == 0:
             continue
         
-        # Apply smoothing
         if smoothing > 0:
             x, y = smooth_spectrum(x, y, smoothing)
         
-        # Normalize if requested
-        if normalize and len(y) > 0:
+        if normalize and len(y) > 0 and y.max() > 0:
             y = y / y.max()
         
-        fig.add_trace(go.Scatter(
-            x=x,
-            y=y,
-            mode="lines",
-            name=mol_id,
-            line=dict(color=colors[i % len(colors)], width=1.5),
-            fill="tozeroy" if len(ir_data) == 1 else None,
-            fillcolor=f"rgba{tuple(list(int(colors[i % len(colors)][j:j+2], 16) for j in (1, 3, 5)) + [0.2])}" if len(ir_data) == 1 else None,
-            hovertemplate=f"<b>{mol_id}</b><br>Freq: %{{x:.1f}} cm⁻¹<br>Intensity: %{{y:.2f}}<extra></extra>"
-        ))
+        fig.add_trace(go.Scatter(x=x, y=y, mode="lines", name=label,
+                                line=dict(color=colors[i % len(colors)], width=1.5)))
     
     fig.update_layout(
         title="IR Spectrum",
         xaxis_title="Frequency (cm⁻¹)",
-        yaxis_title="Intensity (km/mol)" if not normalize else "Normalized Intensity",
-        hovermode="x unified",
-        legend=dict(x=0.02, y=0.98),
-        xaxis=dict(autorange="reversed" if invert_x else True)
+        yaxis_title="Intensity" if not normalize else "Normalized",
+        xaxis=dict(autorange="reversed"),
+        hovermode="x unified"
     )
     
     st.plotly_chart(fig, use_container_width=True)
-    
-    # Data table - collapsed
-    with st.expander("📋 View Data Table", expanded=False):
-        from components.data_table import render_data_table
-        render_data_table(
-            ir_data,
-            coordinate_col="freq_cm-1",
-            data_cols=["intensity_km/mol", "eps"] if "eps" in next(iter(ir_data.values())).columns else ["intensity_km/mol"],
-            title="IR Spectrum Data"
-        )
 
 
-def render_raman_spectra(df: pd.DataFrame, selected_mols: List[str]):
-    """Render Raman spectra with customization."""
+def render_raman(df: pd.DataFrame, labels: List[str]):
+    """Render Raman spectra."""
     
-    # Customization
-    with st.expander("⚙️ Customization", expanded=False):
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            freq_range = st.slider("Frequency Range", 0, 4000, (400, 4000), key="raman_freq")
-        with col2:
-            smoothing = st.slider("Smoothing", 0, 50, 0, key="raman_smoothing")
-        with col3:
+    with st.expander("⚙️ Settings", expanded=False):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            freq_range = st.slider("Frequency", 0, 4000, (400, 4000), key="raman_freq")
+        with c2:
+            smoothing = st.slider("Smoothing", 0, 50, 0, key="raman_smooth")
+        with c3:
             normalize = st.checkbox("Normalize", False, key="raman_norm")
     
-    # Collect Raman data
     raman_data = {}
-    for mol_id in selected_mols:
-        mol_row = df[df["molecule_id"] == mol_id]
-        if not mol_row.empty:
-            raman = mol_row.iloc[0].get("raman")
-            if raman is not None and hasattr(raman, 'empty') and not raman.empty:
-                raman_data[mol_id] = raman
+    for idx, row in df.iterrows():
+        mol_id = row.get("molecule_id", "unknown")
+        state = row.get("optimized_state", "")
+        label = f"{mol_id} [{state}]" if state else mol_id
+        raman = row.get("raman")
+        if raman is not None and hasattr(raman, 'empty') and not raman.empty:
+            raman_data[label] = raman
     
     if not raman_data:
-        st.warning("No Raman data available for selected molecules")
+        st.warning("No Raman data available")
         return
     
-    # Create plot
     fig = go.Figure()
-    
     colors = ['#00CC96', '#636EFA', '#EF553B', '#AB63FA', '#FFA15A']
     
-    for i, (mol_id, raman) in enumerate(raman_data.items()):
+    for i, (label, raman) in enumerate(raman_data.items()):
         x = raman["freq_cm-1"].values
         y = raman["activity"].values if "activity" in raman.columns else raman.iloc[:, 1].values
         
@@ -248,210 +179,79 @@ def render_raman_spectra(df: pd.DataFrame, selected_mols: List[str]):
         if smoothing > 0:
             x, y = smooth_spectrum(x, y, smoothing)
         
-        if normalize and len(y) > 0:
+        if normalize and len(y) > 0 and y.max() > 0:
             y = y / y.max()
         
-        fig.add_trace(go.Scatter(
-            x=x, y=y,
-            mode="lines",
-            name=mol_id,
-            line=dict(color=colors[i % len(colors)], width=1.5),
-            hovertemplate=f"<b>{mol_id}</b><br>Freq: %{{x:.1f}} cm⁻¹<br>Activity: %{{y:.4f}}<extra></extra>"
-        ))
+        fig.add_trace(go.Scatter(x=x, y=y, mode="lines", name=label,
+                                line=dict(color=colors[i % len(colors)], width=1.5)))
     
     fig.update_layout(
         title="Raman Spectrum",
         xaxis_title="Frequency (cm⁻¹)",
-        yaxis_title="Raman Activity" if not normalize else "Normalized Activity",
-        hovermode="x unified",
-        legend=dict(x=0.02, y=0.98)
+        yaxis_title="Activity" if not normalize else "Normalized",
+        hovermode="x unified"
     )
     
     st.plotly_chart(fig, use_container_width=True)
-    
-    # Data table - collapsed
-    with st.expander("📋 View Data Table", expanded=False):
-        from components.data_table import render_data_table
-        render_data_table(
-            raman_data,
-            coordinate_col="freq_cm-1",
-            data_cols=["activity"],
-            title="Raman Spectrum Data"
-        )
 
 
-def render_uvvis_spectra(df: pd.DataFrame, selected_mols: List[str]):
-    """Render UV-Vis spectra from TDDFT data."""
+def render_uvvis(df: pd.DataFrame, labels: List[str]):
+    """Render UV-Vis spectra from TDDFT."""
     
-    # Customization
-    with st.expander("⚙️ Customization", expanded=False):
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            wl_range = st.slider("Wavelength Range (nm)", 100, 900, (200, 700), key="uv_wl")
-        with col2:
-            sigma = st.slider("Broadening σ (nm)", 5, 50, 20, key="uv_sigma")
-        with col3:
+    with st.expander("⚙️ Settings", expanded=False):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            wl_range = st.slider("Wavelength (nm)", 100, 900, (200, 700), key="uv_wl")
+        with c2:
+            sigma = st.slider("Broadening σ", 5, 50, 20, key="uv_sigma")
+        with c3:
             show_sticks = st.checkbox("Show Sticks", True, key="uv_sticks")
-        with col4:
-            show_broadened = st.checkbox("Show Broadened", True, key="uv_broad")
     
-    # Collect TDDFT data
     tddft_data = {}
-    for mol_id in selected_mols:
-        mol_row = df[df["molecule_id"] == mol_id]
-        if not mol_row.empty:
-            tddft = mol_row.iloc[0].get("tddft_states")
-            if tddft is not None and hasattr(tddft, 'empty') and not tddft.empty:
-                if "energy_ev" in tddft.columns:
-                    tddft_data[mol_id] = tddft
+    for idx, row in df.iterrows():
+        mol_id = row.get("molecule_id", "unknown")
+        state = row.get("optimized_state", "")
+        label = f"{mol_id} [{state}]" if state else mol_id
+        tddft = row.get("tddft_states")
+        if tddft is not None and hasattr(tddft, 'empty') and not tddft.empty:
+            if "energy_ev" in tddft.columns:
+                tddft_data[label] = tddft
     
     if not tddft_data:
-        st.warning("No TDDFT data available for selected molecules")
+        st.warning("No TDDFT data available")
         return
     
-    # Create plot
     fig = go.Figure()
-    
     colors = ['#AB63FA', '#636EFA', '#EF553B', '#00CC96', '#FFA15A']
     
-    for i, (mol_id, tddft) in enumerate(tddft_data.items()):
-        # Convert eV to nm
+    for i, (label, tddft) in enumerate(tddft_data.items()):
         wavelength = 1239.84 / tddft["energy_ev"]
         fosc = tddft.get("weight", pd.Series([0.5] * len(tddft))).abs()
         
-        # Filter by wavelength
         mask = (wavelength >= wl_range[0]) & (wavelength <= wl_range[1])
-        wavelength_f = wavelength[mask].values
+        wl_f = wavelength[mask].values
         fosc_f = fosc[mask].values
         
-        # Stick spectrum
         if show_sticks:
-            for wl, f in zip(wavelength_f, fosc_f):
-                fig.add_trace(go.Scatter(
-                    x=[wl, wl],
-                    y=[0, f],
-                    mode="lines",
-                    line=dict(color=colors[i % len(colors)], width=2),
-                    showlegend=False,
-                    hovertemplate=f"<b>{mol_id}</b><br>λ: {wl:.1f} nm<br>f: {f:.4f}<extra></extra>"
-                ))
+            for wl, f in zip(wl_f, fosc_f):
+                fig.add_trace(go.Scatter(x=[wl, wl], y=[0, f], mode="lines",
+                                        line=dict(color=colors[i % len(colors)], width=2),
+                                        showlegend=False))
         
         # Broadened spectrum
-        if show_broadened:
-            wl_grid = np.linspace(wl_range[0], wl_range[1], 500)
-            spectrum = np.zeros_like(wl_grid)
-            for wl, f in zip(wavelength_f, fosc_f):
-                spectrum += f * np.exp(-0.5 * ((wl_grid - wl) / sigma) ** 2)
-            
-            fig.add_trace(go.Scatter(
-                x=wl_grid,
-                y=spectrum,
-                mode="lines",
-                name=mol_id,
-                line=dict(color=colors[i % len(colors)], width=1.5),
-                fill="tozeroy" if len(tddft_data) == 1 else None,
-                hovertemplate=f"<b>{mol_id}</b><br>λ: %{{x:.1f}} nm<br>Intensity: %{{y:.4f}}<extra></extra>"
-            ))
+        wl_grid = np.linspace(wl_range[0], wl_range[1], 500)
+        spectrum = np.zeros_like(wl_grid)
+        for wl, f in zip(wl_f, fosc_f):
+            spectrum += f * np.exp(-0.5 * ((wl_grid - wl) / sigma) ** 2)
+        
+        fig.add_trace(go.Scatter(x=wl_grid, y=spectrum, mode="lines", name=label,
+                                line=dict(color=colors[i % len(colors)], width=1.5)))
     
     fig.update_layout(
-        title="UV-Vis Absorption Spectrum",
+        title="UV-Vis Absorption",
         xaxis_title="Wavelength (nm)",
-        yaxis_title="Oscillator Strength / Intensity",
-        hovermode="x unified",
-        legend=dict(x=0.02, y=0.98),
-        xaxis=dict(range=[wl_range[0], wl_range[1]])
+        yaxis_title="Intensity",
+        hovermode="x unified"
     )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Data table - collapsed
-    with st.expander("📋 View TDDFT States", expanded=False):
-        from components.data_table import render_data_table
-        render_data_table(
-            tddft_data,
-            coordinate_col="energy_ev",
-            data_cols=["weight"],
-            title="TDDFT States"
-        )
-
-
-def render_ir_raman_comparison(df: pd.DataFrame, selected_mols: List[str]):
-    """Render IR-Raman dual-axis comparison."""
-    
-    if len(selected_mols) < 1:
-        st.warning("Select at least one molecule")
-        return
-    
-    mol_id = st.selectbox("Select Molecule for Comparison", selected_mols, key="ir_raman_mol")
-    
-    mol_row = df[df["molecule_id"] == mol_id]
-    if mol_row.empty:
-        return
-    
-    mol_data = mol_row.iloc[0]
-    ir = mol_data.get("ir")
-    raman = mol_data.get("raman")
-    
-    if ir is None or (hasattr(ir, 'empty') and ir.empty):
-        st.warning("No IR data available")
-        return
-    if raman is None or (hasattr(raman, 'empty') and raman.empty):
-        st.warning("No Raman data available")
-        return
-    
-    # Smoothing option
-    smoothing = st.slider("Smoothing", 0, 30, 10, key="ir_raman_smooth")
-    
-    # Get data
-    ir_x = ir["freq_cm-1"].values
-    ir_y = ir["intensity_km/mol"].values if "intensity_km/mol" in ir.columns else ir.iloc[:, 1].values
-    raman_x = raman["freq_cm-1"].values
-    raman_y = raman["activity"].values if "activity" in raman.columns else raman.iloc[:, 1].values
-    
-    if smoothing > 0:
-        ir_x, ir_y = smooth_spectrum(ir_x, ir_y, smoothing)
-        raman_x, raman_y = smooth_spectrum(raman_x, raman_y, smoothing)
-    
-    # Create dual-axis plot
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    
-    fig.add_trace(
-        go.Scatter(
-            x=ir_x,
-            y=ir_y,
-            mode="lines",
-            name="IR",
-            line=dict(color="blue", width=1.5),
-            fill="tozeroy",
-            fillcolor="rgba(0,0,255,0.1)",
-            hovertemplate="<b>IR</b><br>Freq: %{x:.1f} cm⁻¹<br>Intensity: %{y:.2f}<extra></extra>"
-        ),
-        secondary_y=False
-    )
-    
-    fig.add_trace(
-        go.Scatter(
-            x=raman_x,
-            y=raman_y,
-            mode="lines",
-            name="Raman",
-            line=dict(color="green", width=1.5),
-            fill="tozeroy",
-            fillcolor="rgba(0,255,0,0.1)",
-            hovertemplate="<b>Raman</b><br>Freq: %{x:.1f} cm⁻¹<br>Activity: %{y:.4f}<extra></extra>"
-        ),
-        secondary_y=True
-    )
-    
-    fig.update_layout(
-        title=f"IR-Raman Comparison - {mol_id}",
-        xaxis_title="Frequency (cm⁻¹)",
-        xaxis=dict(autorange="reversed"),
-        hovermode="x unified",
-        legend=dict(x=0.8, y=0.95)
-    )
-    fig.update_yaxes(title_text="IR Intensity (km/mol)", secondary_y=False, color="blue")
-    fig.update_yaxes(title_text="Raman Activity", secondary_y=True, color="green")
     
     st.plotly_chart(fig, use_container_width=True)
