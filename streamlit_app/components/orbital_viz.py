@@ -95,14 +95,17 @@ def detect_open_shell(orbitals: pd.DataFrame) -> Dict:
     
     # Check for spin column
     if "spin" in orbitals.columns:
-        alpha = orbitals[orbitals["spin"] == "alpha"]
-        beta = orbitals[orbitals["spin"] == "beta"]
+        # Check for alpha/beta spin labels
+        alpha = orbitals[orbitals["spin"].isin(["alpha", "up", "a"])]
+        beta = orbitals[orbitals["spin"].isin(["beta", "down", "b"])]
         
         if len(alpha) > 0 and len(beta) > 0:
-            # Check occupancy
-            if "occupancy" in orbitals.columns:
-                alpha_occ = alpha[alpha["occupancy"] > 0.5]
-                beta_occ = beta[beta["occupancy"] > 0.5]
+            # Check occupancy using OCC or occupancy column
+            occ_col = "OCC" if "OCC" in orbitals.columns else ("occupancy" if "occupancy" in orbitals.columns else None)
+            
+            if occ_col:
+                alpha_occ = alpha[alpha[occ_col] > 0.5]
+                beta_occ = beta[beta[occ_col] > 0.5]
                 
                 if len(alpha_occ) != len(beta_occ):
                     result["is_open_shell"] = True
@@ -112,11 +115,10 @@ def detect_open_shell(orbitals: pd.DataFrame) -> Dict:
                     # SOMO is highest occupied with unpaired electron
                     # SUMO is lowest unoccupied in the minority spin
                     if len(alpha_occ) > len(beta_occ):
-                        # More alpha than beta
-                        result["somo_idx"] = len(alpha_occ) - 1  # HOMO of alpha
-                        beta_virt = beta[beta["occupancy"] <= 0.5]
+                        result["somo_idx"] = len(alpha_occ) - 1
+                        beta_virt = beta[beta[occ_col] <= 0.5]
                         if len(beta_virt) > 0:
-                            result["sumo_idx"] = len(beta_occ)  # LUMO of beta
+                            result["sumo_idx"] = len(beta_occ)
     
     return result
 
@@ -156,11 +158,16 @@ def render_orbital_levels(
         # Detect open-shell
         shell_info = detect_open_shell(orbitals)
         
-        # Get orbital energies
-        if "energy" in orbitals.columns:
+        # Get orbital energies - check multiple possible column names
+        if "eV" in orbitals.columns:
+            energies = orbitals["eV"].dropna().sort_values()
+        elif "energy" in orbitals.columns:
             energies = orbitals["energy"].dropna().sort_values()
         elif "Energy" in orbitals.columns:
             energies = orbitals["Energy"].dropna().sort_values()
+        elif "Eh" in orbitals.columns:
+            # Convert Eh to eV (1 Eh = 27.2114 eV)
+            energies = (orbitals["Eh"] * 27.2114).dropna().sort_values()
         else:
             continue
         

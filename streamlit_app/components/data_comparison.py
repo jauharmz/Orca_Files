@@ -1,11 +1,10 @@
 """
-Data Comparison Component - Cross-Molecule Data Comparison
+Data Comparison Component - Horizontal Per-Molecule Layout
 
 Features:
 - Select single or multiple molecules for comparison
-- Display all available data side by side
-- Horizontal layout: each molecule's data in columns
-- Coordinates and all numeric data displayed
+- Horizontal layout: each molecule's data in separate column groups
+- Format: |No| coord_mol1 | data1_mol1 | data2_mol1 | coord_mol2 | data1_mol2 | data2_mol2 | ...
 - Export to CSV/Excel
 """
 
@@ -17,10 +16,10 @@ import io
 
 
 def render_data_comparison(df: pd.DataFrame):
-    """Render data comparison table with side-by-side molecule data."""
+    """Render data comparison table with horizontal per-molecule layout."""
     
     st.subheader("🔄 Data Comparison")
-    st.caption("Compare data across multiple molecules side by side")
+    st.caption("Compare data across multiple molecules - each molecule in its own column group")
     
     if df.empty:
         st.warning("No data available")
@@ -57,418 +56,368 @@ def render_data_comparison(df: pd.DataFrame):
     
     # Get selected data
     label_to_idx = {m["label"]: m["idx"] for m in mol_options}
-    selected_indices = [label_to_idx[l] for l in selected if l in label_to_idx]
-    selected_df = df.loc[selected_indices]
     
     st.caption(f"Comparing {len(selected)} molecules")
     
     # Data type selector
-    data_types = st.multiselect(
-        "Data Types to Compare",
-        ["Geometry (Coordinates)", "Energies", "Orbital Energies", "IR Frequencies", "Raman Frequencies", "TDDFT States", "Internal Coordinates"],
-        default=["Geometry (Coordinates)", "Energies"],
-        key="compare_data_types"
+    data_type = st.selectbox(
+        "Select Data Type to Compare",
+        ["Geometry (Coordinates)", "IR Frequencies", "Raman Frequencies", "TDDFT States", "Internal Coordinates", "Energies"],
+        key="compare_data_type"
     )
     
-    if not data_types:
-        st.warning("Select at least one data type")
+    # Build and display the comparison table
+    if data_type == "Geometry (Coordinates)":
+        table_df = build_horizontal_geometry_table(df, selected, label_to_idx)
+    elif data_type == "IR Frequencies":
+        table_df = build_horizontal_ir_table(df, selected, label_to_idx)
+    elif data_type == "Raman Frequencies":
+        table_df = build_horizontal_raman_table(df, selected, label_to_idx)
+    elif data_type == "TDDFT States":
+        table_df = build_horizontal_tddft_table(df, selected, label_to_idx)
+    elif data_type == "Internal Coordinates":
+        table_df = build_horizontal_internal_coords_table(df, selected, label_to_idx)
+    elif data_type == "Energies":
+        table_df = build_horizontal_energy_table(df, selected, label_to_idx)
+    else:
+        table_df = None
+    
+    if table_df is None or table_df.empty:
+        st.info(f"No {data_type} data available for selected molecules")
         return
     
-    # Build comparison table based on selected data types
-    comparison_tables = {}
+    # Display table
+    st.dataframe(table_df, use_container_width=True, height=500, hide_index=True)
     
-    for data_type in data_types:
-        if data_type == "Geometry (Coordinates)":
-            table = build_geometry_comparison(selected_df, selected)
-            if table is not None:
-                comparison_tables["Geometry"] = table
-        
-        elif data_type == "Energies":
-            table = build_energy_comparison(selected_df, selected)
-            if table is not None:
-                comparison_tables["Energies"] = table
-        
-        elif data_type == "Orbital Energies":
-            table = build_orbital_comparison(selected_df, selected)
-            if table is not None:
-                comparison_tables["Orbitals"] = table
-        
-        elif data_type == "IR Frequencies":
-            table = build_ir_comparison(selected_df, selected)
-            if table is not None:
-                comparison_tables["IR"] = table
-        
-        elif data_type == "Raman Frequencies":
-            table = build_raman_comparison(selected_df, selected)
-            if table is not None:
-                comparison_tables["Raman"] = table
-        
-        elif data_type == "TDDFT States":
-            table = build_tddft_comparison(selected_df, selected)
-            if table is not None:
-                comparison_tables["TDDFT"] = table
-        
-        elif data_type == "Internal Coordinates":
-            table = build_internal_coords_comparison(selected_df, selected)
-            if table is not None:
-                comparison_tables["Internal Coords"] = table
-    
-    # Display tables
-    if not comparison_tables:
-        st.info("No data available for the selected data types and molecules")
-        return
-    
-    for name, table_df in comparison_tables.items():
-        with st.expander(f"📋 {name}", expanded=True):
-            st.dataframe(table_df, use_container_width=True, hide_index=True, height=400)
-    
-    # Export all tables
-    with st.expander("📤 Export All"):
-        render_export_combined(comparison_tables)
+    # Export
+    render_export_options(table_df, data_type.lower().replace(" ", "_").replace("(", "").replace(")", ""))
 
 
-def build_geometry_comparison(df: pd.DataFrame, labels: List[str]) -> Optional[pd.DataFrame]:
-    """Build geometry comparison table with coordinates for each molecule."""
+def build_horizontal_geometry_table(df: pd.DataFrame, labels: List[str], label_to_idx: Dict) -> Optional[pd.DataFrame]:
+    """Build horizontal geometry table: |No| Element_mol1 | X_mol1 | Y_mol1 | Z_mol1 | Element_mol2 | ... |"""
     
-    all_rows = []
+    mol_coords = {}
     max_atoms = 0
-    mol_data = {}
     
-    for idx, row in df.iterrows():
-        mol_id = row.get("molecule_id", "unknown")
-        state = row.get("optimized_state", "")
-        label = f"{mol_id} [{state}]" if state and str(state) != "nan" else mol_id
+    for label in labels:
+        if label not in label_to_idx:
+            continue
+        idx = label_to_idx[label]
         
-        coords = row.get("optimized_coordinates")
-        if coords is not None and hasattr(coords, '__len__') and len(coords) > 0:
-            mol_data[label] = coords
-            if hasattr(coords, '__len__'):
+        if "optimized_coordinates" in df.columns:
+            coords = df.loc[idx, "optimized_coordinates"]
+            if coords is not None and hasattr(coords, '__len__') and len(coords) > 0:
+                mol_coords[label] = coords
                 max_atoms = max(max_atoms, len(coords))
     
-    if not mol_data:
+    if not mol_coords:
         return None
     
-    # Build side-by-side table
     rows = []
     for i in range(max_atoms):
         row_data = {"No": i + 1}
         
         for label in labels:
-            if label in mol_data:
-                coords = mol_data[label]
-                if hasattr(coords, 'iloc') and i < len(coords):  # DataFrame
-                    atom_row = coords.iloc[i]
-                    if "element" in coords.columns:
-                        row_data[f"{label}_Elem"] = atom_row.get("element", "")
-                    if "x" in coords.columns:
-                        row_data[f"{label}_X"] = f"{atom_row.get('x', 0):.4f}"
-                        row_data[f"{label}_Y"] = f"{atom_row.get('y', 0):.4f}"
-                        row_data[f"{label}_Z"] = f"{atom_row.get('z', 0):.4f}"
-                elif isinstance(coords, list) and i < len(coords):  # List
-                    atom = coords[i]
-                    if isinstance(atom, dict):
-                        row_data[f"{label}_Elem"] = atom.get("element", "")
-                        row_data[f"{label}_X"] = f"{atom.get('x', 0):.4f}"
-                        row_data[f"{label}_Y"] = f"{atom.get('y', 0):.4f}"
-                        row_data[f"{label}_Z"] = f"{atom.get('z', 0):.4f}"
+            if label not in mol_coords:
+                row_data[f"{label}|Element"] = ""
+                row_data[f"{label}|X"] = ""
+                row_data[f"{label}|Y"] = ""
+                row_data[f"{label}|Z"] = ""
+                continue
+            
+            coords = mol_coords[label]
+            if hasattr(coords, 'iloc') and i < len(coords):  # DataFrame
+                atom_row = coords.iloc[i]
+                row_data[f"{label}|Element"] = atom_row.get("element", "") if hasattr(atom_row, 'get') else ""
+                row_data[f"{label}|X"] = f"{atom_row.get('x', 0):.4f}" if hasattr(atom_row, 'get') else ""
+                row_data[f"{label}|Y"] = f"{atom_row.get('y', 0):.4f}" if hasattr(atom_row, 'get') else ""
+                row_data[f"{label}|Z"] = f"{atom_row.get('z', 0):.4f}" if hasattr(atom_row, 'get') else ""
+            elif isinstance(coords, list) and i < len(coords):
+                atom = coords[i]
+                if isinstance(atom, dict):
+                    row_data[f"{label}|Element"] = atom.get("element", "")
+                    row_data[f"{label}|X"] = f"{atom.get('x', 0):.4f}"
+                    row_data[f"{label}|Y"] = f"{atom.get('y', 0):.4f}"
+                    row_data[f"{label}|Z"] = f"{atom.get('z', 0):.4f}"
             else:
-                row_data[f"{label}_Elem"] = ""
-                row_data[f"{label}_X"] = ""
-                row_data[f"{label}_Y"] = ""
-                row_data[f"{label}_Z"] = ""
+                row_data[f"{label}|Element"] = ""
+                row_data[f"{label}|X"] = ""
+                row_data[f"{label}|Y"] = ""
+                row_data[f"{label}|Z"] = ""
         
         rows.append(row_data)
     
-    if not rows:
+    return pd.DataFrame(rows) if rows else None
+
+
+def build_horizontal_ir_table(df: pd.DataFrame, labels: List[str], label_to_idx: Dict) -> Optional[pd.DataFrame]:
+    """Build horizontal IR table: |No| Freq_mol1 | Int_mol1 | Freq_mol2 | Int_mol2 | ... |"""
+    
+    mol_ir = {}
+    max_modes = 0
+    
+    for label in labels:
+        if label not in label_to_idx:
+            continue
+        idx = label_to_idx[label]
+        
+        if "ir" in df.columns:
+            ir = df.loc[idx, "ir"]
+            if ir is not None and hasattr(ir, 'empty') and not ir.empty:
+                mol_ir[label] = ir
+                max_modes = max(max_modes, len(ir))
+    
+    if not mol_ir:
         return None
     
-    return pd.DataFrame(rows)
+    rows = []
+    for i in range(min(max_modes, 100)):  # Limit to 100 modes
+        row_data = {"No": i + 1}
+        
+        for label in labels:
+            if label not in mol_ir:
+                row_data[f"{label}|Freq"] = ""
+                row_data[f"{label}|Int"] = ""
+                continue
+            
+            ir = mol_ir[label]
+            if i < len(ir):
+                freq_col = "freq_cm-1" if "freq_cm-1" in ir.columns else ir.columns[0]
+                int_col = "intensity_km/mol" if "intensity_km/mol" in ir.columns else ("intensity" if "intensity" in ir.columns else ir.columns[1] if len(ir.columns) > 1 else None)
+                
+                row_data[f"{label}|Freq"] = f"{ir.iloc[i][freq_col]:.1f}"
+                if int_col:
+                    row_data[f"{label}|Int"] = f"{ir.iloc[i][int_col]:.2f}"
+                else:
+                    row_data[f"{label}|Int"] = ""
+            else:
+                row_data[f"{label}|Freq"] = ""
+                row_data[f"{label}|Int"] = ""
+        
+        rows.append(row_data)
+    
+    return pd.DataFrame(rows) if rows else None
 
 
-def build_energy_comparison(df: pd.DataFrame, labels: List[str]) -> Optional[pd.DataFrame]:
-    """Build energy comparison table."""
+def build_horizontal_raman_table(df: pd.DataFrame, labels: List[str], label_to_idx: Dict) -> Optional[pd.DataFrame]:
+    """Build horizontal Raman table: |No| Freq_mol1 | Act_mol1 | Freq_mol2 | Act_mol2 | ... |"""
+    
+    mol_raman = {}
+    max_modes = 0
+    
+    for label in labels:
+        if label not in label_to_idx:
+            continue
+        idx = label_to_idx[label]
+        
+        if "raman" in df.columns:
+            raman = df.loc[idx, "raman"]
+            if raman is not None and hasattr(raman, 'empty') and not raman.empty:
+                mol_raman[label] = raman
+                max_modes = max(max_modes, len(raman))
+    
+    if not mol_raman:
+        return None
     
     rows = []
+    for i in range(min(max_modes, 100)):
+        row_data = {"No": i + 1}
+        
+        for label in labels:
+            if label not in mol_raman:
+                row_data[f"{label}|Freq"] = ""
+                row_data[f"{label}|Act"] = ""
+                continue
+            
+            raman = mol_raman[label]
+            if i < len(raman):
+                freq_col = "freq_cm-1" if "freq_cm-1" in raman.columns else raman.columns[0]
+                act_col = "activity" if "activity" in raman.columns else (raman.columns[1] if len(raman.columns) > 1 else None)
+                
+                row_data[f"{label}|Freq"] = f"{raman.iloc[i][freq_col]:.1f}"
+                if act_col:
+                    row_data[f"{label}|Act"] = f"{raman.iloc[i][act_col]:.4f}"
+                else:
+                    row_data[f"{label}|Act"] = ""
+            else:
+                row_data[f"{label}|Freq"] = ""
+                row_data[f"{label}|Act"] = ""
+        
+        rows.append(row_data)
+    
+    return pd.DataFrame(rows) if rows else None
+
+
+def build_horizontal_tddft_table(df: pd.DataFrame, labels: List[str], label_to_idx: Dict) -> Optional[pd.DataFrame]:
+    """Build horizontal TDDFT table: |State| eV_mol1 | nm_mol1 | f_mol1 | eV_mol2 | ... |"""
+    
+    mol_tddft = {}
+    max_states = 0
+    
+    for label in labels:
+        if label not in label_to_idx:
+            continue
+        idx = label_to_idx[label]
+        
+        if "tddft_states" in df.columns:
+            tddft = df.loc[idx, "tddft_states"]
+            if tddft is not None and hasattr(tddft, 'empty') and not tddft.empty:
+                mol_tddft[label] = tddft
+                if "state" in tddft.columns:
+                    max_states = max(max_states, tddft["state"].max() if len(tddft) > 0 else 0)
+                else:
+                    max_states = max(max_states, len(tddft))
+    
+    if not mol_tddft:
+        return None
+    
+    rows = []
+    for i in range(min(int(max_states), 20)):
+        state_num = i + 1
+        row_data = {"State": f"S{state_num}"}
+        
+        for label in labels:
+            if label not in mol_tddft:
+                row_data[f"{label}|eV"] = ""
+                row_data[f"{label}|nm"] = ""
+                row_data[f"{label}|f"] = ""
+                continue
+            
+            tddft = mol_tddft[label]
+            
+            # Find the state
+            if "state" in tddft.columns:
+                state_rows = tddft[tddft["state"] == state_num]
+                if len(state_rows) > 0:
+                    s = state_rows.iloc[0]
+                    energy = s.get("energy_ev", None)
+                    if energy is not None:
+                        row_data[f"{label}|eV"] = f"{energy:.3f}"
+                        row_data[f"{label}|nm"] = f"{1239.84 / energy:.1f}"
+                    else:
+                        row_data[f"{label}|eV"] = ""
+                        row_data[f"{label}|nm"] = ""
+                    row_data[f"{label}|f"] = f"{s.get('fosc', 0):.4f}" if "fosc" in tddft.columns else ""
+                else:
+                    row_data[f"{label}|eV"] = ""
+                    row_data[f"{label}|nm"] = ""
+                    row_data[f"{label}|f"] = ""
+            else:
+                row_data[f"{label}|eV"] = ""
+                row_data[f"{label}|nm"] = ""
+                row_data[f"{label}|f"] = ""
+        
+        rows.append(row_data)
+    
+    return pd.DataFrame(rows) if rows else None
+
+
+def build_horizontal_internal_coords_table(df: pd.DataFrame, labels: List[str], label_to_idx: Dict) -> Optional[pd.DataFrame]:
+    """Build horizontal internal coords table: |Coordinate| Value_mol1 | Value_mol2 | ... |"""
+    
+    mol_coords = {}
+    all_definitions = set()
+    
+    for label in labels:
+        if label not in label_to_idx:
+            continue
+        idx = label_to_idx[label]
+        
+        if "internal_coords" in df.columns:
+            int_coords = df.loc[idx, "internal_coords"]
+            if int_coords is not None and hasattr(int_coords, 'empty') and not int_coords.empty:
+                mol_coords[label] = int_coords
+                if "definition" in int_coords.columns:
+                    all_definitions.update(int_coords["definition"].tolist())
+    
+    if not mol_coords or not all_definitions:
+        return None
+    
+    rows = []
+    for i, defn in enumerate(sorted(all_definitions)[:100]):  # Limit to 100
+        row_data = {"No": i + 1, "Coordinate": defn}
+        
+        for label in labels:
+            if label not in mol_coords:
+                row_data[f"{label}|Value"] = ""
+                continue
+            
+            coords = mol_coords[label]
+            if "definition" in coords.columns:
+                match = coords[coords["definition"] == defn]
+                if len(match) > 0 and "value" in match.columns:
+                    row_data[f"{label}|Value"] = f"{match['value'].iloc[0]:.4f}"
+                else:
+                    row_data[f"{label}|Value"] = ""
+            else:
+                row_data[f"{label}|Value"] = ""
+        
+        rows.append(row_data)
+    
+    return pd.DataFrame(rows) if rows else None
+
+
+def build_horizontal_energy_table(df: pd.DataFrame, labels: List[str], label_to_idx: Dict) -> Optional[pd.DataFrame]:
+    """Build horizontal energy table: |Property| Value_mol1 | Value_mol2 | ... |"""
+    
     energy_cols = ["gibbs_Eh", "single_point_Eh", "enthalpy_Eh", "electronic_energy_Eh", 
                    "zpe_Eh", "thermal_correction_Eh", "homo_energy", "lumo_energy"]
     
+    rows = []
     for col in energy_cols:
         row_data = {"Property": col.replace("_", " ").title()}
+        has_data = False
         
-        for idx, row in df.iterrows():
-            mol_id = row.get("molecule_id", "unknown")
-            state = row.get("optimized_state", "")
-            label = f"{mol_id} [{state}]" if state and str(state) != "nan" else mol_id
+        for label in labels:
+            if label not in label_to_idx:
+                row_data[f"{label}|Value"] = ""
+                continue
             
-            if label in labels:
-                val = row.get(col)
+            idx = label_to_idx[label]
+            if col in df.columns:
+                val = df.loc[idx, col]
                 if val is not None and not pd.isna(val):
-                    row_data[label] = f"{val:.6f}"
+                    row_data[f"{label}|Value"] = f"{val:.6f}"
+                    has_data = True
                 else:
-                    row_data[label] = "—"
+                    row_data[f"{label}|Value"] = ""
+            else:
+                row_data[f"{label}|Value"] = ""
         
-        # Only add if at least one molecule has data
-        if any(row_data.get(l, "—") != "—" for l in labels):
+        if has_data:
             rows.append(row_data)
     
-    if not rows:
-        return None
-    
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows) if rows else None
 
 
-def build_orbital_comparison(df: pd.DataFrame, labels: List[str]) -> Optional[pd.DataFrame]:
-    """Build orbital energy comparison table."""
+def render_export_options(table_df: pd.DataFrame, prefix: str):
+    """Render export options for a DataFrame."""
     
-    rows = []
-    for idx, row in df.iterrows():
-        mol_id = row.get("molecule_id", "unknown")
-        state = row.get("optimized_state", "")
-        label = f"{mol_id} [{state}]" if state and str(state) != "nan" else mol_id
+    with st.expander("📤 Export Options"):
+        col1, col2 = st.columns(2)
         
-        if label not in labels:
-            continue
-        
-        orbitals = row.get("orbitals")
-        if orbitals is None or (hasattr(orbitals, 'empty') and orbitals.empty):
-            continue
-        
-        homo = row.get("homo_energy")
-        
-        # Get N closest orbitals to HOMO
-        if "energy" in orbitals.columns:
-            energies = orbitals["energy"].dropna().sort_values()
-        elif "Energy" in orbitals.columns:
-            energies = orbitals["Energy"].dropna().sort_values()
-        else:
-            continue
-        
-        for i, e in enumerate(energies.values[-10:]):  # Last 10 orbitals
-            is_homo = homo is not None and abs(e - homo) < 0.01
-            orbital_label = f"{'HOMO' if is_homo else i}"
-            
-            # Find or create row
-            existing = [r for r in rows if r.get("Orbital") == orbital_label]
-            if existing:
-                existing[0][label] = f"{e:.4f}"
-            else:
-                row_data = {"Orbital": orbital_label}
-                row_data[label] = f"{e:.4f}"
-                rows.append(row_data)
-    
-    if not rows:
-        return None
-    
-    return pd.DataFrame(rows)
-
-
-def build_ir_comparison(df: pd.DataFrame, labels: List[str]) -> Optional[pd.DataFrame]:
-    """Build IR frequency comparison table."""
-    
-    all_ir_data = {}
-    max_rows = 0
-    
-    for idx, row in df.iterrows():
-        mol_id = row.get("molecule_id", "unknown")
-        state = row.get("optimized_state", "")
-        label = f"{mol_id} [{state}]" if state and str(state) != "nan" else mol_id
-        
-        if label not in labels:
-            continue
-        
-        ir = row.get("ir")
-        if ir is not None and hasattr(ir, 'empty') and not ir.empty:
-            all_ir_data[label] = ir
-            max_rows = max(max_rows, len(ir))
-    
-    if not all_ir_data:
-        return None
-    
-    rows = []
-    for i in range(min(max_rows, 50)):  # Limit to 50 rows
-        row_data = {"No": i + 1}
-        
-        for label in labels:
-            if label in all_ir_data:
-                ir = all_ir_data[label]
-                if i < len(ir):
-                    if "freq_cm-1" in ir.columns:
-                        row_data[f"{label}_Freq"] = f"{ir.iloc[i]['freq_cm-1']:.1f}"
-                    if "intensity_km/mol" in ir.columns:
-                        row_data[f"{label}_Int"] = f"{ir.iloc[i]['intensity_km/mol']:.2f}"
-                    elif "intensity" in ir.columns:
-                        row_data[f"{label}_Int"] = f"{ir.iloc[i]['intensity']:.2f}"
-        
-        rows.append(row_data)
-    
-    return pd.DataFrame(rows)
-
-
-def build_raman_comparison(df: pd.DataFrame, labels: List[str]) -> Optional[pd.DataFrame]:
-    """Build Raman frequency comparison table."""
-    
-    all_raman_data = {}
-    max_rows = 0
-    
-    for idx, row in df.iterrows():
-        mol_id = row.get("molecule_id", "unknown")
-        state = row.get("optimized_state", "")
-        label = f"{mol_id} [{state}]" if state and str(state) != "nan" else mol_id
-        
-        if label not in labels:
-            continue
-        
-        raman = row.get("raman")
-        if raman is not None and hasattr(raman, 'empty') and not raman.empty:
-            all_raman_data[label] = raman
-            max_rows = max(max_rows, len(raman))
-    
-    if not all_raman_data:
-        return None
-    
-    rows = []
-    for i in range(min(max_rows, 50)):
-        row_data = {"No": i + 1}
-        
-        for label in labels:
-            if label in all_raman_data:
-                raman = all_raman_data[label]
-                if i < len(raman):
-                    if "freq_cm-1" in raman.columns:
-                        row_data[f"{label}_Freq"] = f"{raman.iloc[i]['freq_cm-1']:.1f}"
-                    if "activity" in raman.columns:
-                        row_data[f"{label}_Act"] = f"{raman.iloc[i]['activity']:.2f}"
-        
-        rows.append(row_data)
-    
-    return pd.DataFrame(rows)
-
-
-def build_tddft_comparison(df: pd.DataFrame, labels: List[str]) -> Optional[pd.DataFrame]:
-    """Build TDDFT state comparison table."""
-    
-    all_tddft_data = {}
-    max_states = 0
-    
-    for idx, row in df.iterrows():
-        mol_id = row.get("molecule_id", "unknown")
-        state = row.get("optimized_state", "")
-        label = f"{mol_id} [{state}]" if state and str(state) != "nan" else mol_id
-        
-        if label not in labels:
-            continue
-        
-        tddft = row.get("tddft_states")
-        if tddft is not None and hasattr(tddft, 'empty') and not tddft.empty:
-            all_tddft_data[label] = tddft
-            if "state" in tddft.columns:
-                max_states = max(max_states, tddft["state"].nunique())
-    
-    if not all_tddft_data:
-        return None
-    
-    rows = []
-    for i in range(min(max_states, 10)):
-        row_data = {"State": f"S{i+1}"}
-        
-        for label in labels:
-            if label in all_tddft_data:
-                tddft = all_tddft_data[label]
-                if "state" in tddft.columns:
-                    state_data = tddft[tddft["state"] == i + 1]
-                    if len(state_data) > 0:
-                        s = state_data.iloc[0]
-                        if "energy_ev" in tddft.columns:
-                            row_data[f"{label}_eV"] = f"{s['energy_ev']:.3f}"
-                            row_data[f"{label}_nm"] = f"{1239.84 / s['energy_ev']:.1f}"
-                        if "fosc" in tddft.columns:
-                            row_data[f"{label}_f"] = f"{s['fosc']:.4f}"
-        
-        rows.append(row_data)
-    
-    return pd.DataFrame(rows)
-
-
-def build_internal_coords_comparison(df: pd.DataFrame, labels: List[str]) -> Optional[pd.DataFrame]:
-    """Build internal coordinates comparison table."""
-    
-    all_data = {}
-    all_definitions = set()
-    
-    for idx, row in df.iterrows():
-        mol_id = row.get("molecule_id", "unknown")
-        state = row.get("optimized_state", "")
-        label = f"{mol_id} [{state}]" if state and str(state) != "nan" else mol_id
-        
-        if label not in labels:
-            continue
-        
-        int_coords = row.get("internal_coords")
-        if int_coords is not None and hasattr(int_coords, 'empty') and not int_coords.empty:
-            all_data[label] = int_coords
-            if "definition" in int_coords.columns:
-                all_definitions.update(int_coords["definition"].tolist())
-    
-    if not all_data or not all_definitions:
-        return None
-    
-    rows = []
-    for defn in sorted(all_definitions)[:50]:  # Limit
-        row_data = {"Coordinate": defn}
-        
-        for label in labels:
-            if label in all_data:
-                coords = all_data[label]
-                if "definition" in coords.columns:
-                    match = coords[coords["definition"] == defn]
-                    if len(match) > 0 and "value" in match.columns:
-                        row_data[label] = f"{match['value'].iloc[0]:.4f}"
-                    else:
-                        row_data[label] = "—"
-            else:
-                row_data[label] = "—"
-        
-        rows.append(row_data)
-    
-    return pd.DataFrame(rows)
-
-
-def render_export_combined(tables: Dict[str, pd.DataFrame]):
-    """Render export options for all comparison tables."""
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # CSV export - concatenate all tables
-        combined_csv = ""
-        for name, table_df in tables.items():
-            combined_csv += f"# {name}\n"
-            combined_csv += table_df.to_csv(index=False)
-            combined_csv += "\n\n"
-        
-        st.download_button(
-            "📥 Download All as CSV",
-            combined_csv,
-            "data_comparison.csv",
-            "text/csv",
-            key="compare_csv"
-        )
-    
-    with col2:
-        try:
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                for name, table_df in tables.items():
-                    # Truncate sheet name to 31 chars (Excel limit)
-                    sheet_name = name[:31]
-                    table_df.to_excel(writer, index=False, sheet_name=sheet_name)
-            buffer.seek(0)
+        with col1:
+            csv = table_df.to_csv(index=False, encoding='utf-8-sig')
             st.download_button(
-                "📥 Download All as Excel",
-                buffer,
-                "data_comparison.xlsx",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="compare_xlsx"
+                "📥 Download CSV",
+                csv,
+                f"comparison_{prefix}.csv",
+                "text/csv",
+                key=f"compare_{prefix}_csv"
             )
-        except ImportError:
-            st.caption("Install openpyxl for Excel export")
+        
+        with col2:
+            try:
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    table_df.to_excel(writer, index=False, sheet_name='Comparison')
+                buffer.seek(0)
+                st.download_button(
+                    "📥 Download Excel",
+                    buffer,
+                    f"comparison_{prefix}.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"compare_{prefix}_xlsx"
+                )
+            except ImportError:
+                st.caption("Install openpyxl for Excel export")

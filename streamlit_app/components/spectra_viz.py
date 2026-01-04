@@ -729,52 +729,69 @@ def render_ir_raman_correlation(df: pd.DataFrame, mol_options: List[Dict], selec
         st.warning("Select at least one molecule from the main selector")
         return
     
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        corr_mol = st.selectbox(
-            "Select Molecule for Correlation",
-            available_labels,
-            key="ir_raman_corr_mol"
-        )
-    with col2:
-        st.caption("")  # Spacer
+    corr_mol = st.selectbox(
+        "Select Molecule for Correlation",
+        available_labels,
+        key="ir_raman_corr_mol"
+    )
     
     if not corr_mol:
         return
     
     idx = label_to_idx[corr_mol]
-    mol_row = df.loc[idx]
     
-    # Get IR and Raman data
-    ir_data = mol_row.get("ir")
-    raman_data = mol_row.get("raman")
+    # Get IR and Raman data using direct column access (more robust)
+    ir_data = None
+    raman_data = None
     
-    if ir_data is None or (hasattr(ir_data, 'empty') and ir_data.empty):
-        st.warning("No IR data available for this molecule")
+    if "ir" in df.columns:
+        ir_val = df.loc[idx, "ir"]
+        if ir_val is not None and not (hasattr(ir_val, 'empty') and ir_val.empty):
+            if isinstance(ir_val, pd.DataFrame) and len(ir_val) > 0:
+                ir_data = ir_val
+    
+    if "raman" in df.columns:
+        raman_val = df.loc[idx, "raman"]
+        if raman_val is not None and not (hasattr(raman_val, 'empty') and raman_val.empty):
+            if isinstance(raman_val, pd.DataFrame) and len(raman_val) > 0:
+                raman_data = raman_val
+    
+    if ir_data is None:
+        st.warning(f"No IR data available for {corr_mol}")
         return
     
-    if raman_data is None or (hasattr(raman_data, 'empty') and raman_data.empty):
-        st.warning("No Raman data available for this molecule")
+    if raman_data is None:
+        st.warning(f"No Raman data available for {corr_mol}")
         return
     
-    # Settings
-    with st.expander("⚙️ Correlation Settings", expanded=True):
-        col1, col2, col3 = st.columns(3)
+    # Settings - Full customization like Raman tab
+    with st.expander("⚙️ Correlation Settings", expanded=False):
+        col1, col2 = st.columns(2)
         with col1:
             freq_range = st.slider("Frequency Range (cm⁻¹)", 0, 4000, (400, 4000), key="corr_freq_range")
-            fwhm = st.slider("FWHM Broadening (cm⁻¹)", 5, 50, 15, key="corr_fwhm")
-        with col2:
-            smoothing = st.slider("Additional Smoothing", 0, 20, 5, key="corr_smoothing",
+            fwhm = st.slider("FWHM Broadening (cm⁻¹)", 5, 100, 15, key="corr_fwhm")
+            smoothing = st.slider("Smoothing", 0, 20, 0, key="corr_smoothing",
                                  help="Additional Gaussian smoothing after broadening")
+        with col2:
+            normalize = st.checkbox("Normalize Intensity", True, key="corr_normalize")
+            invert_x = st.checkbox("Invert X-Axis", True, key="corr_invert_x")
+            show_boundaries = st.checkbox("Show Region Boundaries", False, key="corr_boundaries")
+        
+        col3, col4 = st.columns(2)
+        with col3:
             max_pair_delta = st.slider("Max Pairing Distance (cm⁻¹)", 10, 100, 40, key="corr_max_delta",
                                       help="Maximum frequency difference for automatic peak pairing")
-        with col3:
             peak_threshold = st.slider("Peak Threshold (%)", 1, 50, 5, key="corr_peak_thresh") / 100
-            show_boundaries = st.checkbox("Show Region Boundaries", True, key="corr_boundaries")
+        with col4:
+            peak_mode = st.selectbox("Peak Labels", ["paired", "all", "none"], key="corr_peak_mode",
+                                    help="paired=show paired peaks, all=show all peaks, none=no labels")
+            show_connectors = st.checkbox("Show Connector Lines", True, key="corr_connectors")
     
-    # Extract frequency and intensity data
+    # Extract frequency and intensity data - IR
     if "freq_cm-1" in ir_data.columns:
         ir_freqs = ir_data["freq_cm-1"].values
+    elif "frequency" in ir_data.columns:
+        ir_freqs = ir_data["frequency"].values
     else:
         ir_freqs = ir_data.iloc[:, 0].values
     
@@ -787,8 +804,11 @@ def render_ir_raman_correlation(df: pd.DataFrame, mol_options: List[Dict], selec
     else:
         ir_intensities = ir_data.iloc[:, 1].values
     
+    # Extract frequency and intensity data - Raman
     if "freq_cm-1" in raman_data.columns:
         raman_freqs = raman_data["freq_cm-1"].values
+    elif "frequency" in raman_data.columns:
+        raman_freqs = raman_data["frequency"].values
     else:
         raman_freqs = raman_data.iloc[:, 0].values
     
@@ -802,16 +822,17 @@ def render_ir_raman_correlation(df: pd.DataFrame, mol_options: List[Dict], selec
     raman_x, raman_y = apply_gaussian_broadening(raman_freqs, raman_intensities, fwhm, freq_range[0], freq_range[1])
     
     # Additional smoothing if requested
-    if smoothing > 0:
+    if smoothing > 0 and len(ir_y) > 0:
         from scipy.ndimage import gaussian_filter1d
         ir_y = gaussian_filter1d(ir_y, sigma=smoothing)
         raman_y = gaussian_filter1d(raman_y, sigma=smoothing)
     
     # Normalize
-    if np.max(ir_y) > 0:
-        ir_y = ir_y / np.max(ir_y)
-    if np.max(raman_y) > 0:
-        raman_y = raman_y / np.max(raman_y)
+    if normalize:
+        if np.max(ir_y) > 0:
+            ir_y = ir_y / np.max(ir_y)
+        if np.max(raman_y) > 0:
+            raman_y = raman_y / np.max(raman_y)
     
     # Find peaks
     ir_peaks, _ = find_peaks(ir_y, height=peak_threshold, prominence=0.01)
@@ -823,13 +844,12 @@ def render_ir_raman_correlation(df: pd.DataFrame, mol_options: List[Dict], selec
     used_raman = set()
     
     if len(ir_peaks) > 0 and len(raman_peaks) > 0:
-        # Create distance matrix
         candidates = []
         for i, ir_idx in enumerate(ir_peaks):
             for j, ra_idx in enumerate(raman_peaks):
                 delta = abs(ir_x[ir_idx] - raman_x[ra_idx])
                 if delta <= max_pair_delta:
-                    score = delta - ir_y[ir_idx] * raman_y[ra_idx] * 0.1  # Prefer intense peaks
+                    score = delta - ir_y[ir_idx] * raman_y[ra_idx] * 0.1
                     candidates.append((delta, score, i, j, ir_idx, ra_idx))
         
         candidates.sort(key=lambda x: (x[0], x[1]))
@@ -842,20 +862,22 @@ def render_ir_raman_correlation(df: pd.DataFrame, mol_options: List[Dict], selec
                     "raman_freq": raman_x[ra_idx],
                     "raman_int": raman_y[ra_idx],
                     "delta": delta,
+                    "ir_peak_idx": i,
+                    "raman_peak_idx": j,
                     "ir_idx": ir_idx,
                     "raman_idx": ra_idx
                 })
                 used_ir.add(i)
                 used_raman.add(j)
     
-    # Create figure with subplots
+    # Create figure
     fig = go.Figure()
     
     # IR spectrum (top, upside down for transmittance style)
     fig.add_trace(go.Scatter(
-        x=ir_x, y=1 - ir_y,  # Invert for transmittance style
+        x=ir_x, y=1 - ir_y,
         mode='lines',
-        name='IR',
+        name='IR (Transmittance)',
         line=dict(color='#EF553B', width=1.5),
         hovertemplate='IR: %{x:.0f} cm⁻¹<extra></extra>'
     ))
@@ -865,38 +887,80 @@ def render_ir_raman_correlation(df: pd.DataFrame, mol_options: List[Dict], selec
     fig.add_trace(go.Scatter(
         x=raman_x, y=raman_y + raman_shift - 1,
         mode='lines',
-        name='Raman',
+        name='Raman (Intensity)',
         line=dict(color='#636EFA', width=1.5),
         hovertemplate='Raman: %{x:.0f} cm⁻¹<extra></extra>'
     ))
     
     # Draw correlation lines between paired peaks
-    for i, pair in enumerate(pairs):
-        ir_y_pos = 1 - pair["ir_int"]
-        raman_y_pos = pair["raman_int"] + raman_shift - 1
+    if show_connectors:
+        for i, pair in enumerate(pairs):
+            ir_y_pos = 1 - pair["ir_int"]
+            raman_y_pos = pair["raman_int"] + raman_shift - 1
+            
+            mid_x = (pair["ir_freq"] + pair["raman_freq"]) / 2
+            mid_y = (ir_y_pos + raman_y_pos) / 2
+            
+            fig.add_trace(go.Scatter(
+                x=[pair["ir_freq"], pair["ir_freq"], mid_x, pair["raman_freq"], pair["raman_freq"]],
+                y=[ir_y_pos, 0.1, mid_y, raman_shift - 0.1, raman_y_pos],
+                mode='lines',
+                line=dict(color='gray', width=1, dash='dash'),
+                showlegend=False,
+                hoverinfo='skip'
+            ))
+            
+            # Add pair number label
+            fig.add_annotation(
+                x=mid_x, y=mid_y,
+                text=f"{i+1}",
+                showarrow=False,
+                font=dict(size=9, color='gray'),
+                bgcolor='white'
+            )
+    
+    # Peak labels based on mode
+    if peak_mode == "paired" or peak_mode == "all":
+        # Label paired peaks
+        for i, pair in enumerate(pairs):
+            fig.add_annotation(
+                x=pair["ir_freq"], y=1 - pair["ir_int"] - 0.05,
+                text=f"{pair['ir_freq']:.0f}",
+                showarrow=False,
+                font=dict(size=8, color='#EF553B'),
+                textangle=-90
+            )
+            fig.add_annotation(
+                x=pair["raman_freq"], y=pair["raman_int"] + raman_shift - 1 + 0.05,
+                text=f"{pair['raman_freq']:.0f}",
+                showarrow=False,
+                font=dict(size=8, color='#636EFA'),
+                textangle=-90
+            )
+    
+    if peak_mode == "all":
+        # Also label unpaired peaks
+        for i in range(len(ir_peaks)):
+            if i not in used_ir:
+                ir_idx = ir_peaks[i]
+                fig.add_annotation(
+                    x=ir_x[ir_idx], y=1 - ir_y[ir_idx] - 0.05,
+                    text=f"{ir_x[ir_idx]:.0f}",
+                    showarrow=False,
+                    font=dict(size=8, color='#EF553B', weight='normal'),
+                    textangle=-90, opacity=0.6
+                )
         
-        # Vertical and diagonal connector
-        mid_x = (pair["ir_freq"] + pair["raman_freq"]) / 2
-        mid_y = (ir_y_pos + raman_y_pos) / 2
-        
-        fig.add_trace(go.Scatter(
-            x=[pair["ir_freq"], pair["ir_freq"], mid_x, pair["raman_freq"], pair["raman_freq"]],
-            y=[ir_y_pos, 0.1, mid_y, raman_shift - 0.1, raman_y_pos],
-            mode='lines',
-            line=dict(color='gray', width=1, dash='dash'),
-            showlegend=False,
-            hoverinfo='skip'
-        ))
-        
-        # Add pair label
-        fig.add_annotation(
-            x=mid_x,
-            y=mid_y,
-            text=f"{i+1}",
-            showarrow=False,
-            font=dict(size=9, color='gray'),
-            bgcolor='white'
-        )
+        for j in range(len(raman_peaks)):
+            if j not in used_raman:
+                ra_idx = raman_peaks[j]
+                fig.add_annotation(
+                    x=raman_x[ra_idx], y=raman_y[ra_idx] + raman_shift - 1 + 0.05,
+                    text=f"{raman_x[ra_idx]:.0f}",
+                    showarrow=False,
+                    font=dict(size=8, color='#636EFA', weight='normal'),
+                    textangle=-90, opacity=0.6
+                )
     
     # Add region boundaries if enabled
     if show_boundaries:
@@ -904,37 +968,12 @@ def render_ir_raman_correlation(df: pd.DataFrame, mol_options: List[Dict], selec
             if freq_range[0] <= boundary <= freq_range[1]:
                 fig.add_vline(x=boundary, line=dict(color="gray", width=1, dash="dot"), opacity=0.3)
     
-    # Mark unpaired peaks
-    for i in range(len(ir_peaks)):
-        if i not in used_ir:
-            ir_idx = ir_peaks[i]
-            fig.add_annotation(
-                x=ir_x[ir_idx],
-                y=1 - ir_y[ir_idx] - 0.05,
-                text=f"{ir_x[ir_idx]:.0f}",
-                showarrow=False,
-                font=dict(size=8, color='#EF553B'),
-                textangle=-90
-            )
-    
-    for j in range(len(raman_peaks)):
-        if j not in used_raman:
-            ra_idx = raman_peaks[j]
-            fig.add_annotation(
-                x=raman_x[ra_idx],
-                y=raman_y[ra_idx] + raman_shift - 1 + 0.05,
-                text=f"{raman_x[ra_idx]:.0f}",
-                showarrow=False,
-                font=dict(size=8, color='#636EFA'),
-                textangle=-90
-            )
-    
     safe_label = str(corr_mol).replace('<', '&lt;').replace('>', '&gt;')
     fig.update_layout(
         title=f"IR-Raman Correlation: {safe_label}",
         xaxis_title="Wavenumber (cm⁻¹)",
         yaxis_title="",
-        xaxis=dict(autorange="reversed"),
+        xaxis=dict(autorange="reversed" if invert_x else True),
         yaxis=dict(
             tickvals=[1, 0.5, 0, raman_shift - 0.5, raman_shift - 1],
             ticktext=["0%", "50%", "100% IR", "0.5", "1.0 Raman"],
@@ -950,9 +989,18 @@ def render_ir_raman_correlation(df: pd.DataFrame, mol_options: List[Dict], selec
     
     st.plotly_chart(fig, use_container_width=True)
     
+    # Summary stats
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("IR Peaks", len(ir_peaks))
+    with col2:
+        st.metric("Raman Peaks", len(raman_peaks))
+    with col3:
+        st.metric("Paired", len(pairs))
+    
     # Peak pairs table
     if pairs:
-        with st.expander(f"📋 Paired Peaks ({len(pairs)} pairs found)"):
+        with st.expander(f"📋 Paired Peaks ({len(pairs)} pairs found)", expanded=False):
             pairs_df = pd.DataFrame([{
                 "Pair": i + 1,
                 "IR (cm⁻¹)": f"{p['ir_freq']:.1f}",
@@ -962,6 +1010,5 @@ def render_ir_raman_correlation(df: pd.DataFrame, mol_options: List[Dict], selec
                 "Raman Int.": f"{p['raman_int']:.3f}"
             } for i, p in enumerate(pairs)])
             st.dataframe(pairs_df, use_container_width=True, hide_index=True)
-    else:
-        st.info("No peak pairs found within the specified distance threshold")
+
 
