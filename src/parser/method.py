@@ -73,22 +73,28 @@ class MethodParser(BaseParser):
         self.logger = get_logger("MethodParser")
     
     def parse(self) -> MethodData:
-        """Parse method descriptor from ORCA output."""
+        """Parse method descriptor from ORCA output using content-based extraction."""
         self.logger.debug("Parsing method descriptor...")
         
         method = MethodData()
         
-        # Find the input line (! ... )
-        input_line = self._find_input_line()
-        if input_line:
-            method.input_line = input_line
-            self._parse_input_line(input_line, method)
+        # STEP 1: Try content-based parsing (primary - more reliable)
+        self._parse_from_scf_settings(method)
+        self._parse_from_method_summary(method)
+        self._parse_dispersion(method)
         
-        # Parse %cpcm block for solvent
+        # STEP 2: Parse %cpcm block for solvent
         self._parse_cpcm_block(method)
         
-        # Parse %rel block for relativistic
+        # STEP 3: Parse %rel block for relativistic
         self._parse_rel_block(method)
+        
+        # STEP 4: Fallback to input line if needed
+        if not method.functional and not method.basis_set:
+            input_line = self._find_input_line()
+            if input_line:
+                method.input_line = input_line
+                self._parse_input_line(input_line, method)
         
         # Log result
         method_id = method.to_id()
@@ -103,6 +109,109 @@ class MethodParser(BaseParser):
             self.logger.debug(f"    Solvent: {method.solvent}")
         
         return method
+    
+    def _parse_from_scf_settings(self, method: MethodData):
+        """Parse method info from SCF SETTINGS block."""
+        # Find SCF SETTINGS block (usually appears early in file)
+        scf_block = None
+        lines = self.text.split('\n')
+        in_scf = False
+        scf_lines = []
+        
+        for i, line in enumerate(lines):
+            if i > 5000:  # Don't search too far
+                break
+            if 'SCF SETTINGS' in line:
+                in_scf = True
+                continue
+            if in_scf:
+                if 'Convergence Acceleration:' in line or 'SCF Procedure:' in line:
+                    break
+                if line.strip().startswith('---') and len(line.strip()) > 20:
+                    break
+                scf_lines.append(line)
+        
+        if scf_lines:
+            scf_block = '\n'.join(scf_lines)
+        
+        if not scf_block:
+            return
+        
+        # Parse formalism (DFT, HF, etc.)
+        if re.search(r'Density Functional\s+Method\s+\.{4,}\s*(\S+)', scf_block):
+            method.formalism = "DFT"
+        elif "Hartree-Fock" in scf_block and "Density Functional" not in scf_block:
+            method.formalism = "HF"
+        
+        # Parse wavefunction type (RKS, UKS, etc.)
+        wf_match = re.search(r'Hartree-Fock type\s+HFTyp\s+\.{4,}\s*(\S+)', scf_block)
+        if wf_match:
+            method.wavefunction = wf_match.group(1)
+        
+        # Parse functional
+        # Check for LibXC functional
+        libxc_match = re.search(r'Functional name\s+\.{4,}\s*(.+)', scf_block)
+        if libxc_match:
+            method.functional = libxc_match.group(1).strip()
+        else:
+            # Parse Exchange + Correlation functionals
+            exchange_match = re.search(r'Exchange Functional\s+Exchange\s+\.{4,}\s*(\S+)', scf_block)
+            corr_match = re.search(r'Correlation Functional\s+Correlation\s+\.{4,}\s*(\S+)', scf_block)
+            
+            if exchange_match and corr_match:
+                exchange = exchange_match.group(1)
+                correlation = corr_match.group(1)
+                
+                # Check for hybrid B3LYP
+                hf_frac_match = re.search(r'Fraction HF Exchange\s+ScalHFX\s+\.{4,}\s*([\d.]+)', scf_block)
+                if exchange == "B88" and correlation == "LYP":
+                    if hf_frac_match:
+                        hf_frac = float(hf_frac_match.group(1))
+                        if abs(hf_frac - 0.2) < 0.01:
+                            method.functional = "B3LYP"
+                        else:
+                            method.functional = "BLYP"
+                    else:
+                        method.functional = "BLYP"
+                elif exchange == "WB97X" or correlation == "WB97X":
+                    method.functional = "WB97X"
+                elif exchange_match:
+                    method.functional = exchange
+    
+    def _parse_from_method_summary(self, method: MethodData):
+        """Parse from 'Your calculation utilizes' section."""
+        # Look for basis set
+        basis_match = re.search(
+            r'Your calculation utilizes the basis:\s*(.+)',
+            self.text[:3000]  # Only in early output
+        )
+        if basis_match and not method.basis_set:
+            method.basis_set = basis_match.group(1).strip()
+        
+        # Look for auxiliary basis
+        aux_match = re.search(
+            r'Your calculation utilizes the auxiliary basis:\s*(.+)',
+            self.text[:3000]
+        )
+        if aux_match:
+            method.aux_basis = aux_match.group(1).strip()
+    
+    def _parse_dispersion(self, method: MethodData):
+        """Parse dispersion correction from content."""
+        early_text = self.text[:3000]
+        
+        if "atom-pairwise dispersion correction" in early_text:
+            # Look for damping scheme
+            if "Becke-Johnson" in early_text or "BJ damping" in early_text:
+                method.dispersion = "D3BJ"
+            elif "D3BJ" in early_text:
+                method.dispersion = "D3BJ"
+            elif "zero-damping" in early_text.lower():
+                method.dispersion = "D3"
+            else:
+                method.dispersion = "D3"
+        elif "D4 dispersion" in self.text or "using D4" in self.text.lower():
+            method.dispersion = "D4"
     
     def _find_input_line(self) -> Optional[str]:
         """Find the main input line (! keywords...)."""
