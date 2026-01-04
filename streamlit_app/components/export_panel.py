@@ -1285,7 +1285,7 @@ def generate_html_report(
             ['spectra-multiselect', 'energy-multiselect'].forEach(id => {{
                  const div = document.getElementById(id);
                  if(div) {{
-                     const box = div.querySelector(`input[value="${index}"]`);
+                     const box = div.querySelector(`input[value="${{index}}"]`);
                      if(box) box.checked = true;
                  }}
             }});
