@@ -260,8 +260,8 @@ def download_hf_data():
 
 
 def parse_folder(folder: str):
-    """Parse folder using BatchParser.parse_all_detailed()."""
-    from src.parser.batch import BatchParser
+    """Parse folder with real-time progress bar."""
+    from src.parser.factory import ParserFactory
     
     pattern = f"{folder}/**/*.out"
     files = sorted(glob.glob(pattern, recursive=True))
@@ -272,28 +272,56 @@ def parse_folder(folder: str):
     
     st.info(f"🔄 Parsing {len(files)} files...")
     
-    # Show progress
-    progress = st.progress(0, "Parsing...")
+    # Progress bar with status text
+    progress_bar = st.progress(0)
+    status_text = st.empty()
     
-    batch = BatchParser(pattern)
+    factory = ParserFactory()
+    results = []
     
-    # Use detailed mode for state extraction
-    if hasattr(batch, 'parse_all_detailed'):
-        df = batch.parse_all_detailed(verbose=False)
-    else:
-        df = batch.parse_all(verbose=False)
-    
-    progress.progress(100)
-    
-    if df is not None and len(df) > 0:
-        set_df(df)
+    for i, filepath in enumerate(files):
+        filename = os.path.basename(filepath)
         
-        # Show summary
-        if "optimized_state" in df.columns:
-            states = df["optimized_state"].value_counts()
-            st.success(f"✅ Parsed {len(df)} records: " + ", ".join([f"{s}={c}" for s, c in states.items()]))
-        else:
-            st.success(f"✅ Parsed {len(df)} records")
+        # Update progress bar and status
+        progress = (i + 1) / len(files)
+        progress_bar.progress(progress)
+        status_text.text(f"Parsing {i+1}/{len(files)}: {filename}")
+        
+        try:
+            result = factory.parse(filepath)
+            row = result.to_dict()
+            
+            # Extract molecule_id from filename
+            base = os.path.splitext(filename)[0]
+            mol_id = re.sub(r'(_?s0p?|_?s0|_?s1|_?t1|_?vg|_?ah|_?ahas|_?p|_?opt)$', '', base, flags=re.I)
+            row["molecule_id"] = mol_id.strip("_-")
+            
+            # Extract state from path
+            state_pattern = re.compile(r'(s0p|s0|s1|t1|vg|ah|ahas)(?:[^a-z]|$)', re.I)
+            parts = Path(filepath).parts
+            state = "S0"
+            for part in reversed(parts):
+                match = state_pattern.search(part.lower())
+                if match:
+                    state_map = {"s0p": "S0-SP", "s0": "S0", "s1": "S1", "t1": "T1", "vg": "VG", "ah": "AH", "ahas": "AHAS"}
+                    state = state_map.get(match.group(1).upper(), match.group(1).upper())
+                    break
+            row["optimized_state"] = state
+            row["_filepath"] = filepath
+            
+            results.append(row)
+            
+        except Exception as e:
+            # Silently skip failed files
+            pass
+    
+    # Clear progress indicators
+    progress_bar.empty()
+    status_text.empty()
+    
+    if results:
+        set_df(pd.DataFrame(results))
+        st.success(f"✅ Parsed {len(results)}/{len(files)} files successfully")
         st.rerun()
     else:
         st.warning("No files parsed successfully")
