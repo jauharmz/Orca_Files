@@ -88,7 +88,7 @@ def render_molecule_viewer(df: pd.DataFrame):
 
 
 def render_3d_view(mol_row: pd.Series):
-    """Render interactive 3D molecular structure with atom labels."""
+    """Render interactive 3D molecular structure with enhanced visualization options."""
     
     coords = mol_row.get("cart_coords")
     
@@ -103,22 +103,51 @@ def render_3d_view(mol_row: pd.Series):
     homo = mol_row.get("homo_energy")
     lumo = mol_row.get("lumo_energy")
     
-    # Settings in expander - use unique stable keys
-    with st.expander("⚙️ 3D Visualization Settings", expanded=False):
-        c1, c2 = st.columns(2)
+    # Get Mulliken charges for electrostatic coloring
+    mulliken = mol_row.get("mulliken")
+    charges = []
+    if mulliken is not None and hasattr(mulliken, 'empty') and not mulliken.empty:
+        if "Charge" in mulliken.columns:
+            charges = mulliken["Charge"].tolist()
+    
+    # Settings in expander - all features enabled by default
+    with st.expander("⚙️ 3D Visualization Settings", expanded=True):
+        # Row 1: Style and Color
+        c1, c2, c3 = st.columns(3)
         with c1:
-            style = st.selectbox("Style", ["Ball-Stick", "Stick", "Sphere", "Line"], 
+            style = st.selectbox("Style", ["Ball & Stick", "Stick", "Spacefill"], 
                                key="mol3d_style", index=0)
-            show_labels = st.checkbox("Show Atom Labels", True, key="mol3d_labels")
         with c2:
-            bg_color = st.color_picker("Background", "#1e1e2e", key="mol3d_bg")
+            color_options = ["Standard (Jmol)", "Professional (Light Carbon)", "Vibrant (Teal Carbon)"]
+            if charges:
+                color_options.insert(0, "Electrostatic (Charge)")
+            color_mode = st.selectbox("Color Mode", color_options, key="mol3d_color", index=0)
+        with c3:
+            material = st.selectbox("Material", ["Shiny (Plastic)", "Matte"], key="mol3d_material", index=0)
+        
+        # Row 2: Labels and Surface
+        c4, c5, c6 = st.columns(3)
+        with c4:
+            show_labels = st.checkbox("Atom Labels (Heavy)", True, key="mol3d_labels")
+        with c5:
+            show_surface = st.checkbox("Show Surface", False, key="mol3d_surface")
+        with c6:
             spin = st.checkbox("Spin Animation", False, key="mol3d_spin")
         
-        c3, c4 = st.columns(2)
-        with c3:
-            label_size = st.slider("Label Size", 8, 20, 12, key="mol3d_label_size") if show_labels else 12
-        with c4:
-            show_indices = st.checkbox("Show Atom Indices", False, key="mol3d_indices") if show_labels else False
+        # Row 3: Advanced settings
+        c7, c8, c9 = st.columns(3)
+        with c7:
+            bg_color = st.color_picker("Background", "#1e1e2e", key="mol3d_bg")
+        with c8:
+            if show_surface:
+                surface_opacity = st.slider("Surface Opacity", 0.1, 1.0, 0.5, key="mol3d_opacity")
+            else:
+                surface_opacity = 0.5
+        with c9:
+            if show_labels:
+                label_size = st.slider("Label Size", 8, 16, 10, key="mol3d_label_size")
+            else:
+                label_size = 10
     
     # Build XYZ string
     n_atoms = len(coords)
@@ -131,53 +160,81 @@ def render_3d_view(mol_row: pd.Series):
         y = float(atom.get("y", 0))
         z = float(atom.get("z", 0))
         xyz_lines.append(f"{el} {x:.6f} {y:.6f} {z:.6f}")
-        atom_data.append({"el": el, "x": x, "y": y, "z": z, "idx": i + 1})
+        charge = charges[i] if i < len(charges) else 0
+        atom_data.append({"el": el, "x": x, "y": y, "z": z, "idx": i + 1, "charge": charge})
     
     xyz_str = "\\n".join(xyz_lines)
     
-    # Get Mulliken charges for hover tooltips
-    mulliken = mol_row.get("mulliken")
-    charges = []
-    if mulliken is not None and hasattr(mulliken, 'empty') and not mulliken.empty:
-        if "Charge" in mulliken.columns:
-            charges = mulliken["Charge"].tolist()
+    # Build charges array for JS
     charges_js = str(charges) if charges else "[]"
     
-    # Atom data for labels
-    atom_data_js = str(atom_data).replace("'", '"')
+    # Atom data for labels (only heavy atoms)
+    heavy_atoms = [a for a in atom_data if a["el"] != "H"]
+    atom_data_js = str(heavy_atoms).replace("'", '"')
     
-    # Style mapping
-    style_map = {
-        "Ball-Stick": '{"stick":{"radius":0.12},"sphere":{"scale":0.25}}',
-        "Stick": '{"stick":{"radius":0.12}}',
-        "Sphere": '{"sphere":{"scale":0.35}}',
-        "Line": '{"line":{}}'
-    }
-    style_js = style_map.get(style, style_map["Ball-Stick"])
+    # Style and color JavaScript
+    material_spec = ", specular: 1, shininess: 50" if material == "Shiny (Plastic)" else ""
     
+    # Color scheme based on mode
+    if color_mode == "Electrostatic (Charge)" and charges:
+        # Use charge-based coloring
+        color_js = f'''
+        viewer.setStyle({{}}, {{{get_style_type(style)}: {{
+            colorscheme: {{prop: 'partialCharge', gradient: 'rwb', min: -0.25, max: 0.25}}{material_spec}
+        }}}});
+        '''
+    elif color_mode == "Professional (Light Carbon)":
+        color_scheme = "{'C': '#d3d3d3', 'H': 'white', 'N': '#3050F8', 'O': '#FF0D0D', 'S': '#FFFF30', 'F': '#90E050', 'Cl': '#1FF01F'}"
+        color_js = f'''
+        viewer.setStyle({{}}, {{{get_style_type(style)}: {{
+            colorscheme: {{colorfunc: function(atom) {{
+                var colors = {color_scheme};
+                return colors[atom.elem] || '#808080';
+            }}}}{material_spec}
+        }}}});
+        '''
+    elif color_mode == "Vibrant (Teal Carbon)":
+        color_scheme = "{'C': '#008080', 'H': 'white', 'N': '#483D8B', 'O': '#FF4500', 'S': '#FFD700'}"
+        color_js = f'''
+        viewer.setStyle({{}}, {{{get_style_type(style)}: {{
+            colorscheme: {{colorfunc: function(atom) {{
+                var colors = {color_scheme};
+                return colors[atom.elem] || '#808080';
+            }}}}{material_spec}
+        }}}});
+        '''
+    else:  # Standard Jmol
+        style_spec = get_style_spec(style, material_spec)
+        color_js = f'viewer.setStyle({{}}, {style_spec});'
+    
+    # Surface JavaScript
+    if show_surface:
+        surface_js = f'viewer.addSurface($3Dmol.SurfaceType.VDW, {{opacity: {surface_opacity}, color: "white"}});'
+    else:
+        surface_js = ""
+    
+    # Spin JavaScript
     spin_js = "setInterval(function(){viewer.rotate(1,{x:0,y:1,z:0});viewer.render();},40);" if spin else ""
     
-    # Label generation JavaScript
+    # Label JavaScript (heavy atoms only)
+    text_color = 'black' if bg_color in ['#ffffff', '#f8f9fa', '#e8e8e8'] else 'white'
     if show_labels:
         label_js = f'''
         var atomData = {atom_data_js};
         for (var i = 0; i < atomData.length; i++) {{
             var a = atomData[i];
-            var labelText = {"'a.el + a.idx'" if show_indices else "'a.el'"};
-            viewer.addLabel(a.el{' + a.idx' if show_indices else ''}, {{
+            viewer.addLabel(a.el, {{
                 position: {{x: a.x, y: a.y, z: a.z}},
                 fontSize: {label_size},
-                fontColor: 'white',
-                backgroundColor: 'rgba(0,0,0,0.5)',
-                backgroundOpacity: 0.5,
-                showBackground: true
+                fontColor: '{text_color}',
+                showBackground: false
             }});
         }}
         '''
     else:
         label_js = ""
     
-    # Build energy info for display in viewer
+    # Build energy info for display
     energy_info = ""
     if energy:
         energy_info += f"Energy: {energy:.6f} Eh"
@@ -191,27 +248,28 @@ def render_3d_view(mol_row: pd.Series):
 <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
 <style>
 body {{ margin: 0; padding: 0; font-family: sans-serif; }}
-#container {{ width: 100%; height: 440px; position: relative; }}
+#container {{ width: 100%; height: 450px; position: relative; }}
 #tooltip {{ 
     position: absolute; 
-    background: rgba(0,0,0,0.85); 
+    background: rgba(0,0,0,0.9); 
     color: white; 
-    padding: 8px 12px; 
-    border-radius: 6px; 
+    padding: 10px 14px; 
+    border-radius: 8px; 
     font-size: 12px; 
     display: none; 
     pointer-events: none;
     z-index: 100;
-    max-width: 200px;
+    max-width: 220px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
 }}
 #info-bar {{
     position: absolute;
-    bottom: 5px;
-    left: 5px;
-    background: rgba(0,0,0,0.7);
+    bottom: 8px;
+    left: 8px;
+    background: rgba(0,0,0,0.75);
     color: #00ff88;
-    padding: 4px 10px;
-    border-radius: 4px;
+    padding: 6px 12px;
+    border-radius: 6px;
     font-size: 11px;
     font-family: monospace;
 }}
@@ -220,12 +278,15 @@ body {{ margin: 0; padding: 0; font-family: sans-serif; }}
 <body>
 <div id="container"></div>
 <div id="tooltip"></div>
-<div id="info-bar">{energy_info if energy_info else f"{n_atoms} atoms"}</div>
+<div id="info-bar">{energy_info if energy_info else f"{n_atoms} atoms | {len(heavy_atoms)} heavy"}</div>
 <script>
 var viewer = $3Dmol.createViewer("container", {{backgroundColor: "{bg_color}"}});
 var xyz = "{xyz_str}";
 viewer.addModel(xyz, "xyz");
-viewer.setStyle({{}}, {style_js});
+
+{color_js}
+
+{surface_js}
 
 var charges = {charges_js};
 
@@ -234,12 +295,15 @@ var charges = {charges_js};
 viewer.setHoverCallback(function(atom, v, event) {{
     var tip = document.getElementById('tooltip');
     if (atom) {{
-        var html = '<b>' + atom.elem + ' #' + atom.serial + '</b>';
+        var html = '<b style="font-size:14px">' + atom.elem + ' #' + atom.serial + '</b>';
+        html += '<br><span style="color:#888">Position:</span>';
         html += '<br>X: ' + atom.x.toFixed(4);
         html += '<br>Y: ' + atom.y.toFixed(4);
         html += '<br>Z: ' + atom.z.toFixed(4);
         if (charges.length > 0 && charges[atom.serial - 1] !== undefined) {{
-            html += '<br>Charge: ' + charges[atom.serial - 1].toFixed(4);
+            var q = charges[atom.serial - 1];
+            var qColor = q > 0 ? '#ff6b6b' : '#4ecdc4';
+            html += '<br><span style="color:' + qColor + '">Charge: ' + q.toFixed(4) + '</span>';
         }}
         tip.innerHTML = html;
         tip.style.display = 'block';
@@ -256,8 +320,28 @@ viewer.render();
 </script>
 </body></html>'''
     
-    components.html(html, height=480)
+    components.html(html, height=490)
     st.caption("💡 Hover over atoms for details. Scroll to zoom, drag to rotate.")
+
+
+def get_style_type(style: str) -> str:
+    """Get the 3Dmol style type string."""
+    if style == "Ball & Stick":
+        return "stick"
+    elif style == "Spacefill":
+        return "sphere"
+    else:
+        return "stick"
+
+
+def get_style_spec(style: str, material_spec: str) -> str:
+    """Get the full style specification for 3Dmol."""
+    if style == "Ball & Stick":
+        return f'{{"stick": {{"radius": 0.12{material_spec}}}, "sphere": {{"scale": 0.25{material_spec}}}}}'
+    elif style == "Spacefill":
+        return f'{{"sphere": {{"scale": 0.85{material_spec}}}}}'
+    else:  # Stick
+        return f'{{"stick": {{"radius": 0.12{material_spec}}}}}'
 
 
 def render_2d_view(mol_row: pd.Series):
