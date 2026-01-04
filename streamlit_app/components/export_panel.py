@@ -1224,29 +1224,42 @@ def generate_html_report(
         
         // Initialize on load
         document.addEventListener('DOMContentLoaded', function() {{
-            if (document.getElementById('viewer-3d')) {{
+            // Initialize viewer and molecule data
+            if (molecules.length > 0) {{
                 initViewer();
+            }} else {{
+                console.warn("No molecule data found!");
             }}
-            updateMolInfo(0);
-            if (document.getElementById('energy-chart')) {{
-                renderEnergyChart();
-            }}
-            if (document.getElementById('orbital-chart')) {{
-                renderOrbitalChart();
-            }}
-            renderSpectra(0);
         }});
         
         function initViewer() {{
-            viewer = $3Dmol.createViewer('viewer-3d', {{
-                backgroundColor: '{"#1e1e2e" if dark_theme else "#f0f0f5"}'
-            }});
+            console.log("InitViewer: Starting...");
+            console.log("InitViewer: Molecule count =", molecules.length);
+            
+            if (molecules.length === 0) {{
+                console.error("InitViewer: No molecules found!");
+                return;
+            }}
+            
+            console.log("InitViewer: First molecule =", molecules[0]);
+            
+            const viewerDiv = document.getElementById('viewer-3d');
+            if (!viewerDiv) {{
+                console.warn("InitViewer: viewer-3d element not found");
+            }} else {{
+                viewer = $3Dmol.createViewer('viewer-3d', {{
+                    backgroundColor: '{"#1e1e2e" if dark_theme else "#f0f0f5"}'
+                }});
+                console.log("InitViewer: 3Dmol viewer created");
+            }}
             
             // Generate checkboxes
             generateCheckboxes('spectra-multiselect', renderSpectra);
             generateCheckboxes('energy-multiselect', renderEnergyChart);
+            console.log("InitViewer: Checkboxes generated");
             
             loadMolecule(0);
+            console.log("InitViewer: Complete");
         }}
         
         function loadMolecule(index) {{
