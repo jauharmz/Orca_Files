@@ -14,11 +14,11 @@
 | **Hierarchy Detection** | Auto-detect molecule hierarchy from naming patterns (p1x, p1a, p1b → p1 root) |
 | **Partition Detection** | Auto-detect partitions by state (S0/S1/T1), calc type (OPT/SP), ESD type (VG/AH/AHAS) |
 | **Pathway Detection** | Auto-detect degradation pathways with reaction rules and step corrections |
-| **Multi-Comparison** | Compare multiple molecules side-by-side |
+| **Multi-Comparison** | Compare multiple molecules side-by-side (Energies, Spectra, Orbitals) |
 | **Spectral Scaling** | Linear (`ν_s = s × ν`) and relative (`ν_s = ν_min + s(ν - ν_min)`) scaling |
 | **Data Export** | Export parsed data to JSON, CSV, Parquet, Pickle |
-| **HTML Export** | Single-file interactive reports with embedded Plotly.js |
-| **Interactive Viz** | Plotly charts + py3Dmol 3D molecular viewer |
+| **Interactive HTML** | **NEW:** Generate self-contained research papers with 3D views, spectra overlay, and embedded raw data. |
+| **Interactive Viz** | Plotly charts + py3Dmol 3D molecular viewer + RDKit 2D Structures |
 
 ---
 
@@ -101,25 +101,13 @@ graph TB
     
     subgraph "🖥️ Streamlit Application"
         direction TB
-        APP[App Entry]
-        SM[SessionManager]
-        
-        subgraph "Pages"
-            PH[HomePage]
-            PU[UploadPage]
-            PMol[MoleculePage]
-            PCmp[ComparePage]
-            PPW[PathwayPage]
-            PExp[ExportPage]
-            PSet[SettingsPage]
-        end
+        APP[streamlit_app/app.py]
         
         subgraph "Components"
-            CFU[FileUploader]
-            CMS[MoleculeSelector]
-            CVT[VisualizationTabs]
-            CEP[ExportPanel]
-            CLV[LogViewer]
+            C_VIZ[Viz Components]
+            C_EXP[ExportPanel]
+            C_SEL[MoleculeSelector]
+            C_3D[3D Viewer]
         end
     end
     
@@ -143,12 +131,7 @@ graph TB
     VF --> M3D & EDV & OPV & SPV & PWV & HTV
     M3D & EDV & OPV & SPV & PWV & HTV --> DE & HE & PE
     DE & HE & PE --> APP
-    APP --> SM
-    SM --> PH & PU & PMol & PCmp & PPW & PExp & PSet
-    PH & PU --> CFU & CMS
-    PMol & PCmp --> CVT
-    PExp --> CEP
-    PSet --> CLV
+    APP --> C_SEL & C_VIZ & C_EXP & C_3D
     
     GP & EP & HD & PWD & M3D --> LOG
     LOG --> LF --> LH
@@ -338,9 +321,9 @@ graph TD
         subgraph "p1x"
             M1[p1x]
             subgraph "B3LYP/def2-TZVP/D3BJ"
-                MTH1["Method 1"]
-                S0_1[S0] --> OPT1[OPT] & SP1[SP]
-                S1_1[S1] --> TDDFT1[TDDFT]
+            MTH1["Method 1"]
+            S0_1[S0] --> OPT1[OPT] & SP1[SP]
+            S1_1[S1] --> TDDFT1[TDDFT]
             end
         end
     end
@@ -401,9 +384,9 @@ graph TB
         GB[GroupBuilder]
         
         subgraph "Hierarchy Output"
-            RT[RootNodes]
-            VR[VariantGroups]
-            TR[TreeStructure]
+        RT[RootNodes]
+        VR[VariantGroups]
+        TR[TreeStructure]
         end
     end
     
@@ -411,17 +394,17 @@ graph TB
         PRT[PartitionDetector]
         
         subgraph "Partition Types"
-            PS[StatePartition]
-            PC[CalcTypePartition]
-            PE[ESDPartition]
+        PS[StatePartition]
+        PC[CalcTypePartition]
+        PE[ESDPartition]
         end
         
         subgraph "Partition Output"
-            S0[S0 Group]
-            S1[S1 Group]
-            T1[T1 Group]
-            OPT[OPT Group]
-            SP[SP Group]
+        S0[S0 Group]
+        S1[S1 Group]
+        T1[T1 Group]
+        OPT[OPT Group]
+        SP[SP Group]
         end
     end
     
@@ -432,9 +415,9 @@ graph TB
         CS[ColorSchemes]
         
         subgraph "Pathway Output"
-            PW[Pathways]
-            ED[Edges]
-            RX[Reactions]
+        PW[Pathways]
+        ED[Edges]
+        RX[Reactions]
         end
     end
     
@@ -442,10 +425,10 @@ graph TB
         CE[ComparisonEngine]
         
         subgraph "Compare Types"
-            CEN[EnergyCompare]
-            COR[OrbitalCompare]
-            CSP[SpectraCompare]
-            CGE[GeometryCompare]
+        CEN[EnergyCompare]
+        COR[OrbitalCompare]
+        CSP[SpectraCompare]
+        CGE[GeometryCompare]
         end
     end
     
@@ -453,7 +436,7 @@ graph TB
         SS[SpectralScaler]
         LS[LinearScaler]
         RS[RelativeScaler]
-    end
+        end
     
     DF & CFG --> HD
     HD --> NP --> PT --> GB
@@ -604,124 +587,44 @@ graph TB
 
 ---
 
-### Streamlit Application Architecture
+### Streamlit Application Architecture (Updated)
 
 ```mermaid
 graph TB
     subgraph "🖥️ Entry"
-        APP[app.py]
-        CFG[config.py]
-    end
-    
-    subgraph "📦 State Management"
-        SM[SessionManager]
-        SS[SessionState]
-        DC[DataCache]
-        VC[ViewCache]
-    end
-    
-    subgraph "🔧 Services"
-        PS[ParserService]
-        AS[AnalysisService]
-        VS[VizService]
-        ES[ExportService]
-        LS[LogService]
-    end
-    
-    subgraph "📄 Pages"
-        PH[HomePage]
-        PU[UploadPage]
-        PMol[MoleculePage]
-        PCmp[ComparePage]
-        PPW[PathwayPage]
-        PSpc[SpectraPage]
-        PExp[ExportPage]
-        PSet[SettingsPage]
+        APP[streamlit_app/app.py]
     end
     
     subgraph "🧩 Components"
-        CFU[FileUploader]
-        CMS[MoleculeSelector]
-        CPF[PartitionFilter]
-        CVT[VisualizationTabs]
-        CPW[PathwayEditor]
-        CSS[ScalerSliders]
-        CEP[ExportPanel]
-        CLV[LogViewer]
+        EXP[ExportPanel]
+        UPL[FileUploader]
+        MOL[MoleculeInfo]
+        TAB[VizTabs]
     end
     
-    APP --> CFG --> SM
-    SM --> SS & DC & VC
+    subgraph "🧠 Logic"
+        LOG[LogParser]
+        VIZ[VisualizerFactory]
+    end
     
-    SM --> PS & AS & VS & ES & LS
-    
-    APP --> PH & PU & PMol & PCmp & PPW & PSpc & PExp & PSet
-    
-    PU --> CFU
-    PMol --> CMS & CVT
-    PCmp --> CMS & CPF & CVT
-    PPW --> CPW & CVT
-    PSpc --> CSS & CVT
-    PExp --> CEP
-    PSet --> CLV
+    APP --> UPL
+    UPL --> LOG
+    LOG --> VIZ
+    VIZ --> TAB
+    VIZ --> EXP
 ```
 
 ---
 
-### Data Flow Sequence
+## 🎨 Interactive HTML Report (New)
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant ST as Streamlit
-    participant FH as FileHandler
-    participant PF as ParserFactory
-    participant HD as HierarchyDetector
-    participant PRT as PartitionDetector
-    participant PWD as PathwayDetector
-    participant VF as VizFactory
-    participant EX as Exporter
-    participant LOG as Logger
-    
-    U->>ST: Upload .out files
-    ST->>FH: validate_files(files)
-    FH->>LOG: log("Validating...")
-    FH-->>ST: valid_files[]
-    
-    loop Each file
-        ST->>PF: parse(file)
-        PF->>LOG: log("Parsing geometry...")
-        PF->>LOG: log("Parsing energy...")
-        PF->>LOG: log("Parsing orbitals...")
-        PF->>LOG: log("Parsing spectra...")
-        PF-->>ST: ParseResult
-    end
-    
-    ST->>HD: detect(df)
-    HD->>LOG: log("Detecting hierarchy...")
-    HD-->>ST: Hierarchy
-    
-    ST->>PRT: detect(df)
-    PRT->>LOG: log("Detecting partitions...")
-    PRT-->>ST: Partitions
-    
-    ST->>PWD: detect(df, hierarchy)
-    PWD->>LOG: log("Detecting pathways...")
-    PWD-->>ST: Pathways
-    
-    U->>ST: Select molecule
-    ST->>VF: create_visualizations(mol_id)
-    VF->>LOG: log("Creating 3D view...")
-    VF->>LOG: log("Creating energy plot...")
-    VF-->>ST: [Figure, ...]
-    ST-->>U: Display visualizations
-    
-    U->>ST: Export
-    ST->>EX: export(format)
-    EX->>LOG: log("Exporting...")
-    EX-->>ST: file_path
-    ST-->>U: Download link
-```
+The system now generates a **self-contained Interactive Research Paper**. 
+
+**Key Capabilities:**
+1.  **Multi-Select Comparison**: Overlay spectra (IR, Raman, UV-Vis) and compare energies for multiple selected molecules simultaneously.
+2.  **3D/2D Viewer Parity**: Full interactive 3D viewer (3Dmol.js) and RDKit-generated 2D structures.
+3.  **Embedded Data**: The HTML file contains **all** parsed data (XYZ coordinates, orbital energies, spectral peaks) as embedded JSON. This means the report is **fully offline-capable**—no kernel or server needed to view.
+4.  **UI Parity**: Mirroring the Streamlit dashboard experience, including interactive sliders for broadening, style switching, and dark mode.
 
 ---
 
@@ -731,141 +634,25 @@ sequenceDiagram
 Orca_Files/
 ├── README.md                           # This file
 ├── requirements.txt                    # Dependencies
-├── app.py                              # Streamlit entry
+├── streamlit_app/                      # Streamlit Application
+│   ├── app.py                          # Main Entry Point
+│   ├── utils/                          # UI Utilities
+│   └── components/                     # UI Components
+│       ├── export_panel.py             # HTML Export logic
+│       ├── file_uploader.py            # Upload widget
+│       └── ...
 │
-├── src/
-│   ├── __init__.py
-│   ├── config.py                       # Global config
-│   ├── logger.py                       # Logging setup
-│   │
-│   ├── core/                           # Core abstractions
-│   │   ├── __init__.py
-│   │   ├── base_parser.py              # BaseParser ABC
-│   │   ├── base_visualizer.py          # BaseVisualizer ABC
-│   │   ├── data_models.py              # Pydantic models
-│   │   ├── exceptions.py               # Custom exceptions
-│   │   └── registry.py                 # Registry pattern
-│   │
-│   ├── parser/                         # Parser modules (refactored from orca_praser.py)
-│   │   ├── __init__.py                 # Package exports
-│   │   ├── factory.py                  # ParserFactory - orchestrates all parsers
-│   │   ├── batch.py                    # BatchParser - multi-file with molecule grouping
-│   │   ├── geometry.py                 # Coords, SMILES, internal coords (B/A/D)
-│   │   ├── energy.py                   # Gibbs, SP energy, ESD flag, calc type
-│   │   ├── orbitals.py                 # HOMO/LUMO, spin handling, orbital levels
-│   │   ├── spectroscopy.py             # IR, Raman, Mulliken, NMR
-│   │   ├── tddft.py                    # TD-DFT states, dipole spectra, H→L labels
-│   │   ├── spectrum_file.py            # External spectrum files (VG/AH/AHAS/FLUOR)
-│   │   └── regex_patterns.py           # Shared regex patterns
-│   │
-│   ├── analysis/                       # Analysis modules
-│   │   ├── __init__.py
-│   │   ├── hierarchy_detector.py       # Root/variant groups
-│   │   ├── partition_detector.py       # S0/S1, OPT/SP
-│   │   ├── pathway_detector.py         # Degradation paths
-│   │   ├── reaction_rules.py           # Add/remove rules
-│   │   ├── comparison_engine.py        # Multi-compare
-│   │   └── spectral_scaler.py          # Linear/relative
-│   │
-│   ├── viz/                            # Visualization modules
-│   │   ├── __init__.py
-│   │   ├── factory.py                  # VisualizerFactory
-│   │   ├── config.py                   # Plot themes
-│   │   ├── molecule_3d.py              # py3Dmol + Plotly 3D
-│   │   ├── energy_diagram.py           # Energy bars
-│   │   ├── orbital_plot.py             # Orbital levels
-│   │   ├── spectra_plot.py             # IR/Raman/UV-Vis
-│   │   ├── pathway_viz.py              # Pathway network
-│   │   ├── hierarchy_tree.py           # Tree view
-│   │   └── comparison_viz.py           # Side-by-side
-│   │
-│   ├── export/                         # Export modules
-│   │   ├── __init__.py
-│   │   ├── data_exporter.py            # JSON/CSV/Parquet
-│   │   ├── html_exporter.py            # Interactive HTML
-│   │   ├── plot_exporter.py            # PNG/SVG
-│   │   └── templates/
-│   │       └── report.html             # HTML template
-│   │
-│   ├── services/                       # Business logic
-│   │   ├── __init__.py
-│   │   ├── parser_service.py           # Parsing orchestration
-│   │   ├── analysis_service.py         # Analysis orchestration
-│   │   ├── viz_service.py              # Viz orchestration
-│   │   └── export_service.py           # Export orchestration
-│   │
-│   ├── ui/                             # Streamlit UI
-│   │   ├── __init__.py
-│   │   ├── session_manager.py          # State management
-│   │   ├── pages/
-│   │   │   ├── __init__.py
-│   │   │   ├── home.py
-│   │   │   ├── upload.py
-│   │   │   ├── molecule.py
-│   │   │   ├── compare.py
-│   │   │   ├── pathway.py
-│   │   │   ├── spectra.py
-│   │   │   ├── export.py
-│   │   │   └── settings.py
-│   │   └── components/
-│   │       ├── __init__.py
-│   │       ├── file_uploader.py
-│   │       ├── molecule_selector.py
-│   │       ├── partition_filter.py
-│   │       ├── viz_tabs.py
-│   │       ├── pathway_editor.py
-│   │       ├── scaler_sliders.py
-│   │       ├── export_panel.py
-│   │       └── log_viewer.py
-│   │
-│   └── utils/                          # Utilities
-│       ├── __init__.py
-│       ├── converters.py               # Unit conversions
-│       ├── validators.py               # Input validation
-│       └── helpers.py                  # General helpers
+├── src/                                # Core Library
+│   ├── parser/                         # Modular Parsers (Geom, Energy, etc.)
+│   ├── analysis/                       # Analysis Logic (Comparison, Pathways)
+│   ├── viz/                            # Visualization Logic (Plotly, 3Dmol)
+│   ├── export/                         # Data Exporter Logic
+│   └── core/                           # Base Classes
 │
-├── tests/                              # Test suite
-│   ├── __init__.py
-│   ├── README.md                       # Test documentation
-│   ├── test_comprehensive.py           # Full parser test → 16 CSV exports
-│   ├── test_original_parser.py         # Original orca_praser.py test
-│   ├── test_comparison.py              # Side-by-side parser comparison
-│   ├── test_visualizations.py          # Visualization tests → HTML plots
-│   ├── test_parsers.py                 # Unit tests for parsers
-│   ├── test_analysis.py                # Analysis module tests
-│   └── test_real.py                    # Integration tests
-│
-├── notebooks/                          # Demo notebooks
-│   ├── 01_parser_demo.ipynb
-│   ├── 02_analysis_demo.ipynb
-│   └── 03_viz_demo.ipynb
-│
-├── orca_praser.py                      # Original reference parser
-└── requirements.txt                    # Dependencies
+├── tests/                              # Test Suite
+├── notebooks/                          # Usage Demos
+└── orca_praser.py                      # Original Single-file Parser
 ```
-
-### CSV Export Structure
-
-When running `python tests/test_comprehensive.py`, up to 16 CSV files are generated:
-
-| File | Contents | Rows |
-|------|----------|------|
-| `parsed_molecules.csv` | Scalar data + counts | 1 per molecule |
-| `parsed_cart_coords.csv` | x, y, z coordinates | All atoms |
-| `parsed_orbitals.csv` | OCC, Eh, eV, spin, lvl | All orbitals |
-| `parsed_tddft_states.csv` | Excited state transitions | All states |
-| `parsed_ir_spectra.csv` | freq, eps, intensity | All IR peaks |
-| `parsed_vibrations.csv` | freq, imaginary flag | All modes |
-| `parsed_raman.csv` | freq, activity, depolarization | All peaks |
-| `parsed_mulliken.csv` | Nucleus, Element, Pop, Charge | All atoms |
-| `parsed_nmr_shielding.csv` | Isotropic, Anisotropy | All nuclei |
-| `parsed_nmr_coupling.csv` | Nucleus1, Nucleus2, J_Hz | All couplings |
-| `parsed_internal_bonds.csv` | Bond definitions, values | All bonds |
-| `parsed_internal_angles.csv` | Angle definitions, values | All angles |
-| `parsed_internal_dihedrals.csv` | Dihedral definitions, values | All dihedrals |
-| `parsed_electric_dipole.csv` | Absorption spectrum | All transitions |
-| `parsed_velocity_dipole.csv` | Velocity dipole spectrum | All transitions |
-| `parsed_data.json` | Complete nested data | All data |
 
 ---
 
@@ -985,6 +772,9 @@ LOG_FORMAT = '%(asctime)s | %(name)s | %(levelname)s | %(message)s'
 # Install
 pip install -r requirements.txt
 
+# Run Streamlit app (New Entry Point)
+streamlit run streamlit_app/app.py
+
 # Parse with modular parser (exports 16 CSVs)
 python tests/test_comprehensive.py
 
@@ -999,9 +789,6 @@ python tests/test_visualizations.py
 
 # Run unit tests
 pytest tests/ -v -s
-
-# Run Streamlit app
-streamlit run app.py
 ```
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jauharmz/Orca_Files/blob/main/ORCA_Test_v2.ipynb)
@@ -1022,4 +809,4 @@ snapshot_download(
 
 ---
 
-*Last Updated: 2026-01-03*
+*Last Updated: 2026-01-04*
