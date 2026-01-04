@@ -403,7 +403,11 @@ def build_horizontal_internal_coords_table(df: pd.DataFrame, labels: List[str], 
                 if def_col and val_col:
                     match = data[data[def_col].astype(str) == defn]
                     if len(match) > 0:
-                        row_data[f"{label}|Value"] = f"{match[val_col].iloc[0]:.4f}"
+                        try:
+                            val = float(match[val_col].iloc[0])
+                            row_data[f"{label}|Value"] = f"{val:.4f}"
+                        except (ValueError, TypeError):
+                            row_data[f"{label}|Value"] = str(match[val_col].iloc[0])
                     else:
                         row_data[f"{label}|Value"] = ""
                 else:

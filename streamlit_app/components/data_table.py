@@ -243,7 +243,11 @@ def render_internal_coords_comparison(df: pd.DataFrame):
                 if def_col and val_col:
                     match = data[data[def_col].astype(str) == defn]
                     if len(match) > 0:
-                        row_data[label] = f"{match[val_col].iloc[0]:.4f}"
+                        try:
+                            val = float(match[val_col].iloc[0])
+                            row_data[label] = f"{val:.4f}"
+                        except (ValueError, TypeError):
+                            row_data[label] = str(match[val_col].iloc[0])
                     else:
                         row_data[label] = "—"
                 else:
