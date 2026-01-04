@@ -404,7 +404,7 @@ def main():
     
     # 6. Show sample from main CSV
     print("\n--- Sample from parsed_molecules.csv ---")
-    display_cols = [c for c in ["molecule_id", "gibbs_Eh", "homo_energy", "lumo_energy", 
+    display_cols = [c for c in ["molecule_id", "optimized_state", "gibbs_Eh", "homo_energy", "lumo_energy", 
                                  "calc_class", "n_cart_coords", "n_tddft_states"] 
                    if c in molecules_df.columns]
     print(molecules_df[display_cols].head(10).to_string())
