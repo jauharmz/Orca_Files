@@ -270,15 +270,23 @@ def render_html_export(df: pd.DataFrame):
                         compact_mode=compact_mode
                     )
                     
-                    # Save to disk
-                    filepath = f"./{report_name}"
+                    # Save to disk - use absolute path to project root
+                    import os
+                    from pathlib import Path
+                    
+                    # Get the project root (parent of streamlit_app)
+                    current_dir = Path(__file__).parent.parent.parent
+                    filepath = current_dir / report_name
+                    filepath = filepath.resolve()
+                    
                     with open(filepath, "w", encoding="utf-8") as f:
                         f.write(html)
                     
                     file_size = len(html) // 1024
                     
-                st.success(f"✅ Report saved to: **{filepath}** ({file_size} KB)")
-                st.info(f"📂 Open the file in your browser: `{filepath}`")
+                st.success(f"✅ Report saved!")
+                st.code(str(filepath), language=None)
+                st.info(f"📂 File size: {file_size} KB | Open in browser to view")
                 
             except Exception as e:
                 st.error(f"Failed to generate report: {e}")
