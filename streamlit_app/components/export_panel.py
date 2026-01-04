@@ -1263,36 +1263,62 @@ def generate_html_report(
         }}
         
         function loadMolecule(index) {{
-            if (!viewer || !molecules[index]) return;
+            console.log("loadMolecule: Starting for index", index);
+            
+            if (!molecules[index]) {{
+                console.error("loadMolecule: No molecule at index", index);
+                return;
+            }}
+            
             currentMolIndex = index;
-            
             const mol = molecules[index];
-            viewer.removeAllModels();
+            console.log("loadMolecule: Processing", mol.label);
             
-            if (mol.xyz) {{
-                viewer.addModel(mol.xyz, 'xyz');
-                applyStyle(currentStyle);
-                viewer.zoomTo();
-                viewer.render();
-            }}
-            
-            // Update 2D Image
-            if (mol.svg) {{
-                const img = document.getElementById('img-2d');
-                const msg = document.getElementById('no-2d-msg');
-                if (img) {{
-                     img.src = "data:image/svg+xml;base64," + mol.svg;
-                     img.style.display = 'block';
+            // 3D Viewer (may fail if $3Dmol not loaded)
+            try {{
+                if (viewer && mol.xyz) {{
+                    viewer.removeAllModels();
+                    viewer.addModel(mol.xyz, 'xyz');
+                    applyStyle(currentStyle);
+                    viewer.zoomTo();
+                    viewer.render();
+                    console.log("loadMolecule: 3D viewer updated");
+                }} else if (!viewer) {{
+                    console.warn("loadMolecule: No 3D viewer available");
+                }} else {{
+                    console.warn("loadMolecule: No XYZ data for", mol.label);
                 }}
-                if (msg) msg.style.display = 'none';
-            }} else {{
-                const img = document.getElementById('img-2d');
-                const msg = document.getElementById('no-2d-msg');
-                if (img) img.style.display = 'none';
-                if (msg) msg.style.display = 'block';
+            }} catch (e) {{
+                console.error("loadMolecule: 3D viewer error:", e);
             }}
             
-            updateMolInfo(index);
+            // 2D Image
+            try {{
+                if (mol.svg) {{
+                    const img = document.getElementById('img-2d');
+                    if (img) {{
+                        img.src = 'data:image/svg+xml;base64,' + mol.svg;
+                        img.style.display = 'block';
+                    }}
+                    const fallback = document.getElementById('no-2d-msg');
+                    if (fallback) fallback.style.display = 'none';
+                }} else {{
+                    const img = document.getElementById('img-2d');
+                    if (img) img.style.display = 'none';
+                    const fallback = document.getElementById('no-2d-msg');
+                    if (fallback) fallback.style.display = 'block';
+                }}
+            }} catch (e) {{
+                console.error("loadMolecule: 2D image error:", e);
+            }}
+            
+            // Update molecule info panel
+            try {{
+                updateMolInfo(index);
+                console.log("loadMolecule: Mol info updated");
+            }} catch (e) {{
+                console.error("loadMolecule: updateMolInfo error:", e);
+            }}
             
             // Ensure current molecule is selected in comparison views
             ['spectra-multiselect', 'energy-multiselect'].forEach(id => {{
@@ -1303,9 +1329,29 @@ def generate_html_report(
                  }}
             }});
             
-            renderSpectra();
-            renderOrbitals(index);
-            renderEnergyChart();
+            // Render all charts (independent of 3D viewer)
+            try {{
+                renderSpectra();
+                console.log("loadMolecule: Spectra rendered");
+            }} catch (e) {{
+                console.error("loadMolecule: renderSpectra error:", e);
+            }}
+            
+            try {{
+                renderOrbitals(index);
+                console.log("loadMolecule: Orbitals rendered");
+            }} catch (e) {{
+                console.error("loadMolecule: renderOrbitals error:", e);
+            }}
+            
+            try {{
+                renderEnergyChart();
+                console.log("loadMolecule: Energy chart rendered");
+            }} catch (e) {{
+                console.error("loadMolecule: renderEnergyChart error:", e);
+            }}
+            
+            console.log("loadMolecule: Complete");
         }}
         
         function switchMolecule() {{
@@ -1871,27 +1917,37 @@ def prepare_molecules_json(df: pd.DataFrame) -> str:
     """Prepare comprehensive molecule data as JSON for embedding in HTML."""
     molecules = []
     
+    def sanitize(val):
+        """Convert NaN/None to JSON-safe None."""
+        if val is None:
+            return None
+        if isinstance(val, float) and (pd.isna(val) or np.isnan(val)):
+            return None
+        if pd.isna(val):
+            return None
+        return val
+    
     for idx, row in df.iterrows():
         mol_id = row.get("molecule_id", "unknown")
         state = row.get("optimized_state", "")
-        label = f"{mol_id} [{state}]" if state and str(state) != "nan" else mol_id
+        label = f"{mol_id} [{state}]" if state and str(state) != "nan" else str(mol_id)
         
         mol_data = {
             "label": label,
-            "mol_id": mol_id,
-            "state": state if state and str(state) != "nan" else None,
-            "smiles": row.get("smiles") if row.get("smiles") and str(row.get("smiles")) != "nan" else None,
-            "energy": row.get("gibbs_Eh") or row.get("single_point_Eh"),
-            "single_point": row.get("single_point_Eh"),
-            "gibbs": row.get("gibbs_Eh"),
-            "homo": row.get("homo_energy"),
-            "lumo": row.get("lumo_energy"),
-            "gap": row.get("homo_lumo_gap"),
-            "method": row.get("method_id"),
-            "functional": row.get("functional"),
-            "basis_set": row.get("basis_set"),
-            "charge": row.get("charge"),
-            "multiplicity": row.get("multiplicity"),
+            "mol_id": str(mol_id) if mol_id else "unknown",
+            "state": str(state) if state and str(state) != "nan" else None,
+            "smiles": str(row.get("smiles")) if row.get("smiles") and str(row.get("smiles")) != "nan" else None,
+            "energy": sanitize(row.get("gibbs_Eh")) or sanitize(row.get("single_point_Eh")),
+            "single_point": sanitize(row.get("single_point_Eh")),
+            "gibbs": sanitize(row.get("gibbs_Eh")),
+            "homo": sanitize(row.get("homo_energy")),
+            "lumo": sanitize(row.get("lumo_energy")),
+            "gap": sanitize(row.get("homo_lumo_gap")),
+            "method": str(row.get("method_id")) if row.get("method_id") and str(row.get("method_id")) != "nan" else None,
+            "functional": str(row.get("functional")) if row.get("functional") and str(row.get("functional")) != "nan" else None,
+            "basis_set": str(row.get("basis_set")) if row.get("basis_set") and str(row.get("basis_set")) != "nan" else None,
+            "charge": sanitize(row.get("charge")),
+            "multiplicity": sanitize(row.get("multiplicity")),
             "xyz": None,
             "atoms": 0,
             "coords": [],  # Full coordinate table
