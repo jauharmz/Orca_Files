@@ -6,6 +6,9 @@ Run: streamlit run streamlit_app/app.py
 
 import streamlit as st
 import sys
+import os
+import glob
+import re
 from pathlib import Path
 
 # Add parent to path for src imports
@@ -20,36 +23,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS to reduce padding
+# Custom CSS
 st.markdown("""
 <style>
-    /* Reduce top padding */
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 1rem;
-    }
-    /* Reduce spacing between elements */
-    .element-container {
-        margin-bottom: 0.5rem;
-    }
-    /* Reduce expander padding */
-    .streamlit-expanderHeader {
-        padding: 0.5rem 1rem;
-    }
-    /* Reduce tab padding */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0.5rem;
-    }
-    .stTabs [data-baseweb="tab"] {
-        padding: 0.5rem 1rem;
-    }
+    .block-container { padding-top: 1rem; padding-bottom: 1rem; }
+    .element-container { margin-bottom: 0.3rem; }
 </style>
 """, unsafe_allow_html=True)
 
 # Import utilities
 from utils.session_state import init_session_state, get_df, set_df
 
-# Initialize session state
+# Initialize
 init_session_state()
 
 
@@ -61,50 +46,42 @@ def main():
         st.title("🔬 ORCA Platform")
         st.divider()
         
-        # Data loading section
         st.header("📁 Data Loading")
         
-        data_source = st.radio(
-            "Source",
-            ["Upload Files", "HuggingFace", "Local Folder"],
-            horizontal=True
-        )
+        data_source = st.radio("Source", ["HuggingFace", "Local Folder", "Upload"], horizontal=True)
         
-        if data_source == "Upload Files":
-            uploaded = st.file_uploader(
-                "Upload .out files",
-                type=["out"],
-                accept_multiple_files=True
-            )
-            if uploaded and st.button("🚀 Parse Files", type="primary"):
-                parse_uploaded_files(uploaded)
-        
-        elif data_source == "HuggingFace":
+        if data_source == "HuggingFace":
             data_path = Path("./test_data_hf")
             if data_path.exists() and list(data_path.rglob("*.out")):
-                st.info(f"📁 Sample data exists ({len(list(data_path.rglob('*.out')))} files)")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("🚀 Parse Existing", type="primary"):
-                        parse_folder("./test_data_hf")
-                with col2:
-                    if st.button("📥 Re-download"):
-                        download_hf_data()
+                file_count = len(list(data_path.rglob("*.out")))
+                st.info(f"📁 {file_count} files in test_data_hf")
+                if st.button("🚀 Parse Data", type="primary"):
+                    parse_folder_per_file("./test_data_hf")
             else:
                 if st.button("📥 Download & Parse", type="primary"):
                     download_hf_data()
         
         elif data_source == "Local Folder":
-            folder = st.text_input("Folder path", "./test_data_hf")
-            if st.button("📂 Parse Folder", type="primary"):
-                parse_folder(folder)
+            folder = st.text_input("Folder", "./test_data_hf")
+            if st.button("📂 Parse", type="primary"):
+                parse_folder_per_file(folder)
+        
+        elif data_source == "Upload":
+            files = st.file_uploader("Upload .out files", type=["out"], accept_multiple_files=True)
+            if files and st.button("🚀 Parse", type="primary"):
+                parse_uploaded_files(files)
         
         st.divider()
         
-        # Data status only
+        # Status only
         df = get_df()
         if df is not None:
-            st.success(f"✅ {len(df)} molecules loaded")
+            st.success(f"✅ {len(df)} records loaded")
+            
+            # Show state distribution
+            if "optimized_state" in df.columns:
+                states = df["optimized_state"].value_counts()
+                st.caption("States: " + ", ".join([f"{s}={c}" for s, c in states.items()]))
     
     # Main content
     df = get_df()
@@ -117,121 +94,41 @@ def main():
 def show_welcome():
     """Welcome screen."""
     st.title("🔬 ORCA Quantum Chemistry Visualization")
-    st.markdown("**Interactive analysis and visualization of ORCA output files**")
-    
-    st.info("👈 Upload files or download sample data to get started.")
+    st.markdown("**Interactive analysis of ORCA output files**")
+    st.info("👈 Load data from the sidebar to get started.")
     
     col1, col2, col3 = st.columns(3)
-    
     with col1:
-        st.markdown("""
-        ### 📊 Visualizations
-        - Energy diagrams
-        - IR/Raman/UV-Vis spectra
-        - Orbital energy levels
-        - 2D/3D molecular viewer
-        """)
-    
+        st.markdown("### 📊 Visualizations\n- Energy diagrams\n- IR/Raman/UV-Vis\n- Orbital levels")
     with col2:
-        st.markdown("""
-        ### 🔧 Features
-        - Interactive customization
-        - Multi-molecule comparison
-        - Adaptive data tables
-        - Export to CSV/Excel/HTML
-        """)
-    
+        st.markdown("### 🔧 Features\n- Multi-molecule compare\n- Data export\n- Customization")
     with col3:
-        st.markdown("""
-        ### 🔗 Reaction Editor
-        - Node-based visualization
-        - Drag-and-drop molecules
-        - Connect reaction pathways
-        - Click nodes for details
-        """)
+        st.markdown("### 🔗 Reactions\n- Node-based editor\n- Energy pathways")
 
 
 def show_main_content(df):
-    """Main content with filters above tabs."""
+    """Main content - no top-level filter, filters are per-visualization."""
     
-    # === GLOBAL FILTERS AT TOP ===
     st.header("🔬 ORCA Visualization")
     
-    # Get unique molecule IDs from current data
-    mol_ids = sorted(df["molecule_id"].dropna().unique().tolist())
-    
-    # Initialize or validate session state for selection
-    if "selected_molecules" not in st.session_state:
-        st.session_state.selected_molecules = mol_ids[:min(5, len(mol_ids))]
-    else:
-        # Filter out any molecules that no longer exist in the data
-        st.session_state.selected_molecules = [
-            m for m in st.session_state.selected_molecules if m in mol_ids
-        ]
-    
-    # Filter row
-    filter_col1, filter_col2, filter_col3, filter_col4 = st.columns([5, 1, 1, 2])
-    
-    with filter_col1:
-        # Validate defaults before passing to multiselect
-        valid_defaults = [m for m in st.session_state.selected_molecules if m in mol_ids]
-        
-        selected_mols = st.multiselect(
-            "🔍 Filter Molecules",
-            mol_ids,
-            default=valid_defaults if valid_defaults else None,
-            key="mol_filter_widget"
-        )
-        st.session_state.selected_molecules = selected_mols
-    
-    with filter_col2:
-        if st.button("✅ All", help="Select all molecules"):
-            st.session_state.selected_molecules = mol_ids
-            st.rerun()
-    
-    with filter_col3:
-        if st.button("❌ None", help="Clear selection"):
-            st.session_state.selected_molecules = []
-            st.rerun()
-    
-    with filter_col4:
-        # Show state filter if available
+    # Quick stats
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Records", len(df))
+    with col2:
+        unique_mols = df["molecule_id"].nunique() if "molecule_id" in df.columns else 0
+        st.metric("Molecules", unique_mols)
+    with col3:
         if "optimized_state" in df.columns:
-            states = df["optimized_state"].dropna().unique().tolist()
-            if states:
-                # Initialize state filter
-                if "selected_states" not in st.session_state:
-                    st.session_state.selected_states = states
-                valid_states = [s for s in st.session_state.selected_states if s in states]
-                state_filter = st.multiselect("State", states, default=valid_states if valid_states else states, key="state_filter")
-                st.session_state.selected_states = state_filter
-            else:
-                state_filter = None
-        else:
-            state_filter = None
+            unique_states = df["optimized_state"].nunique()
+            st.metric("States", unique_states)
+    with col4:
+        has_coords = df["cart_coords"].apply(lambda x: x is not None and hasattr(x, '__len__') and len(x) > 0).sum() if "cart_coords" in df.columns else 0
+        st.metric("With Coords", has_coords)
     
-    # Apply filters
-    filtered_df = df.copy()
-    if st.session_state.selected_molecules:
-        filtered_df = filtered_df[filtered_df["molecule_id"].isin(st.session_state.selected_molecules)]
-    if state_filter:
-        filtered_df = filtered_df[filtered_df["optimized_state"].isin(state_filter)]
-    
-    # Info about data with state breakdown
-    col_info1, col_info2 = st.columns([1, 3])
-    with col_info1:
-        st.caption(f"Showing **{len(filtered_df)}** of {len(df)} molecules")
-    with col_info2:
-        if "optimized_state" in filtered_df.columns and len(filtered_df) > 0:
-            state_counts = filtered_df["optimized_state"].value_counts()
-            state_str = " | ".join([f"{s}: {c}" for s, c in state_counts.items()])
-            st.caption(f"States: {state_str}")
-    
-            st.caption(f"States: {state_str}")
-    
-    # === TABS ===
+    # Tabs - each tab has its own filter
     tabs = st.tabs([
-        "📊 Dashboard",
+        "📊 Data",
         "🧬 Molecules", 
         "📈 Spectra",
         "⚡ Energy",
@@ -241,90 +138,82 @@ def show_main_content(df):
     ])
     
     with tabs[0]:
-        show_dashboard(filtered_df)
-    
+        show_data_tab(df)
     with tabs[1]:
-        show_molecules_tab(filtered_df)
-    
+        show_molecules_tab(df)
     with tabs[2]:
-        show_spectra_tab(filtered_df)
-    
+        show_spectra_tab(df)
     with tabs[3]:
-        show_energy_tab(filtered_df)
-    
+        show_energy_tab(df)
     with tabs[4]:
-        show_orbitals_tab(filtered_df)
-    
+        show_orbitals_tab(df)
     with tabs[5]:
-        show_reactions_tab(filtered_df)
-    
+        show_reactions_tab(df)
     with tabs[6]:
-        show_export_tab(filtered_df)
+        show_export_tab(df)
 
 
-def show_dashboard(df):
-    """Dashboard overview."""
-    st.subheader("📊 Dashboard")
+def show_data_tab(df):
+    """Data overview with filtering."""
+    st.subheader("📊 Data Overview")
     
-    # Metrics
-    col1, col2, col3, col4 = st.columns(4)
-    
+    # Filters
+    col1, col2 = st.columns(2)
     with col1:
-        st.metric("Molecules", len(df))
-    
+        mol_ids = sorted(df["molecule_id"].dropna().unique().tolist()) if "molecule_id" in df.columns else []
+        selected_mols = st.multiselect("Filter by Molecule", mol_ids, default=mol_ids[:min(10, len(mol_ids))], key="data_mol_filter")
     with col2:
-        has_energy = df["gibbs_Eh"].notna().sum() if "gibbs_Eh" in df.columns else 0
-        st.metric("With Energy", has_energy)
+        states = sorted(df["optimized_state"].dropna().unique().tolist()) if "optimized_state" in df.columns else []
+        selected_states = st.multiselect("Filter by State", states, default=states, key="data_state_filter")
     
-    with col3:
-        has_ir = df["ir"].apply(lambda x: x is not None and hasattr(x, '__len__') and len(x) > 0).sum() if "ir" in df.columns else 0
-        st.metric("With IR", has_ir)
+    # Apply filter
+    filtered = df.copy()
+    if selected_mols:
+        filtered = filtered[filtered["molecule_id"].isin(selected_mols)]
+    if selected_states and "optimized_state" in filtered.columns:
+        filtered = filtered[filtered["optimized_state"].isin(selected_states)]
     
-    with col4:
-        has_tddft = df["has_tddft"].sum() if "has_tddft" in df.columns else 0
-        st.metric("With TDDFT", has_tddft)
+    st.caption(f"Showing {len(filtered)} of {len(df)} records")
     
-    # Quick data table - collapsed by default
-    with st.expander("📋 Data Overview", expanded=False):
-        scalar_cols = ["molecule_id", "method_id", "functional", "basis_set", 
-                       "gibbs_Eh", "single_point_Eh", "homo_energy", "lumo_energy",
-                       "optimized_state", "calc_class"]
-        available = [c for c in scalar_cols if c in df.columns]
-        st.dataframe(df[available], use_container_width=True, height=400)
+    # Show table
+    display_cols = ["molecule_id", "optimized_state", "method_id", "functional", "basis_set", 
+                    "gibbs_Eh", "single_point_Eh", "homo_energy", "lumo_energy"]
+    available = [c for c in display_cols if c in filtered.columns]
+    st.dataframe(filtered[available], use_container_width=True, height=500)
 
 
 def show_molecules_tab(df):
-    """Molecule viewer tab."""
+    """Molecule viewer."""
     from components.molecule_viewer import render_molecule_viewer
     render_molecule_viewer(df)
 
 
 def show_spectra_tab(df):
-    """Spectra visualization tab."""
+    """Spectra visualization."""
     from components.spectra_viz import render_spectra_viz
     render_spectra_viz(df)
 
 
 def show_energy_tab(df):
-    """Energy comparison tab."""
+    """Energy comparison."""
     from components.energy_viz import render_energy_viz
     render_energy_viz(df)
 
 
 def show_orbitals_tab(df):
-    """Orbital visualization tab."""
+    """Orbital visualization."""
     from components.orbital_viz import render_orbital_viz
     render_orbital_viz(df)
 
 
 def show_reactions_tab(df):
-    """Reaction node editor tab."""
+    """Reaction node editor."""
     from components.node_editor import render_node_editor
     render_node_editor(df)
 
 
 def show_export_tab(df):
-    """Export tab."""
+    """Export panel."""
     from components.export_panel import render_export_panel
     render_export_panel(df)
 
@@ -334,33 +223,36 @@ def show_export_tab(df):
 def parse_uploaded_files(files):
     """Parse uploaded files."""
     from src.parser.factory import ParserFactory
+    import pandas as pd
     
     factory = ParserFactory()
     results = []
     
-    progress = st.progress(0, "Parsing files...")
+    progress = st.progress(0, "Parsing...")
     for i, file in enumerate(files):
         try:
             content = file.read().decode('utf-8', errors='ignore')
             result = factory.parse_text(content, file.name)
-            results.append(result.to_dict())
-        except Exception as e:
-            st.warning(f"Failed: {file.name} - {e}")
+            row = result.to_dict()
+            row["molecule_id"] = extract_mol_id(file.name)
+            row["optimized_state"] = extract_state(file.name)
+            results.append(row)
+        except Exception:
+            pass
         progress.progress((i + 1) / len(files))
     
     if results:
-        import pandas as pd
         set_df(pd.DataFrame(results))
         st.success(f"✅ Parsed {len(results)} files")
         st.rerun()
 
 
 def download_hf_data():
-    """Download from HuggingFace and auto-parse."""
+    """Download from HuggingFace."""
     try:
         from huggingface_hub import snapshot_download
         
-        st.info("📥 Step 1/2: Downloading from HuggingFace...")
+        st.info("📥 Downloading...")
         with st.spinner("Downloading..."):
             snapshot_download(
                 repo_id="JauharMz/Orca",
@@ -368,37 +260,33 @@ def download_hf_data():
                 local_dir="./test_data_hf",
                 local_dir_use_symlinks=False
             )
-        st.success("✅ Downloaded to ./test_data_hf")
-        
-        st.info("🔄 Step 2/2: Parsing files...")
-        parse_folder("./test_data_hf")
+        st.success("✅ Downloaded")
+        parse_folder_per_file("./test_data_hf")
         
     except ImportError:
-        st.error("❌ huggingface_hub not installed. Run: pip install huggingface_hub")
+        st.error("Install: pip install huggingface_hub")
     except Exception as e:
-        st.error(f"❌ Download failed: {e}")
+        st.error(f"Failed: {e}")
 
 
-
-def parse_folder(folder):
-    """Parse folder of .out files - one record per file with state extraction."""
+def parse_folder_per_file(folder: str):
+    """Parse each file as a separate record with state from folder name."""
     from src.parser.factory import ParserFactory
     import pandas as pd
-    import re
     
     pattern = f"{folder}/**/*.out"
     files = sorted(glob.glob(pattern, recursive=True))
     
     if not files:
-        st.warning(f"No .out files found in {folder}")
+        st.warning(f"No .out files in {folder}")
         return
     
-    st.info(f"🔄 Parsing {len(files)} files (one record per file)...")
+    st.info(f"🔄 Parsing {len(files)} files...")
     
     factory = ParserFactory()
     results = []
     
-    progress = st.progress(0, "Parsing files...")
+    progress = st.progress(0, "Parsing...")
     for i, filepath in enumerate(files):
         try:
             result = factory.parse(filepath)
@@ -411,70 +299,86 @@ def parse_folder(folder):
             row["_filepath"] = filepath
             
             results.append(row)
-        except Exception as e:
-            pass  # Skip failed files silently
+        except Exception:
+            pass
         progress.progress((i + 1) / len(files))
     
     if not results:
-        st.warning("No files parsed successfully")
+        st.warning("No files parsed")
         return
     
     df = pd.DataFrame(results)
     set_df(df)
     
-    # Show stats
-    state_counts = df["optimized_state"].value_counts()
-    st.success(f"✅ Parsed {len(df)} files: " + ", ".join([f"{s}={c}" for s, c in state_counts.items()]))
+    # Stats
+    if "optimized_state" in df.columns:
+        states = df["optimized_state"].value_counts()
+        state_str = ", ".join([f"{s}={c}" for s, c in states.items()])
+        st.success(f"✅ Parsed {len(df)} records: {state_str}")
+    else:
+        st.success(f"✅ Parsed {len(df)} records")
     st.rerun()
 
 
 def extract_molecule_and_state(filepath: str) -> tuple:
-    """Extract molecule ID and state from filepath."""
-    import os
-    import re
+    """
+    Extract molecule ID and state from filepath.
     
-    # Get folder name and filename
+    Examples:
+        p1as0/file.out -> (p1a, S0)
+        p1xs0p/file.out -> (p1x, S0-SP)
+        p1xvg/file.out -> (p1x, VG)
+    """
     parts = Path(filepath).parts
     
-    # Check folder name for state patterns like p1xs0, p1xs0p, p1xvg
-    state_pattern = re.compile(r'(s0p?|s1|t1|vg|ah|ahas|opt)$', re.I)
+    # Pattern to match state suffix
+    state_pattern = re.compile(r'(s0p|s0|s1|t1|vg|ah|ahas)$', re.I)
     
-    # Try to get from parent folder name
-    parent_folder = parts[-2] if len(parts) >= 2 else ""
-    
-    # Extract base molecule and state
-    match = state_pattern.search(parent_folder)
-    if match:
-        state = match.group(1).upper()
-        # Map to standard names
-        state_map = {
-            "S0": "S0",
-            "S0P": "S0-SP",
-            "S1": "S1",
-            "T1": "T1",
-            "VG": "VG",
-            "AH": "AH",
-            "AHAS": "AHAS",
-            "OPT": "OPT"
-        }
-        state = state_map.get(state.upper(), state)
-        mol_id = state_pattern.sub('', parent_folder).strip('_-')
-    else:
-        # Fallback: try filename
-        filename = os.path.splitext(os.path.basename(filepath))[0]
-        match = state_pattern.search(filename)
+    # Try parent folder first
+    for part in reversed(parts[:-1]):  # All except filename
+        match = state_pattern.search(part.lower())
         if match:
-            state = match.group(1).upper()
-            mol_id = state_pattern.sub('', filename).strip('_-')
-        else:
-            state = "unknown"
-            mol_id = filename
+            state_code = match.group(1).upper()
+            mol_id = state_pattern.sub('', part).strip('_-')
+            
+            # Map to readable names
+            state_map = {
+                "S0P": "S0-SP",
+                "S0": "S0", 
+                "S1": "S1",
+                "T1": "T1",
+                "VG": "VG",
+                "AH": "AH",
+                "AHAS": "AHAS"
+            }
+            state = state_map.get(state_code, state_code)
+            return mol_id, state
     
-    return mol_id, state
+    # Fallback: use filename
+    filename = os.path.splitext(os.path.basename(filepath))[0]
+    match = state_pattern.search(filename.lower())
+    if match:
+        state_code = match.group(1).upper()
+        mol_id = state_pattern.sub('', filename).strip('_-')
+        return mol_id, state_code
+    
+    return filename, "unknown"
 
 
-import glob
+def extract_mol_id(filename: str) -> str:
+    """Extract molecule ID from filename."""
+    base = os.path.splitext(os.path.basename(filename))[0]
+    mol_id = re.sub(r'(_?s0p?|_?s0|_?s1|_?t1|_?vg|_?opt)$', '', base, flags=re.I)
+    return mol_id.strip('_-')
+
+
+def extract_state(filename: str) -> str:
+    """Extract state from filename."""
+    match = re.search(r'(s0p|s0|s1|t1|vg)$', filename.lower())
+    if match:
+        return match.group(1).upper()
+    return "unknown"
+
 
 if __name__ == "__main__":
     main()
-

@@ -313,3 +313,114 @@ class BatchParser:
         base = os.path.splitext(os.path.basename(filename))[0]
         mol_id = re.sub(r'(_?s0p?|_?s0|_?s1|_?t1|_?vg|_?ah|_?ahas|_?p|_?opt)$', '', base, flags=re.I)
         return mol_id.strip("_-")
+    
+    @staticmethod
+    def _extract_state_from_path(filepath: str) -> str:
+        """
+        Extract state from filepath (folder name or filename).
+        
+        Examples:
+            p1as0/file.out -> S0
+            p1xs0p/file.out -> S0-SP
+            p1xvg/file.out -> VG
+        """
+        state_pattern = re.compile(r'(s0p|s0|s1|t1|vg|ah|ahas)(?:[^a-z]|$)', re.I)
+        
+        # Try folder names first
+        parts = Path(filepath).parts
+        for part in reversed(parts[:-1]):  # Exclude filename
+            match = state_pattern.search(part.lower())
+            if match:
+                state_code = match.group(1).upper()
+                state_map = {
+                    "S0P": "S0-SP",
+                    "S0": "S0",
+                    "S1": "S1",
+                    "T1": "T1",
+                    "VG": "VG",
+                    "AH": "AH",
+                    "AHAS": "AHAS"
+                }
+                return state_map.get(state_code, state_code)
+        
+        # Fallback: filename
+        filename = os.path.basename(filepath)
+        match = state_pattern.search(filename.lower())
+        if match:
+            state_code = match.group(1).upper()
+            return state_code
+        
+        return "unknown"
+    
+    def parse_all_detailed(self, verbose: bool = True) -> pd.DataFrame:
+        """
+        Parse all files, returning one row per file (no grouping).
+        
+        Each row includes:
+            - molecule_id: Base molecule ID (e.g., p1a)
+            - optimized_state: State extracted from path (S0, S0-SP, VG)
+            - All parsed data fields
+        
+        Returns:
+            DataFrame with one row per file.
+        """
+        files = self.files
+        
+        if not files:
+            self.logger.warning("No files to parse")
+            return pd.DataFrame()
+        
+        self.logger.info(f"Parsing {len(files)} files (detailed mode - one row per file)")
+        
+        factory = ParserFactory()
+        spec_file_parser = SpectrumFileParser()
+        rows = []
+        
+        for i, filepath in enumerate(files):
+            if verbose and (i + 1) % 5 == 0:
+                self.logger.info(f"Progress: {i+1}/{len(files)}")
+            
+            try:
+                result = factory.parse(filepath)
+                row = result.to_dict()
+                
+                # Extract molecule_id and state from path
+                row["molecule_id"] = self._extract_molecule_id(filepath, result.geometry.filename)
+                row["optimized_state"] = self._extract_state_from_path(filepath)
+                row["_filepath"] = filepath
+                
+                # Try to find spectrum files
+                spec_files = spec_file_parser.find_spectrum_files(
+                    filepath, 
+                    result.esd_type,
+                    result.geometry.filename
+                )
+                if spec_files:
+                    for spec_type, spec_path in spec_files.items():
+                        row["spectrum_file"] = spec_file_parser.parse_spectrum_file(spec_path, spec_type)
+                
+                rows.append(row)
+            except Exception as e:
+                if verbose:
+                    self.logger.warning(f"Failed: {filepath}: {e}")
+                continue
+        
+        if not rows:
+            self.logger.warning("No files parsed successfully")
+            return pd.DataFrame()
+        
+        df = pd.DataFrame(rows)
+        
+        # Log summary
+        self.logger.info("=" * 50)
+        self.logger.info(f"DETAILED PARSE COMPLETE: {len(df)} records from {len(files)} files")
+        if "optimized_state" in df.columns:
+            states = df["optimized_state"].value_counts()
+            self.logger.info(f"  States: {dict(states)}")
+        if "molecule_id" in df.columns:
+            n_mols = df["molecule_id"].nunique()
+            self.logger.info(f"  Unique molecules: {n_mols}")
+        self.logger.info("=" * 50)
+        
+        return df
+

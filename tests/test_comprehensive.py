@@ -79,13 +79,13 @@ def main():
     out_files = list(data_dir.rglob("*.out"))
     logger.info(f"  Found: {len(out_files)} files")
     
-    # 2. Parse with MODULAR parser
-    logger.info("\n[STEP 2] Parsing with MODULAR parsers...")
+    # 2. Parse with MODULAR parser (detailed mode - one row per file with state)
+    logger.info("\n[STEP 2] Parsing with MODULAR parsers (detailed mode)...")
     from src.parser.batch import BatchParser
     
     pattern = str(data_dir / "**/*.out")
     batch = BatchParser(pattern)
-    df_modular = batch.parse_all(verbose=True)
+    df_modular = batch.parse_all_detailed(verbose=True)  # Use detailed mode
     
     # ========================================
     # EXPORT ALL DATA TO MULTIPLE CSVs
@@ -95,6 +95,7 @@ def main():
     # 3A. Main molecules CSV (scalar data)
     molecules_df = pd.DataFrame()
     molecules_df["molecule_id"] = df_modular["molecule_id"]
+    molecules_df["optimized_state"] = df_modular["optimized_state"]  # Include state
     molecules_df["filename"] = df_modular["filename"]
     
     # Add all scalar columns
