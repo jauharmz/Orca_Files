@@ -259,7 +259,7 @@ def render_html_export(df: pd.DataFrame):
     with col1:
         if st.button("🚀 Generate Report", type="primary"):
             try:
-                with st.spinner("Generating comprehensive report..."):
+                with st.spinner("Generating comprehensive report (this may take a moment)..."):
                     html = generate_html_report(
                         df, 
                         include_3d=include_3d,
@@ -274,23 +274,17 @@ def render_html_export(df: pd.DataFrame):
                     st.session_state['report_html'] = html
                     st.session_state['report_name'] = report_name
                     
-                    # Save to disk - use absolute path to project root
+                    # Save to disk - use absolute path
                     import os
-                    from pathlib import Path
+                    save_path = os.path.abspath(report_name)
                     
-                    # Debug: print current working directory
-                    cwd = Path.cwd()
-                    
-                    # Try to save to CWD (Project Root usually)
-                    filepath = cwd / report_name
-                    
-                    with open(filepath, "w", encoding="utf-8") as f:
+                    with open(save_path, "w", encoding="utf-8") as f:
                         f.write(html)
                     
-                    file_size = len(html) // 1024
+                    file_size_mb = len(html) / (1024 * 1024)
                     
-                st.success(f"✅ Report generated!")
-                st.info(f"📂 Saved to: `{filepath}`")
+                st.success(f"✅ Report generated! ({file_size_mb:.1f} MB)")
+                st.info(f"📂 File saved to: `{save_path}`")
                 
             except Exception as e:
                 st.error(f"Failed to generate report: {e}")
@@ -305,7 +299,8 @@ def render_html_export(df: pd.DataFrame):
                 data=st.session_state['report_html'],
                 file_name=st.session_state['report_name'],
                 mime="text/html",
-                type="primary"
+                type="primary",
+                key="html_download_btn"
             )
 
 
@@ -1068,8 +1063,8 @@ def generate_html_report(
             <h2>📈 6. Vibrational Analysis</h2>
             
             <p>
-                Infrared (IR) and Raman spectra provide fingerprints of molecular vibrations. Select a molecule above 
-                to view its vibrational spectra.
+                Infrared (IR) and Raman spectra provide fingerprints of molecular vibrations. 
+                Use the checkboxes below to overlay multiple spectra.
             </p>
             
             <!-- Spectra Settings -->
@@ -1089,11 +1084,19 @@ def generate_html_report(
                         </select>
                     </div>
                 </div>
+                
+                <div class="setting-group" style="margin-top: 10px; width: 100%;">
+                    <label><strong>Select Molecules to Compare:</strong></label>
+                    <div id="spectra-multiselect" class="multiselect-grid">
+                        <!-- Checkboxes injected by JS -->
+                    </div>
+                </div>
             </details>
             
             <div class="tabs">
                 <div class="tab active" onclick="showSpectraTab('ir')">IR Spectrum</div>
                 <div class="tab" onclick="showSpectraTab('raman')">Raman Spectrum</div>
+                <div class="tab" onclick="showSpectraTab('uvvis')">UV-Vis (TDDFT)</div>
             </div>
             <div id="spectra-ir" class="tab-content active">
                 <div id="ir-chart" class="chart-container"></div>
@@ -1101,6 +1104,29 @@ def generate_html_report(
             <div id="spectra-raman" class="tab-content">
                 <div id="raman-chart" class="chart-container"></div>
             </div>
+            <div id="spectra-uvvis" class="tab-content">
+                <div id="uvvis-chart" class="chart-container"></div>
+            </div>
+        </section>
+'''
+    
+    if include_energy:
+        html += '''
+        <!-- 4. Energy Analysis -->
+        <section id="energy-analysis" class="section">
+            <h2>⚡ 4. Energy Analysis</h2>
+            
+            <details class="settings-panel">
+                <summary>Energy Comparison Settings</summary>
+                <div class="setting-group" style="width: 100%;">
+                    <label><strong>Select Molecules to Compare:</strong></label>
+                    <div id="energy-multiselect" class="multiselect-grid">
+                        <!-- Checkboxes injected by JS -->
+                    </div>
+                </div>
+            </details>
+            
+            <div id="energy-chart" class="chart-container"></div>
         </section>
 '''
     
@@ -1199,6 +1225,11 @@ def generate_html_report(
             viewer = $3Dmol.createViewer('viewer-3d', {{
                 backgroundColor: '{"#1e1e2e" if dark_theme else "#f0f0f5"}'
             }});
+            
+            // Generate checkboxes
+            generateCheckboxes('spectra-multiselect', renderSpectra);
+            generateCheckboxes('energy-multiselect', renderEnergyChart);
+            
             loadMolecule(0);
         }}
         
@@ -1233,8 +1264,19 @@ def generate_html_report(
             }}
             
             updateMolInfo(index);
-            renderSpectra(index);
+            
+            // Ensure current molecule is selected in comparison views
+            ['spectra-multiselect', 'energy-multiselect'].forEach(id => {{
+                 const div = document.getElementById(id);
+                 if(div) {{
+                     const box = div.querySelector(`input[value="${index}"]`);
+                     if(box) box.checked = true;
+                 }}
+            }});
+            
+            renderSpectra();
             renderOrbitals(index);
+            renderEnergyChart();
         }}
         
         function switchMolecule() {{
@@ -1462,7 +1504,7 @@ def generate_html_report(
         
         function updateSpectraMode(val) {{
             spectraMode = val;
-            renderSpectra(currentMolIndex);
+            renderSpectra();
         }}
         
         function gaussianBroadening(peaks, fwhm, xMin, xMax, nPoints=2000) {{
@@ -1486,54 +1528,197 @@ def generate_html_report(
             return {{x, y}};
         }}
         
-        function renderSpectra(index) {{
-            const mol = molecules[index];
-            if (!mol) return;
+        // Multi-select helpers
+        function generateCheckboxes(containerId, onChangeHandler) {{
+            const div = document.getElementById(containerId);
+            if (!div) return;
+            
+            div.innerHTML = "";
+            molecules.forEach((mol, idx) => {{
+                const label = document.createElement('label');
+                label.className = 'multiselect-item';
+                
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.value = idx;
+                input.checked = (idx === currentMolIndex); // Default check current
+                input.onchange = () => onChangeHandler();
+                
+                label.appendChild(input);
+                label.appendChild(document.createTextNode(mol.label));
+                div.appendChild(label);
+            }});
+        }}
+        
+        function getSelectedIndices(containerId) {{
+            const div = document.getElementById(containerId);
+            if (!div) return [currentMolIndex];
+            
+            const checkboxes = div.querySelectorAll('input[type="checkbox"]:checked');
+            if (checkboxes.length === 0) return [currentMolIndex]; // Fallback to current
+            
+            return Array.from(checkboxes).map(cb => parseInt(cb.value));
+        }}
+        
+        function renderSpectra() {{
+            const indices = getSelectedIndices('spectra-multiselect');
+            const colors = ['#00ff88', '#ff6b6b', '#6b88ff', '#ffd93d', '#ff9f43', '#a55eea', '#2bcbba', '#fd9644'];
             
             // IR Chart
-            if (mol.ir && mol.ir.length > 0 && document.getElementById('ir-chart')) {{
-                let trace = {{}};
-                
-                if (spectraMode === 'line') {{
-                    // Calculate range
-                    const freqs = mol.ir.map(p => p.freq);
-                    const minFreq = Math.min(...freqs) - 200;
-                    const maxFreq = Math.max(...freqs) + 200;
-                    const broadened = gaussianBroadening(mol.ir, spectraFWHM, Math.max(0, minFreq), maxFreq);
+            const irDiv = document.getElementById('ir-chart');
+            if (irDiv && irDiv.offsetParent !== null) {{
+                const traces = [];
+                indices.forEach((idx, i) => {{
+                    const mol = molecules[idx];
+                    if (!mol.ir || mol.ir.length === 0) return;
                     
-                    trace = {{
-                        x: broadened.x, y: broadened.y,
-                        type: 'scatter', mode: 'lines',
-                        line: {{color: '#00ff88', width: 2}},
-                        fill: 'tozeroy', fillcolor: 'rgba(0,255,136,0.1)',
-                        name: 'IR Spectrum'
-                    }};
-                }} else {{
-                    // Stick mode
-                    const x = [];
-                    const y = [];
-                    mol.ir.forEach(p => {{
-                        x.push(p.freq, p.freq, null);
-                        y.push(0, p.intensity, null);
-                    }});
+                    const color = colors[i % colors.length];
+                    let trace = {{}};
                     
-                    trace = {{
-                        x: x, y: y,
-                        type: 'scatter', mode: 'lines',
-                        line: {{color: '#00ff88', width: 2}},
-                        name: 'Peaks'
-                    }};
-                }}
+                    if (spectraMode === 'line') {{
+                       const freqs = mol.ir.map(p => p.freq);
+                       const minFreq = Math.min(...freqs) - 200;
+                       const maxFreq = Math.max(...freqs) + 200;
+                       const broadened = gaussianBroadening(mol.ir, spectraFWHM, Math.max(0, minFreq), maxFreq);
+                       
+                       trace = {{
+                           x: broadened.x, y: broadened.y,
+                           type: 'scatter', mode: 'lines',
+                           line: {{color: color, width: 2}},
+                           name: mol.label
+                       }};
+                       // Only fill if single trace
+                       if (indices.length === 1) {{
+                           trace.fill = 'tozeroy';
+                           trace.fillcolor = color + '1A'; // 10% opacity
+                       }}
+                    }} else {{
+                        const x = [];
+                        const y = [];
+                        mol.ir.forEach(p => {{
+                            x.push(p.freq, p.freq, null);
+                            y.push(0, p.intensity, null);
+                        }});
+                        trace = {{
+                            x: x, y: y,
+                            type: 'scatter', mode: 'lines',
+                            line: {{color: color, width: 2}},
+                            name: mol.label
+                        }};
+                    }}
+                    traces.push(trace);
+                }});
                 
-                Plotly.newPlot('ir-chart', [trace], {{
+                Plotly.newPlot('ir-chart', traces, {{
                     title: 'IR Spectrum',
                     xaxis: {{title: 'Wavenumber (cm⁻¹)', autorange: 'reversed'}},
                     yaxis: {{title: 'Intensity'}},
                     paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
                     plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
-                    font: {{color: '{text_primary}'}}
+                    font: {{color: '{text_primary}'}},
+                    showlegend: indices.length > 1,
+                    margin: {{t: 30, b: 30, l: 50, r: 20}}
                 }}, {{responsive: true}});
             }}
+            
+            // Raman Chart
+            const ramanDiv = document.getElementById('raman-chart');
+            if (ramanDiv && ramanDiv.offsetParent !== null) {{
+                const traces = [];
+                indices.forEach((idx, i) => {{
+                    const mol = molecules[idx];
+                    if (!mol.raman || mol.raman.length === 0) return;
+                    
+                    const color = colors[i % colors.length];
+                    let trace = {{}};
+                    
+                    if (spectraMode === 'line') {{
+                        const freqs = mol.raman.map(p => p.freq);
+                        const minFreq = Math.min(...freqs) - 200;
+                        const maxFreq = Math.max(...freqs) + 200;
+                        const peaks = mol.raman.map(p => ({{freq: p.freq, intensity: p.activity}}));
+                        const broadened = gaussianBroadening(peaks, spectraFWHM, Math.max(0, minFreq), maxFreq);
+                        
+                        trace = {{
+                            x: broadened.x, y: broadened.y,
+                            type: 'scatter', mode: 'lines',
+                            line: {{color: color, width: 2}},
+                            name: mol.label
+                        }};
+                        if (indices.length === 1) {{
+                            trace.fill = 'tozeroy';
+                            trace.fillcolor = color + '1A';
+                        }}
+                    }} else {{
+                        const x = [];
+                        const y = [];
+                        mol.raman.forEach(p => {{
+                           x.push(p.freq, p.freq, null);
+                           y.push(0, p.activity, null);
+                        }});
+                        trace = {{
+                           x: x, y: y,
+                           type: 'scatter', mode: 'lines',
+                           line: {{color: color, width: 2}},
+                           name: mol.label
+                        }};
+                    }}
+                    traces.push(trace);
+                }});
+                
+                Plotly.newPlot('raman-chart', traces, {{
+                    title: 'Raman Spectrum',
+                    xaxis: {{title: 'Shift (cm⁻¹)'}},
+                    yaxis: {{title: 'Intensity'}},
+                    paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                    plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                    font: {{color: '{text_primary}'}},
+                    showlegend: indices.length > 1,
+                    margin: {{t: 30, b: 30, l: 50, r: 20}}
+                }}, {{responsive: true}});
+            }}
+            
+             // UV-Vis Chart
+            const uvDiv = document.getElementById('uvvis-chart');
+            if (uvDiv && uvDiv.offsetParent !== null) {{
+                 const traces = [];
+                 indices.forEach((idx, i) => {{
+                    const mol = molecules[idx];
+                    if (!mol.tddft || mol.tddft.length === 0) return;
+                    
+                    const color = colors[i % colors.length];
+                    
+                    // Simple line logic for UV (Gaussian broadening on energy/nm)
+                    // For now, use stick
+                    const x = [];
+                    const y = [];
+                    mol.tddft.forEach(state => {{
+                        if(state.nm && state.f) {{
+                            x.push(state.nm, state.nm, null);
+                            y.push(0, state.f, null);
+                        }}
+                    }});
+                    
+                    traces.push({{
+                        x: x, y: y,
+                        type: 'scatter', mode: 'lines',
+                        line: {{color: color, width: 2}},
+                        name: mol.label
+                    }});
+                 }});
+
+                 Plotly.newPlot('uvvis-chart', traces, {{
+                    title: 'UV-Vis Spectrum',
+                    xaxis: {{title: 'Wavelength (nm)'}},
+                    yaxis: {{title: 'Oscillator Strength'}},
+                    paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                    plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                    font: {{color: '{text_primary}'}},
+                    showlegend: indices.length > 1,
+                    margin: {{t: 30, b: 30, l: 50, r: 20}}
+                }}, {{responsive: true}});
+            }}
+        }}
             
             // Raman Chart
             if (mol.raman && mol.raman.length > 0 && document.getElementById('raman-chart')) {{
@@ -1585,67 +1770,38 @@ def generate_html_report(
 
         
         function renderEnergyChart() {{
-            const labels = molecules.map(m => m.label);
-            const energies = molecules.map(m => m.energy || 0);
+            const indices = getSelectedIndices('energy-multiselect');
             
-            Plotly.newPlot('energy-chart', [{{
-                x: labels,
-                y: energies,
-                type: 'bar',
-                marker: {{color: '#667eea'}}
-            }}], {{
+            const x = [];
+            const y = [];
+            const markerColors = [];
+            const text = [];
+            
+            indices.forEach(idx => {{
+                const mol = molecules[idx];
+                x.push(mol.label);
+                y.push(mol.energy || 0);
+                markerColors.push(idx === currentMolIndex ? '#667eea' : '#a3bffa');
+                text.push(`${{mol.energy ? mol.energy.toFixed(5) : 'N/A'}} Eh`);
+            }});
+            
+            const layout = {{
                 title: 'Energy Comparison',
                 xaxis: {{title: 'Molecule'}},
                 yaxis: {{title: 'Energy (Eh)'}},
                 paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
                 plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
-                font: {{color: '{text_primary}'}}
-            }}, {{responsive: true}});
-        }}
-        
-        function renderOrbitalChart() {{
-            const labels = molecules.map(m => m.label);
-            const homos = molecules.map(m => m.homo || 0);
-            const lumos = molecules.map(m => m.lumo || 0);
+                font: {{color: '{text_primary}'}},
+                margin: {{l: 60, r: 30, t: 50, b: 80}}
+            }};
             
-            Plotly.newPlot('orbital-chart', [
-                {{x: labels, y: homos, name: 'HOMO', type: 'bar', marker: {{color: '#ff6b6b'}}}},
-                {{x: labels, y: lumos, name: 'LUMO', type: 'bar', marker: {{color: '#4ecdc4'}}}}
-            ], {{
-                title: 'HOMO/LUMO Energy Levels',
-                xaxis: {{title: 'Molecule'}},
-                yaxis: {{title: 'Energy (eV)'}},
-                barmode: 'group',
-                paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
-                plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
-                font: {{color: '{text_primary}'}}
-            }}, {{responsive: true}});
-        }}
-        
-        function renderUVVisChart(index) {{
-            const mol = molecules[index];
-            if (!mol || !mol.tddft || mol.tddft.length === 0) return;
-            
-            const container = document.getElementById('uv-chart');
-            if (!container) return;
-            
-            const x = mol.tddft.map(s => s.nm || 0);
-            const y = mol.tddft.map(s => s.f || 0);
-            
-            Plotly.newPlot('uv-chart', [{{
+            Plotly.newPlot('energy-chart', [{{
                 x: x, y: y,
                 type: 'bar',
-                marker: {{color: '#8b5cf6'}},
-                text: mol.tddft.map(s => `S${{s.state || 0}}`),
-                hovertemplate: '%{{x:.1f}} nm<br>f = %{{y:.4f}}<extra></extra>'
-            }}], {{
-                title: `UV-Vis Absorption - ${{mol.label}}`,
-                xaxis: {{title: 'Wavelength (nm)', range: [200, 800]}},
-                yaxis: {{title: 'Oscillator Strength (f)'}},
-                paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
-                plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
-                font: {{color: '{text_primary}'}}
-            }}, {{responsive: true}});
+                marker: {{color: markerColors}},
+                text: text,
+                hoverinfo: 'x+text'
+            }}], layout, {{responsive: true}});
         }}
         
         function updateMolInfo(index) {{
@@ -1674,9 +1830,6 @@ def generate_html_report(
             }}
             
             document.getElementById('mol-info').innerHTML = html;
-            
-            // Also update UV-Vis chart if available
-            renderUVVisChart(index);
         }}
     </script>
 </body>
