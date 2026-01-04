@@ -576,6 +576,8 @@ def generate_html_report(
             border-radius: 12px;
             padding: 20px;
             margin: 20px 0;
+            position: relative;
+            z-index: 1;
         }}
         
         #viewer-3d {{
@@ -583,6 +585,8 @@ def generate_html_report(
             height: 500px;
             border-radius: 8px;
             border: 1px solid rgba(0,0,0,0.1);
+            position: relative;
+            z-index: 1;
         }}
         
         .controls {{
@@ -686,6 +690,80 @@ def generate_html_report(
             grid-template-columns: repeat(4, 1fr);
             gap: 15px;
             margin-top: 20px;
+        }}
+        
+        /* Interactive Settings Panel */
+        .settings-panel {{
+            background: var(--bg-primary);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            border: 1px solid rgba(0,0,0,0.1);
+        }}
+        
+        .settings-panel summary {{
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--accent);
+            padding: 5px 0;
+            list-style: none;
+        }}
+        
+        .settings-panel summary::-webkit-details-marker {{ display: none; }}
+        .settings-panel summary::before {{ content: "⚙️ "; }}
+        
+        .settings-row {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }}
+        
+        .setting-group {{
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }}
+        
+        .setting-group label {{
+            font-size: 0.85em;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }}
+        
+        .setting-group input[type="range"] {{
+            width: 100%;
+            accent-color: var(--accent);
+        }}
+        
+        .setting-group input[type="checkbox"] {{
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+        }}
+        
+        .setting-group select {{
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(0,0,0,0.1);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 14px;
+        }}
+        
+        .range-value {{
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9em;
+            color: var(--accent);
+            font-weight: 600;
+        }}
+        
+        /* Coordinate/Data Tables */
+        .data-scroll {{
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 8px;
+            margin-top: 15px;
         }}
         
         /* Footer */
@@ -849,17 +927,53 @@ def generate_html_report(
 '''
     
     if include_3d:
-        html += '''                    <button onclick="setStyle('stick')">Stick</button>
-                    <button onclick="setStyle('sphere')">Spacefill</button>
-                    <button onclick="setStyle('ballstick')" class="active">Ball & Stick</button>
-                    <button onclick="toggleSpin()">🔄 Spin</button>
+        html += '''                    <button onclick="setStyle('stick')" id="btn-stick">Stick</button>
+                    <button onclick="setStyle('sphere')" id="btn-sphere">Spacefill</button>
+                    <button onclick="setStyle('ballstick')" id="btn-ballstick" class="active">Ball & Stick</button>
+                    <button onclick="toggleSpin()" id="btn-spin">🔄 Spin</button>
+                    <button onclick="toggleLabels()" id="btn-labels">🏷️ Labels</button>
 '''
     
     html += '''                </div>
 '''
     
     if include_3d:
-        html += f'''                <div id="viewer-3d" style="background: {"#1e1e2e" if dark_theme else "#f0f0f5"};"></div>
+        html += f'''
+                <!-- Settings Panel -->
+                <details class="settings-panel">
+                    <summary>3D Visualization Settings</summary>
+                    <div class="settings-row">
+                        <div class="setting-group">
+                            <label>Bond Radius</label>
+                            <input type="range" id="bond-radius" min="0.05" max="0.30" step="0.01" value="0.12" onchange="updateBondRadius(this.value)">
+                            <span class="range-value" id="bond-radius-val">0.12</span>
+                        </div>
+                        <div class="setting-group">
+                            <label>Atom Scale</label>
+                            <input type="range" id="atom-scale" min="0.1" max="1.0" step="0.05" value="0.25" onchange="updateAtomScale(this.value)">
+                            <span class="range-value" id="atom-scale-val">0.25</span>
+                        </div>
+                        <div class="setting-group">
+                            <label>Color Scheme</label>
+                            <select id="color-scheme" onchange="updateColorScheme(this.value)">
+                                <option value="Jmol">Standard (Jmol)</option>
+                                <option value="rasmol">RasMol</option>
+                                <option value="default">Default</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label>Background</label>
+                            <select id="bg-color" onchange="updateBackground(this.value)">
+                                <option value="{"#1e1e2e" if dark_theme else "#f0f0f5"}">Default</option>
+                                <option value="#000000">Black</option>
+                                <option value="#ffffff">White</option>
+                                <option value="#1a1a2e">Dark Blue</option>
+                            </select>
+                        </div>
+                    </div>
+                </details>
+                
+                <div id="viewer-3d" style="background: {"#1e1e2e" if dark_theme else "#f0f0f5"};"></div>
 '''
     
     html += '''            
@@ -909,6 +1023,25 @@ def generate_html_report(
                 Infrared (IR) and Raman spectra provide fingerprints of molecular vibrations. Select a molecule above 
                 to view its vibrational spectra.
             </p>
+            
+            <!-- Spectra Settings -->
+            <details class="settings-panel">
+                <summary>Spectra Visualization Settings</summary>
+                <div class="settings-row">
+                    <div class="setting-group">
+                        <label>Broadening (FWHM)</label>
+                        <input type="range" id="fwhm-slider" min="1" max="50" value="10" onchange="updateSpectraBroadening(this.value)">
+                        <span class="range-value" id="fwhm-val">10 cm⁻¹</span>
+                    </div>
+                    <div class="setting-group">
+                        <label>Visualization Mode</label>
+                        <select id="spectra-mode" onchange="updateSpectraMode(this.value)">
+                             <option value="line">Line (Smoothed)</option>
+                             <option value="stick">Stick (Discrete)</option>
+                        </select>
+                    </div>
+                </div>
+            </details>
             
             <div class="tabs">
                 <div class="tab active" onclick="showSpectraTab('ir')">IR Spectrum</div>
@@ -1056,25 +1189,99 @@ def generate_html_report(
         function applyStyle(style) {{
             if (!viewer) return;
             
-            if (style === 'stick') {{
-                viewer.setStyle({{}}, {{stick: {{radius: 0.15}}}});
-            }} else if (style === 'sphere') {{
-                viewer.setStyle({{}}, {{sphere: {{scale: 0.8}}}});
-            }} else {{
-                viewer.setStyle({{}}, {{stick: {{radius: 0.12}}, sphere: {{scale: 0.25}}}});
+            let spec = {{}};
+            let common = {{}};
+            
+            // Apply color scheme if not default
+            if (colorScheme !== 'default') {{
+                common.colorscheme = colorScheme;
             }}
+            
+            if (style === 'stick') {{
+                spec = {{stick: {{radius: bondRadius * 1.5, ...common}}}};
+            }} else if (style === 'sphere') {{
+                spec = {{sphere: {{scale: atomScale * 3.0, ...common}}}};
+            }} else {{
+                // Ball and Stick
+                spec = {{
+                    stick: {{radius: bondRadius, ...common}},
+                    sphere: {{scale: atomScale, ...common}}
+                }};
+            }}
+            
+            viewer.setStyle({{}}, spec);
             viewer.render();
         }}
         
         function toggleSpin() {{
             spinning = !spinning;
+            const btn = document.getElementById('btn-spin');
             if (spinning) {{
                 spinInterval = setInterval(() => {{
                     viewer.rotate(1, {{x: 0, y: 1, z: 0}});
                     viewer.render();
                 }}, 40);
+                if (btn) btn.classList.add('active');
             }} else {{
                 clearInterval(spinInterval);
+                if (btn) btn.classList.remove('active');
+            }}
+        }}
+        
+        // Settings handlers
+        let showLabels = false;
+        let bondRadius = 0.12;
+        let atomScale = 0.25;
+        let colorScheme = 'Jmol';
+        
+        function toggleLabels() {{
+            showLabels = !showLabels;
+            const btn = document.getElementById('btn-labels');
+            if (showLabels) {{
+                // Add labels to non-hydrogen atoms
+                const mol = molecules[currentMolIndex];
+                if (mol && mol.coords) {{
+                    mol.coords.forEach((atom, i) => {{
+                        if (atom.el !== 'H') {{
+                            viewer.addLabel(atom.el + (i+1), {{
+                                position: {{x: atom.x, y: atom.y, z: atom.z}},
+                                fontSize: 12,
+                                fontColor: 'white',
+                                backgroundOpacity: 0.6,
+                                backgroundColor: '#333'
+                            }});
+                        }}
+                    }});
+                }}
+                if (btn) btn.classList.add('active');
+            }} else {{
+                viewer.removeAllLabels();
+                if (btn) btn.classList.remove('active');
+            }}
+            viewer.render();
+        }}
+        
+        function updateBondRadius(val) {{
+            bondRadius = parseFloat(val);
+            document.getElementById('bond-radius-val').textContent = val;
+            applyStyle(currentStyle);
+        }}
+        
+        function updateAtomScale(val) {{
+            atomScale = parseFloat(val);
+            document.getElementById('atom-scale-val').textContent = val;
+            applyStyle(currentStyle);
+        }}
+        
+        function updateColorScheme(scheme) {{
+            colorScheme = scheme;
+            applyStyle(currentStyle);
+        }}
+        
+        function updateBackground(color) {{
+            if (viewer) {{
+                viewer.setBackgroundColor(color);
+                viewer.render();
             }}
         }}
         
@@ -1086,21 +1293,82 @@ def generate_html_report(
             document.getElementById('spectra-' + type).classList.add('active');
         }}
         
+        // Spectra variables
+        let spectraFWHM = 10;
+        let spectraMode = 'line';
+        
+        function updateSpectraBroadening(val) {{
+            spectraFWHM = parseFloat(val);
+            document.getElementById('fwhm-val').textContent = val + " cm⁻¹";
+            renderSpectra(currentMolIndex);
+        }}
+        
+        function updateSpectraMode(val) {{
+            spectraMode = val;
+            renderSpectra(currentMolIndex);
+        }}
+        
+        function gaussianBroadening(peaks, fwhm, xMin, xMax, nPoints=2000) {{
+            const x = [];
+            const y = [];
+            const step = (xMax - xMin) / (nPoints - 1);
+            const alpha = 4 * Math.log(2) / (fwhm * fwhm);
+            
+            for (let i = 0; i < nPoints; i++) {{
+                const val = xMin + i * step;
+                x.push(val);
+                let intensity = 0;
+                
+                for (const p of peaks) {{
+                    const dist = (val - p.freq);
+                    if (Math.abs(dist) > 3 * fwhm) continue;
+                    intensity += p.intensity * Math.exp(-alpha * dist * dist);
+                }}
+                y.push(intensity);
+            }}
+            return {{x, y}};
+        }}
+        
         function renderSpectra(index) {{
             const mol = molecules[index];
             if (!mol) return;
             
             // IR Chart
             if (mol.ir && mol.ir.length > 0 && document.getElementById('ir-chart')) {{
-                const x = mol.ir.map(p => p.freq);
-                const y = mol.ir.map(p => p.intensity);
+                let trace = {{}};
                 
-                Plotly.newPlot('ir-chart', [{{
-                    x: x, y: y,
-                    type: 'scatter', mode: 'lines',
-                    line: {{color: '#00ff88', width: 1.5}},
-                    fill: 'tozeroy', fillcolor: 'rgba(0,255,136,0.1)'
-                }}], {{
+                if (spectraMode === 'line') {{
+                    // Calculate range
+                    const freqs = mol.ir.map(p => p.freq);
+                    const minFreq = Math.min(...freqs) - 200;
+                    const maxFreq = Math.max(...freqs) + 200;
+                    const broadened = gaussianBroadening(mol.ir, spectraFWHM, Math.max(0, minFreq), maxFreq);
+                    
+                    trace = {{
+                        x: broadened.x, y: broadened.y,
+                        type: 'scatter', mode: 'lines',
+                        line: {{color: '#00ff88', width: 2}},
+                        fill: 'tozeroy', fillcolor: 'rgba(0,255,136,0.1)',
+                        name: 'IR Spectrum'
+                    }};
+                }} else {{
+                    // Stick mode
+                    const x = [];
+                    const y = [];
+                    mol.ir.forEach(p => {{
+                        x.push(p.freq, p.freq, null);
+                        y.push(0, p.intensity, null);
+                    }});
+                    
+                    trace = {{
+                        x: x, y: y,
+                        type: 'scatter', mode: 'lines',
+                        line: {{color: '#00ff88', width: 2}},
+                        name: 'Peaks'
+                    }};
+                }}
+                
+                Plotly.newPlot('ir-chart', [trace], {{
                     title: 'IR Spectrum',
                     xaxis: {{title: 'Wavenumber (cm⁻¹)', autorange: 'reversed'}},
                     yaxis: {{title: 'Intensity'}},
@@ -1112,15 +1380,40 @@ def generate_html_report(
             
             // Raman Chart
             if (mol.raman && mol.raman.length > 0 && document.getElementById('raman-chart')) {{
-                const x = mol.raman.map(p => p.freq);
-                const y = mol.raman.map(p => p.activity);
+                let trace = {{}};
                 
-                Plotly.newPlot('raman-chart', [{{
-                    x: x, y: y,
-                    type: 'scatter', mode: 'lines',
-                    line: {{color: '#ff6b6b', width: 1.5}},
-                    fill: 'tozeroy', fillcolor: 'rgba(255,107,107,0.1)'
-                }}], {{
+                if (spectraMode === 'line') {{
+                    const freqs = mol.raman.map(p => p.freq);
+                    const minFreq = Math.min(...freqs) - 200;
+                    const maxFreq = Math.max(...freqs) + 200;
+                    // Remap activity to intensity for broadening function
+                    const peaks = mol.raman.map(p => ({{freq: p.freq, intensity: p.activity}}));
+                    const broadened = gaussianBroadening(peaks, spectraFWHM, Math.max(0, minFreq), maxFreq);
+                    
+                    trace = {{
+                        x: broadened.x, y: broadened.y,
+                        type: 'scatter', mode: 'lines',
+                        line: {{color: '#ff6b6b', width: 2}},
+                        fill: 'tozeroy', fillcolor: 'rgba(255,107,107,0.1)',
+                        name: 'Raman Spectrum'
+                    }};
+                }} else {{
+                    const x = [];
+                    const y = [];
+                    mol.raman.forEach(p => {{
+                        x.push(p.freq, p.freq, null);
+                        y.push(0, p.activity, null);
+                    }});
+                    
+                    trace = {{
+                        x: x, y: y,
+                        type: 'scatter', mode: 'lines',
+                        line: {{color: '#ff6b6b', width: 2}},
+                        name: 'Peaks'
+                    }};
+                }}
+                
+                Plotly.newPlot('raman-chart', [trace], {{
                     title: 'Raman Spectrum',
                     xaxis: {{title: 'Wavenumber (cm⁻¹)', autorange: 'reversed'}},
                     yaxis: {{title: 'Activity'}},
@@ -1130,6 +1423,9 @@ def generate_html_report(
                 }}, {{responsive: true}});
             }}
         }}
+            
+            
+
         
         function renderEnergyChart() {{
             const labels = molecules.map(m => m.label);
