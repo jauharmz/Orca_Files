@@ -259,6 +259,11 @@ def render_html_export(df: pd.DataFrame):
     with col1:
         if st.button("🚀 Generate Report", type="primary"):
             try:
+                # Debug Info
+                import os
+                cwd = os.getcwd()
+                st.caption(f"📂 Current Working Directory: `{cwd}`")
+                
                 with st.spinner("Generating comprehensive report (this may take a moment)..."):
                     html = generate_html_report(
                         df, 
@@ -275,7 +280,6 @@ def render_html_export(df: pd.DataFrame):
                     st.session_state['report_name'] = report_name
                     
                     # Save to disk - use absolute path
-                    import os
                     save_path = os.path.abspath(report_name)
                     
                     with open(save_path, "w", encoding="utf-8") as f:
@@ -284,7 +288,13 @@ def render_html_export(df: pd.DataFrame):
                     file_size_mb = len(html) / (1024 * 1024)
                     
                 st.success(f"✅ Report generated! ({file_size_mb:.1f} MB)")
-                st.info(f"📂 File saved to: `{save_path}`")
+                
+                # Immediate Verification
+                if os.path.exists(save_path):
+                    st.info(f"💾 File SUCCESSFULLY saved to: `{save_path}`")
+                    st.caption(f"Size on disk: {os.path.getsize(save_path) / 1024:.1f} KB")
+                else:
+                    st.error(f"❌ Error: File write operation completed but file not found at `{save_path}`")
                 
             except Exception as e:
                 st.error(f"Failed to generate report: {e}")
