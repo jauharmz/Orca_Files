@@ -109,7 +109,7 @@ def render_3d_view(mol_row: pd.Series):
         with c1:
             style = st.selectbox("Style", ["Ball-Stick", "Stick", "Sphere", "Line"], 
                                key="mol3d_style", index=0)
-            show_labels = st.checkbox("Show Atom Labels", False, key="mol3d_labels")
+            show_labels = st.checkbox("Show Atom Labels", True, key="mol3d_labels")
         with c2:
             bg_color = st.color_picker("Background", "#1e1e2e", key="mol3d_bg")
             spin = st.checkbox("Spin Animation", False, key="mol3d_spin")
@@ -261,7 +261,7 @@ viewer.render();
 
 
 def render_2d_view(mol_row: pd.Series):
-    """Render 2D molecular structure - uses SMILES if available, otherwise coordinates."""
+    """Render 2D molecular structure using RDKit - from SMILES or coordinates."""
     
     smiles = mol_row.get("smiles")
     coords = mol_row.get("cart_coords")
@@ -271,53 +271,98 @@ def render_2d_view(mol_row: pd.Series):
         c1, c2 = st.columns(2)
         with c1:
             img_size = st.slider("Image Size", 300, 600, 450, key="mol2d_size")
-            show_atom_indices = st.checkbox("Show Atom Indices", False, key="mol2d_indices")
+            show_atom_indices = st.checkbox("Show Atom Indices", True, key="mol2d_indices")
         with c2:
-            bg_color = st.color_picker("Background", "#f8f9fa", key="mol2d_bg")
+            bg_color = st.color_picker("Background", "#ffffff", key="mol2d_bg")
             bond_width = st.slider("Bond Width", 1, 5, 2, key="mol2d_bond")
+    
+    mol = None
+    source = None
     
     # Try SMILES first
     if smiles and str(smiles) != "nan":
         try:
             from rdkit import Chem
-            from rdkit.Chem import Draw, AllChem
-            from rdkit.Chem.Draw import rdMolDraw2D
-            
             mol = Chem.MolFromSmiles(str(smiles))
             if mol is not None:
-                # Compute 2D coordinates
-                AllChem.Compute2DCoords(mol)
-                
-                # Draw options
-                drawer = rdMolDraw2D.MolDraw2DSVG(img_size, int(img_size * 0.88))
-                opts = drawer.drawOptions()
-                opts.addAtomIndices = show_atom_indices
-                opts.bondLineWidth = bond_width
-                
-                drawer.DrawMolecule(mol)
-                drawer.FinishDrawing()
-                svg = drawer.GetDrawingText()
-                
-                # Display
-                st.markdown(f'<div style="display:flex;justify-content:center;background:{bg_color};padding:20px;border-radius:10px;">{svg}</div>', unsafe_allow_html=True)
-                
-                with st.expander("📋 SMILES String"):
-                    st.code(smiles, language=None)
-                return
+                source = "SMILES"
         except ImportError:
-            st.info("RDKit not installed. Using coordinate-based 2D view.")
-        except Exception as e:
-            st.warning(f"SMILES parsing failed: {e}. Using coordinate-based 2D view.")
+            pass
+        except Exception:
+            pass
     
-    # Fallback: Use coordinates for 2D view
-    if coords is None or (hasattr(coords, 'empty') and coords.empty):
-        st.warning("No molecular data available for 2D view (no SMILES or coordinates)")
+    # Fallback: Create molecule from XYZ coordinates using RDKit
+    if mol is None and coords is not None and not (hasattr(coords, 'empty') and coords.empty):
+        try:
+            from rdkit import Chem
+            from rdkit.Chem import AllChem
+            
+            # Build XYZ block
+            n_atoms = len(coords)
+            xyz_lines = [str(n_atoms), "molecule"]
+            
+            for _, atom in coords.iterrows():
+                el = str(atom.get("atom", atom.get("element", "C")))
+                x = float(atom.get("x", 0))
+                y = float(atom.get("y", 0))
+                z = float(atom.get("z", 0))
+                xyz_lines.append(f"{el} {x:.6f} {y:.6f} {z:.6f}")
+            
+            xyz_block = "\n".join(xyz_lines)
+            
+            # Create molecule from XYZ using rdDetermineBonds
+            raw_mol = Chem.MolFromXYZBlock(xyz_block)
+            if raw_mol is not None:
+                try:
+                    # Try to determine bonds
+                    from rdkit.Chem import rdDetermineBonds
+                    rdDetermineBonds.DetermineBonds(raw_mol)
+                    mol = raw_mol
+                    source = "XYZ coordinates"
+                except Exception:
+                    # Fallback: use raw mol without bonds
+                    mol = raw_mol
+                    source = "XYZ coordinates (no bonds)"
+        except ImportError:
+            st.warning("RDKit not installed. Install with: pip install rdkit")
+            return
+        except Exception as e:
+            st.warning(f"Failed to create molecule from coordinates: {e}")
+    
+    if mol is None:
+        st.warning("No molecular data available for 2D view")
         return
     
-    st.info("📐 2D projection from 3D coordinates (SMILES not available)")
-    
-    # Create SVG from coordinates (project XY plane)
-    render_2d_from_coords(coords, img_size, bg_color, show_atom_indices)
+    # Render with RDKit
+    try:
+        from rdkit import Chem
+        from rdkit.Chem import AllChem, Draw
+        from rdkit.Chem.Draw import rdMolDraw2D
+        
+        # Compute 2D coordinates
+        AllChem.Compute2DCoords(mol)
+        
+        # Draw options
+        drawer = rdMolDraw2D.MolDraw2DSVG(img_size, int(img_size * 0.88))
+        opts = drawer.drawOptions()
+        opts.addAtomIndices = show_atom_indices
+        opts.bondLineWidth = bond_width
+        
+        drawer.DrawMolecule(mol)
+        drawer.FinishDrawing()
+        svg = drawer.GetDrawingText()
+        
+        # Display
+        st.markdown(f'<div style="display:flex;justify-content:center;background:{bg_color};padding:20px;border-radius:10px;">{svg}</div>', unsafe_allow_html=True)
+        
+        st.caption(f"📐 Source: {source}")
+        
+        if smiles and str(smiles) != "nan":
+            with st.expander("📋 SMILES String"):
+                st.code(smiles, language=None)
+                
+    except Exception as e:
+        st.error(f"RDKit rendering failed: {e}")
 
 
 def render_2d_from_coords(coords, img_size: int, bg_color: str, show_indices: bool):
