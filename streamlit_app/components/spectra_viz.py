@@ -44,34 +44,20 @@ def render_spectra_viz(df: pd.DataFrame):
         st.warning("No molecules available")
         return
     
-    # Molecule selector with Select All / Clear All
-    col1, col2, col3 = st.columns([5, 1, 1])
+    # Molecule selector - default top 10
+    if "spectra_selected_mols" not in st.session_state:
+        st.session_state.spectra_selected_mols = unique_labels[:min(10, len(unique_labels))]
     
-    with col1:
-        # Initialize session state for spectra selection
-        if "spectra_selected_mols" not in st.session_state:
-            st.session_state.spectra_selected_mols = unique_labels[:min(3, len(unique_labels))]
-        
-        # Validate against current options
-        valid_selection = [m for m in st.session_state.spectra_selected_mols if m in unique_labels]
-        
-        selected_mols = st.multiselect(
-            "Select Molecules to Compare",
-            unique_labels,
-            default=valid_selection if valid_selection else unique_labels[:min(3, len(unique_labels))],
-            key="spectra_mol_select"
-        )
-        st.session_state.spectra_selected_mols = selected_mols
+    # Validate against current options
+    valid_selection = [m for m in st.session_state.spectra_selected_mols if m in unique_labels]
     
-    with col2:
-        if st.button("✅ All", key="spectra_select_all"):
-            st.session_state.spectra_selected_mols = unique_labels
-            st.rerun()
-    
-    with col3:
-        if st.button("❌ Clear", key="spectra_clear_all"):
-            st.session_state.spectra_selected_mols = []
-            st.rerun()
+    selected_mols = st.multiselect(
+        "Select Molecules to Compare",
+        unique_labels,
+        default=valid_selection if valid_selection else unique_labels[:min(10, len(unique_labels))],
+        key="spectra_mol_select"
+    )
+    st.session_state.spectra_selected_mols = selected_mols
     
     if not selected_mols:
         st.warning("Select at least one molecule")

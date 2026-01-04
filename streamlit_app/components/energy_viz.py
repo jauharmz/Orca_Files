@@ -41,19 +41,16 @@ def render_energy_viz(df: pd.DataFrame):
         st.warning("No molecules available")
         return
     
-    # Selection
-    col1, col2, col3 = st.columns([5, 1, 1])
+    # Selection - default top 10
+    col1, col2 = st.columns([4, 1])
     with col1:
         selected = st.multiselect(
             "Select Molecules to Compare",
             unique_labels,
-            default=unique_labels[:min(8, len(unique_labels))],
+            default=unique_labels[:min(10, len(unique_labels))],
             key="energy_mol_select"
         )
     with col2:
-        if st.button("✅ All", key="energy_all"):
-            selected = unique_labels
-    with col3:
         relative = st.checkbox("Relative", True, key="energy_relative")
     
     if not selected:

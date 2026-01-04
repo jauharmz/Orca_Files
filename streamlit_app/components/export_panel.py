@@ -11,6 +11,7 @@ Features:
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 import json
 from io import BytesIO
 from typing import List
@@ -38,18 +39,13 @@ def render_export_panel(df: pd.DataFrame):
     
     unique_labels = list(dict.fromkeys([m["label"] for m in mol_options]))
     
-    # Selection
-    col1, col2 = st.columns([4, 1])
-    with col1:
-        selected = st.multiselect(
-            "Select Data to Export",
-            unique_labels,
-            default=unique_labels,
-            key="export_mol_select"
-        )
-    with col2:
-        if st.button("✅ All", key="export_all"):
-            selected = unique_labels
+    # Selection - default all for export
+    selected = st.multiselect(
+        "Select Data to Export",
+        unique_labels,
+        default=unique_labels,
+        key="export_mol_select"
+    )
     
     if not selected:
         st.warning("Select data to export")
