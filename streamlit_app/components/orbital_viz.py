@@ -1,10 +1,13 @@
 """
-Orbital Visualization Component - Complete Implementation
+Orbital Visualization Component - Enhanced Implementation
 
 Features:
 - Multi-molecule orbital comparison with state labels
 - Orbital energy level diagram
 - HOMO/LUMO highlighting
+- Open-shell support (SOMO/SUMO for alpha/beta spins)
+- Gap mode selection (HL, SL, SS)
+- Connector lines between molecules
 - Occupied vs virtual distinction
 """
 
@@ -12,7 +15,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from typing import List
+from typing import List, Optional, Dict
 
 
 def render_orbital_viz(df: pd.DataFrame):
@@ -38,7 +41,7 @@ def render_orbital_viz(df: pd.DataFrame):
     unique_labels = list(dict.fromkeys([m["label"] for m in mol_options]))
     
     # Selection
-    col1, col2 = st.columns([4, 2])
+    col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
         selected = st.multiselect(
             "Select Molecules",
@@ -47,7 +50,11 @@ def render_orbital_viz(df: pd.DataFrame):
             key="orbital_mol_select"
         )
     with col2:
-        n_orbitals = st.slider("Orbitals Around HOMO", 3, 20, 10, key="n_orbitals")
+        n_orbitals = st.slider("Orbitals", 3, 20, 10, key="n_orbitals",
+                              help="Number of orbitals around HOMO to display")
+    with col3:
+        gap_mode = st.selectbox("Gap Mode", ["HL", "SL", "SS"], key="gap_mode",
+                               help="HL=HOMO-LUMO, SL=SOMO-LUMO, SS=SOMO-SUMO")
     
     if not selected:
         st.warning("Select molecules to view")
@@ -57,11 +64,71 @@ def render_orbital_viz(df: pd.DataFrame):
     selected_indices = [m["idx"] for m in mol_options if m["label"] in selected]
     selected_df = df.loc[selected_indices]
     
-    render_orbital_levels(selected_df, n_orbitals)
+    # Settings expander
+    with st.expander("⚙️ Orbital Settings", expanded=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            show_connectors = st.checkbox("Show Connector Lines", False, key="orbital_connectors",
+                                         help="Draw lines connecting corresponding orbitals")
+        with col2:
+            show_labels = st.checkbox("Show Orbital Labels", True, key="orbital_labels")
+    
+    render_orbital_levels(selected_df, n_orbitals, gap_mode, show_connectors, show_labels)
 
 
-def render_orbital_levels(df: pd.DataFrame, n_orbitals: int):
-    """Render orbital energy level diagram."""
+def detect_open_shell(orbitals: pd.DataFrame) -> Dict:
+    """Detect if system is open-shell and identify SOMO/SUMO.
+    
+    Returns:
+        Dict with 'is_open_shell', 'n_alpha', 'n_beta', 'somo_idx', 'sumo_idx'
+    """
+    result = {
+        "is_open_shell": False,
+        "n_alpha": 0,
+        "n_beta": 0,
+        "somo_idx": None,
+        "sumo_idx": None
+    }
+    
+    if orbitals is None or orbitals.empty:
+        return result
+    
+    # Check for spin column
+    if "spin" in orbitals.columns:
+        alpha = orbitals[orbitals["spin"] == "alpha"]
+        beta = orbitals[orbitals["spin"] == "beta"]
+        
+        if len(alpha) > 0 and len(beta) > 0:
+            # Check occupancy
+            if "occupancy" in orbitals.columns:
+                alpha_occ = alpha[alpha["occupancy"] > 0.5]
+                beta_occ = beta[beta["occupancy"] > 0.5]
+                
+                if len(alpha_occ) != len(beta_occ):
+                    result["is_open_shell"] = True
+                    result["n_alpha"] = len(alpha_occ)
+                    result["n_beta"] = len(beta_occ)
+                    
+                    # SOMO is highest occupied with unpaired electron
+                    # SUMO is lowest unoccupied in the minority spin
+                    if len(alpha_occ) > len(beta_occ):
+                        # More alpha than beta
+                        result["somo_idx"] = len(alpha_occ) - 1  # HOMO of alpha
+                        beta_virt = beta[beta["occupancy"] <= 0.5]
+                        if len(beta_virt) > 0:
+                            result["sumo_idx"] = len(beta_occ)  # LUMO of beta
+    
+    return result
+
+
+def render_orbital_levels(
+    df: pd.DataFrame, 
+    n_orbitals: int,
+    gap_mode: str = "HL",
+    show_connectors: bool = False,
+    show_labels: bool = True
+):
+    """Render orbital energy level diagram with enhanced features."""
     
     fig = go.Figure()
     colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880']
@@ -69,6 +136,7 @@ def render_orbital_levels(df: pd.DataFrame, n_orbitals: int):
     x_offset = 0
     all_labels = []
     all_data = []
+    orbital_positions = []  # For connector lines
     
     for df_idx, row in df.iterrows():
         mol_id = row.get("molecule_id", "unknown")
@@ -80,9 +148,13 @@ def render_orbital_levels(df: pd.DataFrame, n_orbitals: int):
         
         orbitals = row.get("orbitals")
         homo_energy = row.get("homo_energy")
+        lumo_energy = row.get("lumo_energy")
         
         if orbitals is None or (hasattr(orbitals, 'empty') and orbitals.empty):
             continue
+        
+        # Detect open-shell
+        shell_info = detect_open_shell(orbitals)
         
         # Get orbital energies
         if "energy" in orbitals.columns:
@@ -108,13 +180,23 @@ def render_orbital_levels(df: pd.DataFrame, n_orbitals: int):
         color_idx = x_offset % len(colors)
         color = colors[color_idx]
         
+        mol_orbital_positions = []
+        
         for i, e in enumerate(energies.values):
             is_occupied = homo_energy is not None and e <= homo_energy
             is_homo = homo_energy is not None and abs(e - homo_energy) < 0.01
-            is_lumo = homo_energy is not None and e > homo_energy and i == len([x for x in energies.values if x <= homo_energy])
+            is_lumo = lumo_energy is not None and abs(e - lumo_energy) < 0.01
             
-            line_width = 5 if (is_homo or is_lumo) else 2
+            # Check for SOMO (open-shell)
+            is_somo = shell_info["is_open_shell"] and shell_info["somo_idx"] is not None and i == shell_info["somo_idx"]
+            is_sumo = shell_info["is_open_shell"] and shell_info["sumo_idx"] is not None and i == shell_info["sumo_idx"]
+            
+            line_width = 5 if (is_homo or is_lumo or is_somo or is_sumo) else 2
             line_style = "solid" if is_occupied else "dash"
+            
+            # Special styling for SOMO/SUMO
+            if is_somo or is_sumo:
+                line_style = "dashdot"
             
             fig.add_trace(go.Scatter(
                 x=[x_offset - 0.3, x_offset + 0.3],
@@ -122,39 +204,116 @@ def render_orbital_levels(df: pd.DataFrame, n_orbitals: int):
                 mode="lines",
                 line=dict(color=color, width=line_width, dash=line_style),
                 showlegend=False,
-                hovertemplate=f'{label}<br>Energy: {e:.4f} eV<br>{"HOMO" if is_homo else "LUMO" if is_lumo else "Occupied" if is_occupied else "Virtual"}<extra></extra>'
+                hovertemplate=f'{label}<br>Energy: {e:.4f} eV<br>{"SOMO" if is_somo else "SUMO" if is_sumo else "HOMO" if is_homo else "LUMO" if is_lumo else "Occupied" if is_occupied else "Virtual"}<extra></extra>'
             ))
             
-            # Add HOMO/LUMO labels
-            if is_homo:
-                fig.add_annotation(
-                    x=x_offset + 0.35, y=e,
-                    text="HOMO",
-                    showarrow=False,
-                    font=dict(size=9, color=color)
-                )
-            if is_lumo:
-                fig.add_annotation(
-                    x=x_offset + 0.35, y=e,
-                    text="LUMO",
-                    showarrow=False,
-                    font=dict(size=9, color=color)
-                )
+            # Store position for connectors
+            mol_orbital_positions.append({
+                "x": x_offset,
+                "y": e,
+                "is_homo": is_homo,
+                "is_lumo": is_lumo,
+                "is_somo": is_somo,
+                "is_sumo": is_sumo,
+                "is_occupied": is_occupied
+            })
+            
+            # Add orbital labels
+            if show_labels:
+                if is_homo:
+                    fig.add_annotation(
+                        x=x_offset + 0.35, y=e,
+                        text="HOMO",
+                        showarrow=False,
+                        font=dict(size=9, color=color)
+                    )
+                elif is_lumo:
+                    fig.add_annotation(
+                        x=x_offset + 0.35, y=e,
+                        text="LUMO",
+                        showarrow=False,
+                        font=dict(size=9, color=color)
+                    )
+                elif is_somo:
+                    fig.add_annotation(
+                        x=x_offset + 0.35, y=e,
+                        text="SOMO",
+                        showarrow=False,
+                        font=dict(size=9, color=color)
+                    )
+                elif is_sumo:
+                    fig.add_annotation(
+                        x=x_offset + 0.35, y=e,
+                        text="SUMO",
+                        showarrow=False,
+                        font=dict(size=9, color=color)
+                    )
+        
+        orbital_positions.append(mol_orbital_positions)
+        
+        # Calculate and display gap based on mode
+        gap_value = None
+        gap_label = ""
+        
+        if gap_mode == "HL" and homo_energy and lumo_energy:
+            gap_value = lumo_energy - homo_energy
+            gap_label = "HL Gap"
+        elif gap_mode == "SL" and shell_info["is_open_shell"]:
+            # SOMO-LUMO gap
+            if shell_info["somo_idx"] is not None and lumo_energy:
+                somo_e = energies.values[min(shell_info["somo_idx"], len(energies)-1)]
+                gap_value = lumo_energy - somo_e
+                gap_label = "SL Gap"
+        elif gap_mode == "SS" and shell_info["is_open_shell"]:
+            # SOMO-SUMO gap
+            if shell_info["somo_idx"] is not None and shell_info["sumo_idx"] is not None:
+                somo_e = energies.values[min(shell_info["somo_idx"], len(energies)-1)]
+                sumo_e = energies.values[min(shell_info["sumo_idx"], len(energies)-1)]
+                gap_value = sumo_e - somo_e
+                gap_label = "SS Gap"
+        
+        # Fallback to HL if other modes not available
+        if gap_value is None and homo_energy and lumo_energy:
+            gap_value = lumo_energy - homo_energy
+            gap_label = "HL Gap"
         
         all_labels.append(label)
         all_data.append({
             "label": label,
             "homo": homo_energy,
-            "n_orbitals": len(orbitals)
+            "lumo": lumo_energy,
+            "gap": gap_value,
+            "gap_type": gap_label,
+            "n_orbitals": len(orbitals),
+            "open_shell": shell_info["is_open_shell"]
         })
         x_offset += 1
+    
+    # Draw connector lines between molecules
+    if show_connectors and len(orbital_positions) > 1:
+        for i in range(len(orbital_positions) - 1):
+            mol1_pos = orbital_positions[i]
+            mol2_pos = orbital_positions[i + 1]
+            
+            # Connect HOMO to HOMO, LUMO to LUMO
+            for p1 in mol1_pos:
+                for p2 in mol2_pos:
+                    if (p1["is_homo"] and p2["is_homo"]) or (p1["is_lumo"] and p2["is_lumo"]):
+                        fig.add_trace(go.Scatter(
+                            x=[p1["x"] + 0.3, p2["x"] - 0.3],
+                            y=[p1["y"], p2["y"]],
+                            mode="lines",
+                            line=dict(color="#888", width=1, dash="dot"),
+                            showlegend=False,
+                            hoverinfo="skip"
+                        ))
     
     if x_offset == 0:
         st.warning("No orbital data available for selected molecules")
         return
     
     fig.update_layout(
-        title="Orbital Energy Levels",
+        title=f"Orbital Energy Levels ({gap_mode} gap mode)",
         xaxis=dict(
             tickvals=list(range(len(all_labels))),
             ticktext=all_labels,
@@ -166,8 +325,17 @@ def render_orbital_levels(df: pd.DataFrame, n_orbitals: int):
     )
     
     st.plotly_chart(fig, use_container_width=True)
-    st.caption("Solid = Occupied, Dashed = Virtual. Bold = HOMO/LUMO.")
+    
+    # Legend
+    legend_text = "**Legend:** Solid = Occupied, Dashed = Virtual, Dot-Dash = SOMO/SUMO. Bold = HOMO/LUMO."
+    st.caption(legend_text)
+    
+    # Check for open-shell systems
+    open_shell_mols = [d["label"] for d in all_data if d.get("open_shell")]
+    if open_shell_mols:
+        st.info(f"🔄 Open-shell system detected: {', '.join(open_shell_mols)}")
     
     # Data table
     with st.expander("📋 Orbital Summary"):
-        st.dataframe(pd.DataFrame(all_data), use_container_width=True, hide_index=True)
+        summary_df = pd.DataFrame(all_data)
+        st.dataframe(summary_df, use_container_width=True, hide_index=True)
