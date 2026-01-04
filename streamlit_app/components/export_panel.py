@@ -925,7 +925,7 @@ def generate_html_report(
             </p>
             
             <div class="viewer-container">
-                <div class="controls">
+                <div class="controls" style="margin-bottom: 10px;">
                     <label><strong>Select Molecule:</strong></label>
                     <select id="molecule-select" onchange="switchMolecule()">
 '''
@@ -939,6 +939,16 @@ def generate_html_report(
         html += f'                        <option value="{i}">{label}</option>\n'
     
     html += f'''                </select>
+                </div>
+                
+                <div class="tabs">
+                    <div class="tab active" onclick="showMolTab('3d')">🔮 3D View</div>
+                    <div class="tab" onclick="showMolTab('2d')">📐 2D View</div>
+                </div>
+
+                <!-- 3D View Content -->
+                <div id="mol-view-3d" class="tab-content active">
+                    <div class="controls">
 '''
     
     if include_3d:
@@ -949,46 +959,58 @@ def generate_html_report(
                     <button onclick="toggleLabels()" id="btn-labels">🏷️ Labels</button>
 '''
     
-    html += '''                </div>
+    html += '''                    </div>
 '''
     
     if include_3d:
         html += f'''
-                <!-- Settings Panel -->
-                <details class="settings-panel">
-                    <summary>3D Visualization Settings</summary>
-                    <div class="settings-row">
-                        <div class="setting-group">
-                            <label>Bond Radius</label>
-                            <input type="range" id="bond-radius" min="0.05" max="0.30" step="0.01" value="0.12" onchange="updateBondRadius(this.value)">
-                            <span class="range-value" id="bond-radius-val">0.12</span>
+                    <!-- Settings Panel -->
+                    <details class="settings-panel">
+                        <summary>3D Visualization Settings</summary>
+                        <div class="settings-row">
+                            <div class="setting-group">
+                                <label>Bond Radius</label>
+                                <input type="range" id="bond-radius" min="0.05" max="0.30" step="0.01" value="0.12" onchange="updateBondRadius(this.value)">
+                                <span class="range-value" id="bond-radius-val">0.12</span>
+                            </div>
+                            <div class="setting-group">
+                                <label>Atom Scale</label>
+                                <input type="range" id="atom-scale" min="0.1" max="1.0" step="0.05" value="0.25" onchange="updateAtomScale(this.value)">
+                                <span class="range-value" id="atom-scale-val">0.25</span>
+                            </div>
+                            <div class="setting-group">
+                                <label>Color Scheme</label>
+                                <select id="color-scheme" onchange="updateColorScheme(this.value)">
+                                    <option value="Jmol">Standard (Jmol)</option>
+                                    <option value="rasmol">RasMol</option>
+                                    <option value="default">Default</option>
+                                </select>
+                            </div>
+                            <div class="setting-group">
+                                <label>Background</label>
+                                <select id="bg-color" onchange="updateBackground(this.value)">
+                                    <option value="{"#1e1e2e" if dark_theme else "#f0f0f5"}">Default</option>
+                                    <option value="#000000">Black</option>
+                                    <option value="#ffffff">White</option>
+                                    <option value="#1a1a2e">Dark Blue</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="setting-group">
-                            <label>Atom Scale</label>
-                            <input type="range" id="atom-scale" min="0.1" max="1.0" step="0.05" value="0.25" onchange="updateAtomScale(this.value)">
-                            <span class="range-value" id="atom-scale-val">0.25</span>
-                        </div>
-                        <div class="setting-group">
-                            <label>Color Scheme</label>
-                            <select id="color-scheme" onchange="updateColorScheme(this.value)">
-                                <option value="Jmol">Standard (Jmol)</option>
-                                <option value="rasmol">RasMol</option>
-                                <option value="default">Default</option>
-                            </select>
-                        </div>
-                        <div class="setting-group">
-                            <label>Background</label>
-                            <select id="bg-color" onchange="updateBackground(this.value)">
-                                <option value="{"#1e1e2e" if dark_theme else "#f0f0f5"}">Default</option>
-                                <option value="#000000">Black</option>
-                                <option value="#ffffff">White</option>
-                                <option value="#1a1a2e">Dark Blue</option>
-                            </select>
-                        </div>
-                    </div>
-                </details>
+                    </details>
+                    
+                    <div id="viewer-3d" style="background: {"#1e1e2e" if dark_theme else "#f0f0f5"};"></div>
+'''
+
+    html += f'''
+                </div>
                 
-                <div id="viewer-3d" style="background: {"#1e1e2e" if dark_theme else "#f0f0f5"};"></div>
+                <!-- 2D View Content -->
+                <div id="mol-view-2d" class="tab-content">
+                    <div style="display: flex; justify-content: center; align-items: center; background: {"#ffffff" if not dark_theme else "#ffffff"}; border-radius: 8px; padding: 20px; min-height: 400px;">
+                        <img id="img-2d" src="" alt="2D Structure" style="max-width: 100%; max-height: 400px; display: none;">
+                        <div id="no-2d-msg" style="color: #666;">No 2D image available (requires SMILES or RDKit)</div>
+                    </div>
+                </div>
 '''
     
     html += '''            
@@ -1024,6 +1046,17 @@ def generate_html_report(
                 provide insight into the electronic properties, reactivity, and optical characteristics of the molecules.
             </p>
             
+            <!-- Orbital Settings -->
+            <details class="settings-panel">
+                <summary>Orbital Visualization Settings</summary>
+                <div class="settings-row">
+                    <div class="setting-group">
+                        <label>Orbitals to Show (+/- HOMO)</label>
+                        <input type="range" id="orb-range-slider" min="3" max="20" value="6" onchange="updateOrbitalRange(this.value)">
+                        <span class="range-value" id="orb-range-val">6</span>
+                    </div>
+                </div>
+            </details>
             <div id="orbital-chart" class="chart-container"></div>
         </section>
 '''
@@ -1183,8 +1216,25 @@ def generate_html_report(
                 viewer.render();
             }}
             
+            // Update 2D Image
+            if (mol.svg) {{
+                const img = document.getElementById('img-2d');
+                const msg = document.getElementById('no-2d-msg');
+                if (img) {{
+                     img.src = "data:image/svg+xml;base64," + mol.svg;
+                     img.style.display = 'block';
+                }}
+                if (msg) msg.style.display = 'none';
+            }} else {{
+                const img = document.getElementById('img-2d');
+                const msg = document.getElementById('no-2d-msg');
+                if (img) img.style.display = 'none';
+                if (msg) msg.style.display = 'block';
+            }}
+            
             updateMolInfo(index);
             renderSpectra(index);
+            renderOrbitals(index);
         }}
         
         function switchMolecule() {{
@@ -1299,6 +1349,21 @@ def generate_html_report(
                 viewer.render();
             }}
         }}
+
+        function showMolTab(mode) {{
+            // Hide all mol view contents
+            document.getElementById('mol-view-3d').classList.remove('active');
+            document.getElementById('mol-view-2d').classList.remove('active');
+            
+            // Deactivate all mol view tabs
+            document.querySelectorAll('.viewer-container .tab').forEach(t => t.classList.remove('active'));
+            
+            // Activate clicked tab
+            event.target.classList.add('active');
+            
+            // Show content
+            document.getElementById('mol-view-' + mode).classList.add('active');
+        }}
         
         function showSpectraTab(type) {{
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -1306,6 +1371,83 @@ def generate_html_report(
             
             event.target.classList.add('active');
             document.getElementById('spectra-' + type).classList.add('active');
+        }}
+        
+        // Orbital variables
+        let orbitalRange = 6;
+        
+        function updateOrbitalRange(val) {{
+            orbitalRange = parseInt(val);
+            document.getElementById('orb-range-val').textContent = val;
+            renderOrbitals(currentMolIndex);
+        }}
+        
+        function renderOrbitals(index) {{
+            const div = document.getElementById('orbital-chart');
+            if (!div) return;
+            
+            const mol = molecules[index];
+            if (!mol || !mol.orbitals || mol.orbitals.length === 0) {{
+                div.innerHTML = '<div style="text-align:center; padding: 20px;">No orbital data available</div>';
+                return;
+            }}
+            
+            // Sort by energy
+            let orbs = [...mol.orbitals].sort((a, b) => a.energy - b.energy);
+            const homoval = mol.homo || (orbs.length > 0 ? orbs[orbs.length/2].energy : 0);
+            
+            // Filter to N closest to HOMO
+            // Calculate distance to HOMO
+            orbs.forEach(o => o.dist = Math.abs(o.energy - homoval));
+            orbs.sort((a, b) => a.dist - b.dist);
+            
+            // Take top N*2
+            let subset = orbs.slice(0, orbitalRange * 2);
+            // Sort back by energy for drawing
+            subset.sort((a, b) => a.energy - b.energy);
+            
+            const shapes = [];
+            const annotations = [];
+            
+            subset.forEach(o => {{
+                const isOcc = (o.occ !== undefined && o.occ > 0.1) || (mol.homo !== undefined && o.energy <= mol.homo + 0.001);
+                const color = isOcc ? '#3366cc' : '#cccccc';
+                const labelColor = isOcc ? '#3366cc' : '#999999';
+                
+                // Draw line
+                shapes.push({{
+                    type: 'line',
+                    x0: 0.2, x1: 0.8,
+                    y0: o.energy, y1: o.energy,
+                    line: {{color: color, width: 3}}
+                }});
+                
+                // Label (Index/Occ)
+                let text = "";
+                if (o.occ !== undefined) text += `Occ: ${o.occ.toFixed(1)}`;
+                
+                annotations.push({{
+                    x: 0.82, y: o.energy,
+                    text: `${o.energy.toFixed(2)} eV`,
+                    showarrow: false,
+                    xanchor: 'left',
+                    font: {{size: 10, color: labelColor}}
+                }});
+            }});
+            
+            const layout = {{
+                title: `Orbital Energy Levels (${mol.label})`,
+                xaxis: {{showgrid: false, zeroline: false, showticklabels: false, range: [0, 1]}},
+                yaxis: {{title: 'Energy (eV)'}},
+                shapes: shapes,
+                annotations: annotations,
+                paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                font: {{color: '{text_primary}'}},
+                margin: {{l: 60, r: 100, t: 50, b: 30}}
+            }};
+            
+            Plotly.newPlot('orbital-chart', [], layout, {{responsive: true}});
         }}
         
         // Spectra variables
@@ -1654,18 +1796,36 @@ def prepare_molecules_json(df: pd.DataFrame) -> str:
                 mulliken_data.append(atom_entry)
             mol_data["mulliken"] = mulliken_data
         
-        # Add orbitals data
+        # Add orbitals data - robust extraction
         orbitals = row.get("orbitals")
+        orb_data = []
         if orbitals is not None and hasattr(orbitals, 'empty') and not orbitals.empty:
-            orb_data = []
+            # Determine column names
+            e_col = next((c for c in ["eV", "Energy_eV", "Energy", "energy"] if c in orbitals.columns), None)
+            occ_col = next((c for c in ["Occupation", "OCC", "occupancy"] if c in orbitals.columns), None)
+            spin_col = next((c for c in ["Spin", "spin"] if c in orbitals.columns), None)
+            eh_col = next((c for c in ["Eh", "Energy_Eh"] if c in orbitals.columns), None)
+            
             for _, orb in orbitals.iterrows():
-                orb_entry = {"idx": int(orb.get("Index", 0)) if pd.notna(orb.get("Index")) else 0}
-                if "Energy_eV" in orbitals.columns:
-                    orb_entry["energy"] = float(orb["Energy_eV"]) if pd.notna(orb["Energy_eV"]) else 0
-                if "Occupation" in orbitals.columns:
-                    orb_entry["occ"] = float(orb["Occupation"]) if pd.notna(orb["Occupation"]) else 0
-                orb_data.append(orb_entry)
-            mol_data["orbitals"] = orb_data
+                entry = {}
+                # Energy
+                if e_col:
+                    entry["energy"] = float(orb[e_col])
+                elif eh_col:
+                    entry["energy"] = float(orb[eh_col]) * 27.2114
+                else:
+                    continue # Skip if no energy
+                
+                # Occupation
+                if occ_col:
+                    entry["occ"] = float(orb[occ_col])
+                
+                # Spin
+                if spin_col:
+                    entry["spin"] = str(orb[spin_col])
+                
+                orb_data.append(entry)
+        mol_data["orbitals"] = orb_data
         
         # Add full coordinates table
         coords = row.get("cart_coords")
@@ -1678,6 +1838,38 @@ def prepare_molecules_json(df: pd.DataFrame) -> str:
                     "z": float(atom.get("z", 0))
                 }
                 mol_data["coords"].append(coord_entry)
+
+        # 5. 2D Image (SVG) extraction
+        svg = None
+        smiles = row.get("smiles")
+        if smiles and str(smiles) != "nan":
+            try:
+                from rdkit import Chem
+                from rdkit.Chem import AllChem
+                from rdkit.Chem.Draw import rdMolDraw2D
+                import base64
+                
+                mol = Chem.MolFromSmiles(str(smiles))
+                if mol:
+                    # Clean up molecule for drawing
+                    to_draw = Chem.RemoveHs(mol)
+                    AllChem.Compute2DCoords(to_draw)
+                    
+                    # Create SVG drawer
+                    drawer = rdMolDraw2D.MolDraw2DSVG(450, 300)
+                    op = drawer.drawOptions()
+                    op.addAtomIndices = False
+                    op.bondLineWidth = 2
+                    
+                    drawer.DrawMolecule(to_draw)
+                    drawer.FinishDrawing()
+                    svg_str = drawer.GetDrawingText()
+                    
+                    # Encode to base64 to avoid JSON escaping issues with SVG XML
+                    svg = base64.b64encode(svg_str.encode('utf-8')).decode('utf-8')
+            except Exception:
+                pass
+        mol_data["svg"] = svg
         
         molecules.append(mol_data)
     
