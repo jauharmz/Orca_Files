@@ -1482,11 +1482,11 @@ def generate_html_report(
                 
                 // Label (Index/Occ)
                 let text = "";
-                if (o.occ !== undefined) text += `Occ: ${o.occ.toFixed(1)}`;
+                if (o.occ !== undefined) text += `Occ: ${{o.occ.toFixed(1)}}`;
                 
                 annotations.push({{
                     x: 0.82, y: o.energy,
-                    text: `${o.energy.toFixed(2)} eV`,
+                    text: `${{o.energy.toFixed(2)}} eV`,
                     showarrow: false,
                     xanchor: 'left',
                     font: {{size: 10, color: labelColor}}
@@ -1494,7 +1494,7 @@ def generate_html_report(
             }});
             
             const layout = {{
-                title: `Orbital Energy Levels (${mol.label})`,
+                title: `Orbital Energy Levels (${{mol.label}})`,
                 xaxis: {{showgrid: false, zeroline: false, showticklabels: false, range: [0, 1]}},
                 yaxis: {{title: 'Energy (eV)'}},
                 shapes: shapes,
