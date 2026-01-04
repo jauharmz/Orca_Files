@@ -61,8 +61,16 @@ def main():
             if data_path.exists():
                 file_count = len(list(data_path.rglob("*.out")))
                 st.info(f"📁 Sample data ({file_count} files)")
-                if st.button("🚀 Parse Data", type="primary"):
-                    parse_folder("./test_data_hf")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🚀 Parse Data", type="primary"):
+                        parse_folder("./test_data_hf")
+                with col2:
+                    if st.button("🔄 Re-download"):
+                        import shutil
+                        shutil.rmtree("./test_data_hf", ignore_errors=True)
+                        download_hf_data()
             else:
                 if st.button("📥 Download & Parse", type="primary"):
                     download_hf_data()
