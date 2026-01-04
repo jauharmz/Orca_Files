@@ -220,6 +220,7 @@ def render_homo_lumo_diagram(df: pd.DataFrame):
         
         # HOMO level (solid line)
         if row["homo"] is not None:
+            safe_label = str(row['label']).replace('<', '&lt;').replace('>', '&gt;')
             fig.add_trace(go.Scatter(
                 x=[x_pos - 0.3, x_pos + 0.3],
                 y=[row["homo"], row["homo"]],
@@ -227,11 +228,12 @@ def render_homo_lumo_diagram(df: pd.DataFrame):
                 line=dict(color=color, width=5),
                 name=f"{row['label']} HOMO",
                 showlegend=False,
-                hovertemplate=f'{row["label"]}<br>HOMO: {row["homo"]:.3f} eV<extra></extra>'
+                hovertemplate=f'{safe_label}<br>HOMO: {row["homo"]:.3f} eV<extra></extra>'
             ))
         
         # LUMO level (dashed line)
         if row["lumo"] is not None:
+            safe_label = str(row['label']).replace('<', '&lt;').replace('>', '&gt;')
             fig.add_trace(go.Scatter(
                 x=[x_pos - 0.3, x_pos + 0.3],
                 y=[row["lumo"], row["lumo"]],
@@ -239,7 +241,7 @@ def render_homo_lumo_diagram(df: pd.DataFrame):
                 line=dict(color=color, width=5, dash="dash"),
                 name=f"{row['label']} LUMO",
                 showlegend=False,
-                hovertemplate=f'{row["label"]}<br>LUMO: {row["lumo"]:.3f} eV<extra></extra>'
+                hovertemplate=f'{safe_label}<br>LUMO: {row["lumo"]:.3f} eV<extra></extra>'
             ))
         
         # Gap annotation

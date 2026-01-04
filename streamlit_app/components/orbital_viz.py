@@ -198,13 +198,17 @@ def render_orbital_levels(
             if is_somo or is_sumo:
                 line_style = "dashdot"
             
+            # Build hover text safely
+            orbital_type = "SOMO" if is_somo else "SUMO" if is_sumo else "HOMO" if is_homo else "LUMO" if is_lumo else "Occupied" if is_occupied else "Virtual"
+            safe_label = str(label).replace('<', '&lt;').replace('>', '&gt;')
+            
             fig.add_trace(go.Scatter(
                 x=[x_offset - 0.3, x_offset + 0.3],
                 y=[e, e],
                 mode="lines",
                 line=dict(color=color, width=line_width, dash=line_style),
                 showlegend=False,
-                hovertemplate=f'{label}<br>Energy: {e:.4f} eV<br>{"SOMO" if is_somo else "SUMO" if is_sumo else "HOMO" if is_homo else "LUMO" if is_lumo else "Occupied" if is_occupied else "Virtual"}<extra></extra>'
+                hovertemplate=f'{safe_label}<br>Energy: {e:.4f} eV<br>{orbital_type}<extra></extra>'
             ))
             
             # Store position for connectors

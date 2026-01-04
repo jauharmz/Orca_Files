@@ -633,12 +633,14 @@ def render_uvvis_spectrum(df: pd.DataFrame, labels: List[str]):
             if normalize and np.max(stick_y) > 0:
                 stick_y = stick_y / np.max(fosc_filtered) * np.max(spectrum)
             for wl, f in zip(wl_filtered, stick_y):
+                # Escape label for JavaScript safety
+                safe_label = str(label).replace('<', '&lt;').replace('>', '&gt;')
                 fig.add_trace(go.Scatter(
                     x=[wl, wl], y=[y_offset, f + y_offset],
                     mode='lines',
                     line=dict(color=color, width=2),
                     showlegend=False,
-                    hovertemplate=f'{label}<br>λ: {wl:.1f} nm<br>f: {f:.3f}<extra></extra>'
+                    hovertemplate=f'{safe_label}<br>λ: {wl:.1f} nm<br>f: {f:.3f}<extra></extra>'
                 ))
         
         fig.add_trace(go.Scatter(
