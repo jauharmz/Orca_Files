@@ -1070,19 +1070,6 @@ def generate_html_report(
             }}
         }}
         
-        function updateMolInfo(index) {{
-            const mol = molecules[index];
-            if (!mol) return;
-            
-            const infoDiv = document.getElementById('mol-info');
-            infoDiv.innerHTML = `
-                <div class="metric"><div class="metric-value">${{mol.atoms || 'N/A'}}</div><div class="metric-label">Atoms</div></div>
-                <div class="metric"><div class="metric-value">${{mol.energy ? mol.energy.toFixed(4) : 'N/A'}}</div><div class="metric-label">Energy (Eh)</div></div>
-                <div class="metric"><div class="metric-value">${{mol.homo ? mol.homo.toFixed(2) : 'N/A'}}</div><div class="metric-label">HOMO (eV)</div></div>
-                <div class="metric"><div class="metric-value">${{mol.lumo ? mol.lumo.toFixed(2) : 'N/A'}}</div><div class="metric-label">LUMO (eV)</div></div>
-            `;
-        }}
-        
         function showSpectraTab(type) {{
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -1173,6 +1160,63 @@ def generate_html_report(
                 font: {{color: '{text_primary}'}}
             }}, {{responsive: true}});
         }}
+        
+        function renderUVVisChart(index) {{
+            const mol = molecules[index];
+            if (!mol || !mol.tddft || mol.tddft.length === 0) return;
+            
+            const container = document.getElementById('uv-chart');
+            if (!container) return;
+            
+            const x = mol.tddft.map(s => s.nm || 0);
+            const y = mol.tddft.map(s => s.f || 0);
+            
+            Plotly.newPlot('uv-chart', [{{
+                x: x, y: y,
+                type: 'bar',
+                marker: {{color: '#8b5cf6'}},
+                text: mol.tddft.map(s => `S${{s.state || 0}}`),
+                hovertemplate: '%{{x:.1f}} nm<br>f = %{{y:.4f}}<extra></extra>'
+            }}], {{
+                title: `UV-Vis Absorption - ${{mol.label}}`,
+                xaxis: {{title: 'Wavelength (nm)', range: [200, 800]}},
+                yaxis: {{title: 'Oscillator Strength (f)'}},
+                paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                font: {{color: '{text_primary}'}}
+            }}, {{responsive: true}});
+        }}
+        
+        function updateMolInfo(index) {{
+            const mol = molecules[index];
+            if (!mol) return;
+            
+            let html = `
+                <div class="stat-card"><div class="stat-value">${{mol.atoms || 0}}</div><div class="stat-label">Atoms</div></div>
+                <div class="stat-card"><div class="stat-value">${{mol.energy ? mol.energy.toFixed(4) : 'N/A'}}</div><div class="stat-label">Energy (Eh)</div></div>
+                <div class="stat-card"><div class="stat-value">${{mol.homo ? mol.homo.toFixed(2) : 'N/A'}}</div><div class="stat-label">HOMO (eV)</div></div>
+                <div class="stat-card"><div class="stat-value">${{mol.lumo ? mol.lumo.toFixed(2) : 'N/A'}}</div><div class="stat-label">LUMO (eV)</div></div>
+            `;
+            
+            // Add SMILES if available
+            if (mol.smiles) {{
+                html += `<div class="stat-card" style="grid-column: span 4; text-align: left;">
+                    <strong>SMILES:</strong> <code style="font-size: 0.9em;">${{mol.smiles}}</code>
+                </div>`;
+            }}
+            
+            // Add method info
+            if (mol.method || mol.functional) {{
+                html += `<div class="stat-card" style="grid-column: span 4; text-align: left;">
+                    <strong>Method:</strong> ${{mol.method || mol.functional || 'N/A'}} | <strong>Basis:</strong> ${{mol.basis_set || 'N/A'}}
+                </div>`;
+            }}
+            
+            document.getElementById('mol-info').innerHTML = html;
+            
+            // Also update UV-Vis chart if available
+            renderUVVisChart(index);
+        }}
     </script>
 </body>
 </html>'''
@@ -1181,7 +1225,7 @@ def generate_html_report(
 
 
 def prepare_molecules_json(df: pd.DataFrame) -> str:
-    """Prepare molecule data as JSON for embedding in HTML."""
+    """Prepare comprehensive molecule data as JSON for embedding in HTML."""
     molecules = []
     
     for idx, row in df.iterrows():
@@ -1195,14 +1239,24 @@ def prepare_molecules_json(df: pd.DataFrame) -> str:
             "state": state if state and str(state) != "nan" else None,
             "smiles": row.get("smiles") if row.get("smiles") and str(row.get("smiles")) != "nan" else None,
             "energy": row.get("gibbs_Eh") or row.get("single_point_Eh"),
+            "single_point": row.get("single_point_Eh"),
+            "gibbs": row.get("gibbs_Eh"),
             "homo": row.get("homo_energy"),
             "lumo": row.get("lumo_energy"),
             "gap": row.get("homo_lumo_gap"),
             "method": row.get("method_id"),
+            "functional": row.get("functional"),
+            "basis_set": row.get("basis_set"),
+            "charge": row.get("charge"),
+            "multiplicity": row.get("multiplicity"),
             "xyz": None,
             "atoms": 0,
+            "coords": [],  # Full coordinate table
             "ir": [],
-            "raman": []
+            "raman": [],
+            "tddft": [],  # UV-Vis states
+            "mulliken": [],  # Mulliken charges
+            "orbitals": []  # Orbital energies
         }
         
         # Build XYZ string
@@ -1219,7 +1273,7 @@ def prepare_molecules_json(df: pd.DataFrame) -> str:
                 z = float(atom.get("z", 0))
                 xyz_lines.append(f"{el} {x:.6f} {y:.6f} {z:.6f}")
             
-            mol_data["xyz"] = "\\n".join(xyz_lines)
+            mol_data["xyz"] = "\n".join(xyz_lines)
         
         # Add IR data
         ir = row.get("ir")
@@ -1250,6 +1304,61 @@ def prepare_molecules_json(df: pd.DataFrame) -> str:
                         "activity": float(peak[act_col])
                     })
             mol_data["raman"] = raman_data
+        
+        # Add TDDFT data (UV-Vis)
+        tddft = row.get("tddft_states")
+        if tddft is not None and hasattr(tddft, 'empty') and not tddft.empty:
+            tddft_data = []
+            for _, state in tddft.iterrows():
+                state_entry = {"state": int(state.get("State", 0)) if state.get("State") else 0}
+                if "Energy_eV" in tddft.columns:
+                    state_entry["eV"] = float(state["Energy_eV"])
+                if "Wavelength_nm" in tddft.columns:
+                    state_entry["nm"] = float(state["Wavelength_nm"])
+                if "f" in tddft.columns:
+                    state_entry["f"] = float(state["f"])
+                tddft_data.append(state_entry)
+            mol_data["tddft"] = tddft_data
+        
+        # Add Mulliken charges
+        mulliken = row.get("mulliken")
+        if mulliken is not None and hasattr(mulliken, 'empty') and not mulliken.empty:
+            mulliken_data = []
+            for _, atom in mulliken.iterrows():
+                atom_entry = {}
+                if "Atom" in mulliken.columns:
+                    atom_entry["atom"] = str(atom["Atom"])
+                if "Charge" in mulliken.columns:
+                    atom_entry["charge"] = float(atom["Charge"])
+                if "Spin" in mulliken.columns:
+                    atom_entry["spin"] = float(atom["Spin"]) if pd.notna(atom["Spin"]) else 0
+                mulliken_data.append(atom_entry)
+            mol_data["mulliken"] = mulliken_data
+        
+        # Add orbitals data
+        orbitals = row.get("orbitals")
+        if orbitals is not None and hasattr(orbitals, 'empty') and not orbitals.empty:
+            orb_data = []
+            for _, orb in orbitals.iterrows():
+                orb_entry = {"idx": int(orb.get("Index", 0)) if pd.notna(orb.get("Index")) else 0}
+                if "Energy_eV" in orbitals.columns:
+                    orb_entry["energy"] = float(orb["Energy_eV"]) if pd.notna(orb["Energy_eV"]) else 0
+                if "Occupation" in orbitals.columns:
+                    orb_entry["occ"] = float(orb["Occupation"]) if pd.notna(orb["Occupation"]) else 0
+                orb_data.append(orb_entry)
+            mol_data["orbitals"] = orb_data
+        
+        # Add full coordinates table
+        coords = row.get("cart_coords")
+        if coords is not None and hasattr(coords, 'empty') and not coords.empty:
+            for _, atom in coords.iterrows():
+                coord_entry = {
+                    "el": str(atom.get("atom", atom.get("element", "C"))),
+                    "x": float(atom.get("x", 0)),
+                    "y": float(atom.get("y", 0)),
+                    "z": float(atom.get("z", 0))
+                }
+                mol_data["coords"].append(coord_entry)
         
         molecules.append(mol_data)
     
