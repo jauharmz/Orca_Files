@@ -119,215 +119,73 @@ def main():
     molecules_df.to_csv("parsed_molecules.csv", index=False)
     logger.info(f"  Saved: parsed_molecules.csv ({len(molecules_df)} molecules, {len(molecules_df.columns)} columns)")
     
-    # 3B. Cartesian coordinates CSV
-    all_coords = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        coords = row.get("cart_coords")
-        if isinstance(coords, pd.DataFrame) and not coords.empty:
-            coords_copy = coords.copy()
-            coords_copy.insert(0, "molecule_id", mol_id)
-            all_coords.append(coords_copy)
+    # Helper to extract nested data with molecule_id and state
+    def export_nested(df, col_name, csv_name, label):
+        all_data = []
+        for _, row in df.iterrows():
+            mol_id = row["molecule_id"]
+            state = row.get("optimized_state", "unknown")
+            data = row.get(col_name)
+            if isinstance(data, pd.DataFrame) and not data.empty:
+                data_copy = data.copy()
+                data_copy.insert(0, "molecule_id", mol_id)
+                data_copy.insert(1, "optimized_state", state)
+                all_data.append(data_copy)
+        if all_data:
+            result_df = pd.concat(all_data, ignore_index=True)
+            result_df.to_csv(csv_name, index=False)
+            logger.info(f"  Saved: {csv_name} ({len(result_df)} {label})")
+            return all_data, result_df
+        return all_data, None
     
-    if all_coords:
-        coords_df = pd.concat(all_coords, ignore_index=True)
-        coords_df.to_csv("parsed_cart_coords.csv", index=False)
-        logger.info(f"  Saved: parsed_cart_coords.csv ({len(coords_df)} atoms)")
+    # 3B. Cartesian coordinates CSV
+    all_coords, coords_df = export_nested(df_modular, "cart_coords", "parsed_cart_coords.csv", "atoms")
     
     # 3C. Orbitals CSV
-    all_orbitals = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        orbitals = row.get("orbitals")
-        if isinstance(orbitals, pd.DataFrame) and not orbitals.empty:
-            orb_copy = orbitals.copy()
-            orb_copy.insert(0, "molecule_id", mol_id)
-            all_orbitals.append(orb_copy)
-    
-    if all_orbitals:
-        orbitals_df = pd.concat(all_orbitals, ignore_index=True)
-        orbitals_df.to_csv("parsed_orbitals.csv", index=False)
-        logger.info(f"  Saved: parsed_orbitals.csv ({len(orbitals_df)} orbitals)")
+    all_orbitals, orbitals_df = export_nested(df_modular, "orbitals", "parsed_orbitals.csv", "orbitals")
     
     # 3D. TD-DFT states CSV
-    all_tddft = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        tddft = row.get("tddft_states")
-        if isinstance(tddft, pd.DataFrame) and not tddft.empty:
-            tddft_copy = tddft.copy()
-            tddft_copy.insert(0, "molecule_id", mol_id)
-            all_tddft.append(tddft_copy)
-    
-    if all_tddft:
-        tddft_df = pd.concat(all_tddft, ignore_index=True)
-        tddft_df.to_csv("parsed_tddft_states.csv", index=False)
-        logger.info(f"  Saved: parsed_tddft_states.csv ({len(tddft_df)} transitions)")
+    all_tddft, tddft_df = export_nested(df_modular, "tddft_states", "parsed_tddft_states.csv", "transitions")
     
     # 3E. IR spectra CSV
-    all_ir = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        ir = row.get("ir")
-        if isinstance(ir, pd.DataFrame) and not ir.empty:
-            ir_copy = ir.copy()
-            ir_copy.insert(0, "molecule_id", mol_id)
-            all_ir.append(ir_copy)
-    
-    if all_ir:
-        ir_df = pd.concat(all_ir, ignore_index=True)
-        ir_df.to_csv("parsed_ir_spectra.csv", index=False)
-        logger.info(f"  Saved: parsed_ir_spectra.csv ({len(ir_df)} peaks)")
+    all_ir, ir_df = export_nested(df_modular, "ir", "parsed_ir_spectra.csv", "peaks")
     
     # 3E2. Vibrations CSV
-    all_vibs = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        vibs = row.get("vibrations")
-        if isinstance(vibs, pd.DataFrame) and not vibs.empty:
-            vibs_copy = vibs.copy()
-            vibs_copy.insert(0, "molecule_id", mol_id)
-            all_vibs.append(vibs_copy)
-    
-    if all_vibs:
-        vibs_df = pd.concat(all_vibs, ignore_index=True)
-        vibs_df.to_csv("parsed_vibrations.csv", index=False)
-        logger.info(f"  Saved: parsed_vibrations.csv ({len(vibs_df)} modes)")
+    all_vibs, vibs_df = export_nested(df_modular, "vibrations", "parsed_vibrations.csv", "modes")
     
     # 3E3. Raman CSV
-    all_raman = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        raman = row.get("raman")
-        if isinstance(raman, pd.DataFrame) and not raman.empty:
-            raman_copy = raman.copy()
-            raman_copy.insert(0, "molecule_id", mol_id)
-            all_raman.append(raman_copy)
-    
-    if all_raman:
-        raman_df = pd.concat(all_raman, ignore_index=True)
-        raman_df.to_csv("parsed_raman.csv", index=False)
-        logger.info(f"  Saved: parsed_raman.csv ({len(raman_df)} peaks)")
+    all_raman, raman_df = export_nested(df_modular, "raman", "parsed_raman.csv", "peaks")
     
     # 3E4. Mulliken CSV
-    all_mulliken = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        mull = row.get("mulliken")
-        if isinstance(mull, pd.DataFrame) and not mull.empty:
-            mull_copy = mull.copy()
-            mull_copy.insert(0, "molecule_id", mol_id)
-            all_mulliken.append(mull_copy)
-    
-    if all_mulliken:
-        mull_df = pd.concat(all_mulliken, ignore_index=True)
-        mull_df.to_csv("parsed_mulliken.csv", index=False)
-        logger.info(f"  Saved: parsed_mulliken.csv ({len(mull_df)} atoms)")
+    all_mulliken, mull_df = export_nested(df_modular, "mulliken", "parsed_mulliken.csv", "atoms")
     
     # 3E5. NMR Shielding CSV
-    all_nmr_shield = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        nmr = row.get("nmr_shielding")
-        if isinstance(nmr, pd.DataFrame) and not nmr.empty:
-            nmr_copy = nmr.copy()
-            nmr_copy.insert(0, "molecule_id", mol_id)
-            all_nmr_shield.append(nmr_copy)
-    
-    if all_nmr_shield:
-        nmr_shield_df = pd.concat(all_nmr_shield, ignore_index=True)
-        nmr_shield_df.to_csv("parsed_nmr_shielding.csv", index=False)
-        logger.info(f"  Saved: parsed_nmr_shielding.csv ({len(nmr_shield_df)} nuclei)")
+    all_nmr_shield, nmr_shield_df = export_nested(df_modular, "nmr_shielding", "parsed_nmr_shielding.csv", "nuclei")
     
     # 3E6. NMR Coupling CSV
-    all_nmr_coup = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        nmr = row.get("nmr_coupling")
-        if isinstance(nmr, pd.DataFrame) and not nmr.empty:
-            nmr_copy = nmr.copy()
-            nmr_copy.insert(0, "molecule_id", mol_id)
-            all_nmr_coup.append(nmr_copy)
-    
-    if all_nmr_coup:
-        nmr_coup_df = pd.concat(all_nmr_coup, ignore_index=True)
-        nmr_coup_df.to_csv("parsed_nmr_coupling.csv", index=False)
-        logger.info(f"  Saved: parsed_nmr_coupling.csv ({len(nmr_coup_df)} couplings)")
+    all_nmr_coup, nmr_coup_df = export_nested(df_modular, "nmr_coupling", "parsed_nmr_coupling.csv", "couplings")
     
     # 3F. Internal coordinates - Bonds CSV
-    all_bonds = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        bonds = row.get("bonds")
-        if isinstance(bonds, pd.DataFrame) and not bonds.empty:
-            bonds_copy = bonds.copy()
-            bonds_copy.insert(0, "molecule_id", mol_id)
-            all_bonds.append(bonds_copy)
-    
-    if all_bonds:
-        bonds_df = pd.concat(all_bonds, ignore_index=True)
-        bonds_df.to_csv("parsed_internal_bonds.csv", index=False)
-        logger.info(f"  Saved: parsed_internal_bonds.csv ({len(bonds_df)} bonds)")
+    all_bonds, bonds_df = export_nested(df_modular, "bonds", "parsed_internal_bonds.csv", "bonds")
     
     # 3G. Internal coordinates - Angles CSV
-    all_angles = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        angles = row.get("angles")
-        if isinstance(angles, pd.DataFrame) and not angles.empty:
-            angles_copy = angles.copy()
-            angles_copy.insert(0, "molecule_id", mol_id)
-            all_angles.append(angles_copy)
-    
-    if all_angles:
-        angles_df = pd.concat(all_angles, ignore_index=True)
-        angles_df.to_csv("parsed_internal_angles.csv", index=False)
-        logger.info(f"  Saved: parsed_internal_angles.csv ({len(angles_df)} angles)")
+    all_angles, angles_df = export_nested(df_modular, "angles", "parsed_internal_angles.csv", "angles")
     
     # 3H. Internal coordinates - Dihedrals CSV
-    all_dihedrals = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        dihedrals = row.get("dihedrals")
-        if isinstance(dihedrals, pd.DataFrame) and not dihedrals.empty:
-            dih_copy = dihedrals.copy()
-            dih_copy.insert(0, "molecule_id", mol_id)
-            all_dihedrals.append(dih_copy)
-    
-    if all_dihedrals:
-        dihedrals_df = pd.concat(all_dihedrals, ignore_index=True)
-        dihedrals_df.to_csv("parsed_internal_dihedrals.csv", index=False)
-        logger.info(f"  Saved: parsed_internal_dihedrals.csv ({len(dihedrals_df)} dihedrals)")
+    all_dihedrals, dihedrals_df = export_nested(df_modular, "dihedrals", "parsed_internal_dihedrals.csv", "dihedrals")
     
     # 3I. Electric dipole absorption CSV
-    all_elec_abs = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        elec = row.get("electric_dipole_abs")
-        if isinstance(elec, pd.DataFrame) and not elec.empty:
-            elec_copy = elec.copy()
-            elec_copy.insert(0, "molecule_id", mol_id)
-            all_elec_abs.append(elec_copy)
+    all_elec_abs, elec_abs_df = export_nested(df_modular, "electric_dipole_abs", "parsed_electric_dipole_abs.csv", "transitions")
     
-    if all_elec_abs:
-        elec_abs_df = pd.concat(all_elec_abs, ignore_index=True)
-        elec_abs_df.to_csv("parsed_electric_dipole.csv", index=False)
-        logger.info(f"  Saved: parsed_electric_dipole.csv ({len(elec_abs_df)} transitions)")
+    # 3J. Electric dipole SOC CSV
+    all_elec_soc, elec_soc_df = export_nested(df_modular, "electric_dipole_soc", "parsed_electric_dipole_soc.csv", "transitions")
     
-    # 3J. Velocity dipole absorption CSV
-    all_vel_abs = []
-    for _, row in df_modular.iterrows():
-        mol_id = row["molecule_id"]
-        vel = row.get("velocity_dipole_abs")
-        if isinstance(vel, pd.DataFrame) and not vel.empty:
-            vel_copy = vel.copy()
-            vel_copy.insert(0, "molecule_id", mol_id)
-            all_vel_abs.append(vel_copy)
+    # 3K. Velocity dipole absorption CSV
+    all_vel_abs, vel_abs_df = export_nested(df_modular, "velocity_dipole_abs", "parsed_velocity_dipole_abs.csv", "transitions")
     
-    if all_vel_abs:
-        vel_abs_df = pd.concat(all_vel_abs, ignore_index=True)
-        vel_abs_df.to_csv("parsed_velocity_dipole.csv", index=False)
-        logger.info(f"  Saved: parsed_velocity_dipole.csv ({len(vel_abs_df)} transitions)")
+    # 3L. Velocity dipole SOC CSV
+    all_vel_soc, vel_soc_df = export_nested(df_modular, "velocity_dipole_soc", "parsed_velocity_dipole_soc.csv", "transitions")
+    
     
     # 4. Create JSON export with ALL data
     logger.info("\n[STEP 4] Creating JSON export with ALL data...")
