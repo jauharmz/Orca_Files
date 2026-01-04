@@ -257,61 +257,67 @@ def render_html_export(df: pd.DataFrame):
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        if st.button("🚀 Generate Report", type="primary"):
-            try:
-                # Debug Info
-                import os
-                cwd = os.getcwd()
-                st.caption(f"📂 Current Working Directory: `{cwd}`")
+        generate_clicked = st.button("🚀 Generate Report", type="primary")
+    
+    if generate_clicked:
+        try:
+            import os
+            from pathlib import Path
+            
+            # Use script directory for reliable path
+            script_dir = Path(__file__).parent.parent  # streamlit_app folder
+            save_path = script_dir / report_name
+            
+            st.caption(f"📂 Target save path: `{save_path}`")
+            
+            with st.spinner("Generating comprehensive report (this may take a moment)..."):
+                html = generate_html_report(
+                    df, 
+                    include_3d=include_3d,
+                    include_spectra=include_spectra,
+                    include_energy=include_energy,
+                    include_orbitals=include_orbitals,
+                    dark_theme=dark_theme,
+                    compact_mode=compact_mode
+                )
                 
-                with st.spinner("Generating comprehensive report (this may take a moment)..."):
-                    html = generate_html_report(
-                        df, 
-                        include_3d=include_3d,
-                        include_spectra=include_spectra,
-                        include_energy=include_energy,
-                        include_orbitals=include_orbitals,
-                        dark_theme=dark_theme,
-                        compact_mode=compact_mode
-                    )
-                    
-                    # Store in session state for download button
-                    st.session_state['report_html'] = html
-                    st.session_state['report_name'] = report_name
-                    
-                    # Save to disk - use absolute path
-                    save_path = os.path.abspath(report_name)
-                    
-                    with open(save_path, "w", encoding="utf-8") as f:
-                        f.write(html)
-                    
-                    file_size_mb = len(html) / (1024 * 1024)
-                    
-                st.success(f"✅ Report generated! ({file_size_mb:.1f} MB)")
+                # Store in session state for download button
+                st.session_state['report_html'] = html
+                st.session_state['report_name'] = report_name
                 
-                # Immediate Verification
-                if os.path.exists(save_path):
-                    st.info(f"💾 File SUCCESSFULLY saved to: `{save_path}`")
-                    st.caption(f"Size on disk: {os.path.getsize(save_path) / 1024:.1f} KB")
-                else:
-                    st.error(f"❌ Error: File write operation completed but file not found at `{save_path}`")
+                # Save to disk
+                with open(save_path, "w", encoding="utf-8") as f:
+                    f.write(html)
                 
-            except Exception as e:
-                st.error(f"Failed to generate report: {e}")
-                import traceback
-                st.code(traceback.format_exc())
+                file_size_mb = len(html) / (1024 * 1024)
+                
+            st.success(f"✅ Report generated! ({file_size_mb:.1f} MB)")
+            
+            # Immediate Verification
+            if save_path.exists():
+                st.info(f"💾 File SAVED to: `{save_path}`")
+                st.caption(f"Size: {save_path.stat().st_size / 1024:.1f} KB")
+            else:
+                st.error(f"❌ File NOT FOUND at expected path!")
+            
+        except Exception as e:
+            st.error(f"Failed to generate report: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
-    # Show download button if report exists in session state
+    # Show download button if report exists in session state (always visible after generation)
     if 'report_html' in st.session_state:
         with col2:
             st.download_button(
                 label="📥 Download HTML Report",
                 data=st.session_state['report_html'],
-                file_name=st.session_state['report_name'],
+                file_name=st.session_state.get('report_name', 'orca_report.html'),
                 mime="text/html",
                 type="primary",
                 key="html_download_btn"
             )
+        st.markdown("---")
+        st.caption("💡 If download button doesn't work, check the saved file path above.")
 
 
 def generate_html_report(
