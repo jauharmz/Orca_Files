@@ -103,7 +103,7 @@ def render_spectra_viz(df: pd.DataFrame):
     st.caption(f"Comparing {len(selected_mols)} spectra")
     
     # Spectra tabs
-    spec_tabs = st.tabs(["🔴 IR Spectrum", "🟢 Raman Spectrum", "🟣 UV-Vis Absorption"])
+    spec_tabs = st.tabs(["🔴 IR Spectrum", "🟢 Raman Spectrum", "🟣 UV-Vis Absorption", "🔗 IR-Raman Correlation"])
     
     with spec_tabs[0]:
         render_ir_spectrum(selected_df, selected_mols)
@@ -111,6 +111,8 @@ def render_spectra_viz(df: pd.DataFrame):
         render_raman_spectrum(selected_df, selected_mols)
     with spec_tabs[2]:
         render_uvvis_spectrum(selected_df, selected_mols)
+    with spec_tabs[3]:
+        render_ir_raman_correlation(df, mol_options, selected_mols)
 
 
 # =============================================================================
@@ -255,6 +257,8 @@ def render_ir_spectrum(df: pd.DataFrame, labels: List[str]):
             freq_range = st.slider("Frequency Range (cm⁻¹)", 0, 4000, (400, 4000), key="ir_freq_range")
             fwhm = st.slider("FWHM Broadening (cm⁻¹)", 5, 100, 20, key="ir_fwhm",
                            help="Full Width at Half Maximum for Gaussian broadening")
+            smoothing = st.slider("Smoothing", 0, 20, 0, key="ir_smoothing",
+                                 help="Additional Gaussian smoothing after broadening")
         with col2:
             display_mode = st.radio("Display Mode", ["Overlay", "Stacked"], key="ir_display_mode", horizontal=True)
             invert_x = st.checkbox("Invert X-Axis (IR convention)", True, key="ir_invert_x")
@@ -331,6 +335,11 @@ def render_ir_spectrum(df: pd.DataFrame, labels: List[str]):
         
         # Apply Gaussian broadening
         x, y = apply_gaussian_broadening(freqs, intensities, fwhm, freq_range[0], freq_range[1])
+        
+        # Apply additional smoothing
+        if smoothing > 0 and len(y) > 0:
+            from scipy.ndimage import gaussian_filter1d
+            y = gaussian_filter1d(y, sigma=smoothing)
         
         # Normalize
         if normalize and len(y) > 0 and np.max(np.abs(y)) > 0:
@@ -409,6 +418,8 @@ def render_raman_spectrum(df: pd.DataFrame, labels: List[str]):
         with col1:
             freq_range = st.slider("Frequency Range (cm⁻¹)", 0, 4000, (400, 4000), key="raman_freq_range")
             fwhm = st.slider("FWHM Broadening (cm⁻¹)", 5, 100, 15, key="raman_fwhm")
+            smoothing = st.slider("Smoothing", 0, 20, 0, key="raman_smoothing",
+                                 help="Additional Gaussian smoothing after broadening")
         with col2:
             display_mode = st.radio("Display Mode", ["Overlay", "Stacked"], key="raman_display_mode", horizontal=True)
             invert_x = st.checkbox("Invert X-Axis", True, key="raman_invert_x")
@@ -476,6 +487,11 @@ def render_raman_spectrum(df: pd.DataFrame, labels: List[str]):
         
         # Apply Gaussian broadening
         x, y = apply_gaussian_broadening(freqs, activities, fwhm, freq_range[0], freq_range[1])
+        
+        # Apply additional smoothing
+        if smoothing > 0 and len(y) > 0:
+            from scipy.ndimage import gaussian_filter1d
+            y = gaussian_filter1d(y, sigma=smoothing)
         
         if normalize and len(y) > 0 and np.max(np.abs(y)) > 0:
             y = y / np.max(np.abs(y))
@@ -693,3 +709,259 @@ def render_uvvis_spectrum(df: pd.DataFrame, labels: List[str]):
         fig.update_yaxes(showticklabels=False)
     
     st.plotly_chart(fig, use_container_width=True)
+
+
+# =============================================================================
+# IR-RAMAN CORRELATION
+# =============================================================================
+
+def render_ir_raman_correlation(df: pd.DataFrame, mol_options: List[Dict], selected: List[str]):
+    """Render IR-Raman correlation diagram with auto peak pairing."""
+    
+    st.markdown("### 🔗 IR-Raman Correlation")
+    st.caption("Compare IR and Raman peaks for a single molecule with automatic peak pairing")
+    
+    # Single molecule selector for correlation
+    label_to_idx = {m["label"]: m["idx"] for m in mol_options}
+    available_labels = [l for l in selected if l in label_to_idx]
+    
+    if not available_labels:
+        st.warning("Select at least one molecule from the main selector")
+        return
+    
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        corr_mol = st.selectbox(
+            "Select Molecule for Correlation",
+            available_labels,
+            key="ir_raman_corr_mol"
+        )
+    with col2:
+        st.caption("")  # Spacer
+    
+    if not corr_mol:
+        return
+    
+    idx = label_to_idx[corr_mol]
+    mol_row = df.loc[idx]
+    
+    # Get IR and Raman data
+    ir_data = mol_row.get("ir")
+    raman_data = mol_row.get("raman")
+    
+    if ir_data is None or (hasattr(ir_data, 'empty') and ir_data.empty):
+        st.warning("No IR data available for this molecule")
+        return
+    
+    if raman_data is None or (hasattr(raman_data, 'empty') and raman_data.empty):
+        st.warning("No Raman data available for this molecule")
+        return
+    
+    # Settings
+    with st.expander("⚙️ Correlation Settings", expanded=True):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            freq_range = st.slider("Frequency Range (cm⁻¹)", 0, 4000, (400, 4000), key="corr_freq_range")
+            fwhm = st.slider("FWHM Broadening (cm⁻¹)", 5, 50, 15, key="corr_fwhm")
+        with col2:
+            smoothing = st.slider("Additional Smoothing", 0, 20, 5, key="corr_smoothing",
+                                 help="Additional Gaussian smoothing after broadening")
+            max_pair_delta = st.slider("Max Pairing Distance (cm⁻¹)", 10, 100, 40, key="corr_max_delta",
+                                      help="Maximum frequency difference for automatic peak pairing")
+        with col3:
+            peak_threshold = st.slider("Peak Threshold (%)", 1, 50, 5, key="corr_peak_thresh") / 100
+            show_boundaries = st.checkbox("Show Region Boundaries", True, key="corr_boundaries")
+    
+    # Extract frequency and intensity data
+    if "freq_cm-1" in ir_data.columns:
+        ir_freqs = ir_data["freq_cm-1"].values
+    else:
+        ir_freqs = ir_data.iloc[:, 0].values
+    
+    if "intensity_km/mol" in ir_data.columns:
+        ir_intensities = ir_data["intensity_km/mol"].values
+    elif "intensity" in ir_data.columns:
+        ir_intensities = ir_data["intensity"].values
+    elif "eps" in ir_data.columns:
+        ir_intensities = ir_data["eps"].values
+    else:
+        ir_intensities = ir_data.iloc[:, 1].values
+    
+    if "freq_cm-1" in raman_data.columns:
+        raman_freqs = raman_data["freq_cm-1"].values
+    else:
+        raman_freqs = raman_data.iloc[:, 0].values
+    
+    if "activity" in raman_data.columns:
+        raman_intensities = raman_data["activity"].values
+    else:
+        raman_intensities = raman_data.iloc[:, 1].values
+    
+    # Apply Gaussian broadening
+    ir_x, ir_y = apply_gaussian_broadening(ir_freqs, ir_intensities, fwhm, freq_range[0], freq_range[1])
+    raman_x, raman_y = apply_gaussian_broadening(raman_freqs, raman_intensities, fwhm, freq_range[0], freq_range[1])
+    
+    # Additional smoothing if requested
+    if smoothing > 0:
+        from scipy.ndimage import gaussian_filter1d
+        ir_y = gaussian_filter1d(ir_y, sigma=smoothing)
+        raman_y = gaussian_filter1d(raman_y, sigma=smoothing)
+    
+    # Normalize
+    if np.max(ir_y) > 0:
+        ir_y = ir_y / np.max(ir_y)
+    if np.max(raman_y) > 0:
+        raman_y = raman_y / np.max(raman_y)
+    
+    # Find peaks
+    ir_peaks, _ = find_peaks(ir_y, height=peak_threshold, prominence=0.01)
+    raman_peaks, _ = find_peaks(raman_y, height=peak_threshold, prominence=0.01)
+    
+    # Auto pair peaks
+    pairs = []
+    used_ir = set()
+    used_raman = set()
+    
+    if len(ir_peaks) > 0 and len(raman_peaks) > 0:
+        # Create distance matrix
+        candidates = []
+        for i, ir_idx in enumerate(ir_peaks):
+            for j, ra_idx in enumerate(raman_peaks):
+                delta = abs(ir_x[ir_idx] - raman_x[ra_idx])
+                if delta <= max_pair_delta:
+                    score = delta - ir_y[ir_idx] * raman_y[ra_idx] * 0.1  # Prefer intense peaks
+                    candidates.append((delta, score, i, j, ir_idx, ra_idx))
+        
+        candidates.sort(key=lambda x: (x[0], x[1]))
+        
+        for delta, _, i, j, ir_idx, ra_idx in candidates:
+            if i not in used_ir and j not in used_raman:
+                pairs.append({
+                    "ir_freq": ir_x[ir_idx],
+                    "ir_int": ir_y[ir_idx],
+                    "raman_freq": raman_x[ra_idx],
+                    "raman_int": raman_y[ra_idx],
+                    "delta": delta,
+                    "ir_idx": ir_idx,
+                    "raman_idx": ra_idx
+                })
+                used_ir.add(i)
+                used_raman.add(j)
+    
+    # Create figure with subplots
+    fig = go.Figure()
+    
+    # IR spectrum (top, upside down for transmittance style)
+    fig.add_trace(go.Scatter(
+        x=ir_x, y=1 - ir_y,  # Invert for transmittance style
+        mode='lines',
+        name='IR',
+        line=dict(color='#EF553B', width=1.5),
+        hovertemplate='IR: %{x:.0f} cm⁻¹<extra></extra>'
+    ))
+    
+    # Raman spectrum (bottom, shifted down)
+    raman_shift = -0.3
+    fig.add_trace(go.Scatter(
+        x=raman_x, y=raman_y + raman_shift - 1,
+        mode='lines',
+        name='Raman',
+        line=dict(color='#636EFA', width=1.5),
+        hovertemplate='Raman: %{x:.0f} cm⁻¹<extra></extra>'
+    ))
+    
+    # Draw correlation lines between paired peaks
+    for i, pair in enumerate(pairs):
+        ir_y_pos = 1 - pair["ir_int"]
+        raman_y_pos = pair["raman_int"] + raman_shift - 1
+        
+        # Vertical and diagonal connector
+        mid_x = (pair["ir_freq"] + pair["raman_freq"]) / 2
+        mid_y = (ir_y_pos + raman_y_pos) / 2
+        
+        fig.add_trace(go.Scatter(
+            x=[pair["ir_freq"], pair["ir_freq"], mid_x, pair["raman_freq"], pair["raman_freq"]],
+            y=[ir_y_pos, 0.1, mid_y, raman_shift - 0.1, raman_y_pos],
+            mode='lines',
+            line=dict(color='gray', width=1, dash='dash'),
+            showlegend=False,
+            hoverinfo='skip'
+        ))
+        
+        # Add pair label
+        fig.add_annotation(
+            x=mid_x,
+            y=mid_y,
+            text=f"{i+1}",
+            showarrow=False,
+            font=dict(size=9, color='gray'),
+            bgcolor='white'
+        )
+    
+    # Add region boundaries if enabled
+    if show_boundaries:
+        for boundary in IR_REGION_BOUNDARIES:
+            if freq_range[0] <= boundary <= freq_range[1]:
+                fig.add_vline(x=boundary, line=dict(color="gray", width=1, dash="dot"), opacity=0.3)
+    
+    # Mark unpaired peaks
+    for i in range(len(ir_peaks)):
+        if i not in used_ir:
+            ir_idx = ir_peaks[i]
+            fig.add_annotation(
+                x=ir_x[ir_idx],
+                y=1 - ir_y[ir_idx] - 0.05,
+                text=f"{ir_x[ir_idx]:.0f}",
+                showarrow=False,
+                font=dict(size=8, color='#EF553B'),
+                textangle=-90
+            )
+    
+    for j in range(len(raman_peaks)):
+        if j not in used_raman:
+            ra_idx = raman_peaks[j]
+            fig.add_annotation(
+                x=raman_x[ra_idx],
+                y=raman_y[ra_idx] + raman_shift - 1 + 0.05,
+                text=f"{raman_x[ra_idx]:.0f}",
+                showarrow=False,
+                font=dict(size=8, color='#636EFA'),
+                textangle=-90
+            )
+    
+    safe_label = str(corr_mol).replace('<', '&lt;').replace('>', '&gt;')
+    fig.update_layout(
+        title=f"IR-Raman Correlation: {safe_label}",
+        xaxis_title="Wavenumber (cm⁻¹)",
+        yaxis_title="",
+        xaxis=dict(autorange="reversed"),
+        yaxis=dict(
+            tickvals=[1, 0.5, 0, raman_shift - 0.5, raman_shift - 1],
+            ticktext=["0%", "50%", "100% IR", "0.5", "1.0 Raman"],
+            showgrid=False
+        ),
+        showlegend=True,
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        hovermode="x unified"
+    )
+    
+    # Add separator line
+    fig.add_hline(y=raman_shift, line=dict(color="black", width=1))
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Peak pairs table
+    if pairs:
+        with st.expander(f"📋 Paired Peaks ({len(pairs)} pairs found)"):
+            pairs_df = pd.DataFrame([{
+                "Pair": i + 1,
+                "IR (cm⁻¹)": f"{p['ir_freq']:.1f}",
+                "Raman (cm⁻¹)": f"{p['raman_freq']:.1f}",
+                "Δ (cm⁻¹)": f"{p['delta']:.1f}",
+                "IR Int.": f"{p['ir_int']:.3f}",
+                "Raman Int.": f"{p['raman_int']:.3f}"
+            } for i, p in enumerate(pairs)])
+            st.dataframe(pairs_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("No peak pairs found within the specified distance threshold")
+

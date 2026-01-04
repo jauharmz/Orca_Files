@@ -136,6 +136,7 @@ def show_main_content(df):
         "⚡ Energy",
         "🔮 Orbitals",
         "🔗 Reactions",
+        "🔄 Compare",
         "📤 Export"
     ])
     
@@ -152,6 +153,8 @@ def show_main_content(df):
     with tabs[5]:
         show_reactions_tab(df)
     with tabs[6]:
+        show_compare_tab(df)
+    with tabs[7]:
         show_export_tab(df)
 
 
@@ -189,6 +192,12 @@ def show_reactions_tab(df):
     """Reaction node editor."""
     from components.node_editor import render_node_editor
     render_node_editor(df)
+
+
+def show_compare_tab(df):
+    """Data comparison."""
+    from components.data_comparison import render_data_comparison
+    render_data_comparison(df)
 
 
 def show_export_tab(df):
