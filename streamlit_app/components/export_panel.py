@@ -231,14 +231,36 @@ def render_json_export(df: pd.DataFrame):
 
 
 def render_html_export(df: pd.DataFrame):
-    """Export interactive HTML report."""
+    """Export comprehensive interactive HTML report."""
     
-    st.markdown("##### HTML Report")
-    st.info("📄 Generates a standalone HTML file with interactive Plotly charts.")
+    st.markdown("##### 🎨 Interactive HTML Report")
+    st.info("📄 Generates a **self-contained HTML file** with interactive 3D molecules, spectra, and data tables.")
     
-    if st.button("🎨 Generate HTML Report"):
+    # Export options
+    with st.expander("⚙️ Export Options", expanded=True):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            include_3d = st.checkbox("3D Molecule Viewer", True, key="html_3d")
+            include_spectra = st.checkbox("Spectra Charts", True, key="html_spectra")
+        with c2:
+            include_energy = st.checkbox("Energy Diagram", True, key="html_energy")
+            include_orbitals = st.checkbox("Orbital Charts", True, key="html_orbitals")
+        with c3:
+            dark_theme = st.checkbox("Dark Theme", False, key="html_dark")
+            compact_mode = st.checkbox("Compact Mode", False, key="html_compact")
+    
+    if st.button("🚀 Generate HTML Report", type="primary"):
         try:
-            html = generate_html_report(df)
+            with st.spinner("Generating report..."):
+                html = generate_html_report(
+                    df, 
+                    include_3d=include_3d,
+                    include_spectra=include_spectra,
+                    include_energy=include_energy,
+                    include_orbitals=include_orbitals,
+                    dark_theme=dark_theme,
+                    compact_mode=compact_mode
+                )
             
             st.download_button(
                 "⬇️ Download HTML Report",
@@ -247,63 +269,615 @@ def render_html_export(df: pd.DataFrame):
                 "text/html",
                 key="html_download"
             )
-            st.success("✅ Report generated!")
+            st.success(f"✅ Report generated! ({len(html)//1024} KB)")
             
         except Exception as e:
             st.error(f"Failed to generate report: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
 
-def generate_html_report(df: pd.DataFrame) -> str:
-    """Generate standalone HTML report."""
-    import plotly.graph_objects as go
+def generate_html_report(
+    df: pd.DataFrame, 
+    include_3d: bool = True,
+    include_spectra: bool = True,
+    include_energy: bool = True,
+    include_orbitals: bool = True,
+    dark_theme: bool = False,
+    compact_mode: bool = False
+) -> str:
+    """Generate comprehensive standalone HTML report with all visualizations."""
     
-    # Simple HTML template
-    html = """<!DOCTYPE html>
-<html>
+    # Theme colors
+    if dark_theme:
+        bg_primary = "#1e1e2e"
+        bg_secondary = "#2a2a3e"
+        text_primary = "#ffffff"
+        text_secondary = "#a0a0b0"
+        accent = "#00ff88"
+    else:
+        bg_primary = "#f8f9fa"
+        bg_secondary = "#ffffff"
+        text_primary = "#333333"
+        text_secondary = "#666666"
+        accent = "#0066cc"
+    
+    # Prepare molecule data as JSON
+    molecules_json = prepare_molecules_json(df)
+    
+    # Build HTML
+    html = f'''<!DOCTYPE html>
+<html lang="en">
 <head>
-    <title>ORCA Data Report</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ORCA Visualization Report</title>
+    
+    <!-- 3Dmol.js for 3D molecules -->
+    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+    
+    <!-- Plotly for charts -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    
     <style>
-        body { font-family: sans-serif; margin: 20px; background: #f8f9fa; }
-        h1 { color: #333; }
-        .section { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background: #f0f0f0; }
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: {bg_primary};
+            color: {text_primary};
+            line-height: 1.6;
+            padding: {"10px" if compact_mode else "20px"};
+        }}
+        
+        .container {{ max-width: 1400px; margin: 0 auto; }}
+        
+        header {{
+            text-align: center;
+            padding: {"15px" if compact_mode else "30px"};
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }}
+        
+        header h1 {{ font-size: {"1.5em" if compact_mode else "2em"}; margin-bottom: 5px; }}
+        header p {{ opacity: 0.9; }}
+        
+        .section {{
+            background: {bg_secondary};
+            border-radius: 12px;
+            padding: {"15px" if compact_mode else "25px"};
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }}
+        
+        .section h2 {{
+            color: {accent};
+            border-bottom: 2px solid {accent};
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: {"1.1em" if compact_mode else "1.3em"};
+        }}
+        
+        .controls {{
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            align-items: center;
+        }}
+        
+        select, button {{
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid {"#444" if dark_theme else "#ddd"};
+            background: {bg_primary};
+            color: {text_primary};
+            font-size: 14px;
+            cursor: pointer;
+        }}
+        
+        button:hover {{ background: {accent}; color: white; }}
+        button.active {{ background: {accent}; color: white; }}
+        
+        #viewer-3d {{
+            width: 100%;
+            height: 450px;
+            border-radius: 8px;
+            border: 1px solid {"#444" if dark_theme else "#ddd"};
+        }}
+        
+        .chart-container {{ width: 100%; height: 400px; }}
+        
+        .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }}
+        
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: {"12px" if compact_mode else "14px"};
+        }}
+        
+        th, td {{
+            padding: {"6px 10px" if compact_mode else "10px 15px"};
+            text-align: left;
+            border-bottom: 1px solid {"#444" if dark_theme else "#eee"};
+        }}
+        
+        th {{ background: {"#2a2a3e" if dark_theme else "#f0f0f0"}; font-weight: 600; }}
+        tr:hover {{ background: {"#333" if dark_theme else "#f8f8f8"}; }}
+        
+        .metric-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }}
+        
+        .metric {{
+            background: {"#333" if dark_theme else "#f0f5ff"};
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }}
+        
+        .metric-value {{ font-size: 1.5em; font-weight: bold; color: {accent}; }}
+        .metric-label {{ font-size: 0.85em; color: {text_secondary}; }}
+        
+        .tabs {{ display: flex; gap: 5px; margin-bottom: 15px; }}
+        .tab {{ padding: 8px 16px; border-radius: 6px 6px 0 0; cursor: pointer; }}
+        .tab.active {{ background: {accent}; color: white; }}
+        
+        .tab-content {{ display: none; }}
+        .tab-content.active {{ display: block; }}
+        
+        .tooltip {{
+            position: absolute;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+        }}
+        
+        footer {{
+            text-align: center;
+            padding: 20px;
+            color: {text_secondary};
+            font-size: 12px;
+        }}
     </style>
 </head>
 <body>
-    <h1>🔬 ORCA Data Report</h1>
-    <div class="section">
-        <h2>Summary</h2>
-        <p>Total records: """ + str(len(df)) + """</p>
-        <p>Generated by ORCA Visualization Platform</p>
-    </div>
-    <div class="section">
-        <h2>Molecule Data</h2>
-        <table>
-            <tr><th>Molecule</th><th>State</th><th>Energy (Eh)</th><th>HOMO (eV)</th><th>LUMO (eV)</th></tr>
-"""
+    <div class="container">
+        <header>
+            <h1>🔬 ORCA Visualization Report</h1>
+            <p>Generated by ORCA Visualization Platform</p>
+        </header>
+        
+        <!-- Summary Metrics -->
+        <div class="section">
+            <div class="metric-grid">
+                <div class="metric">
+                    <div class="metric-value">{len(df)}</div>
+                    <div class="metric-label">Records</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">{df["molecule_id"].nunique() if "molecule_id" in df.columns else 0}</div>
+                    <div class="metric-label">Molecules</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">{df["optimized_state"].nunique() if "optimized_state" in df.columns else 0}</div>
+                    <div class="metric-label">States</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">{df["gibbs_Eh"].notna().sum() if "gibbs_Eh" in df.columns else 0}</div>
+                    <div class="metric-label">With Energy</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Molecule Selector -->
+        <div class="section">
+            <h2>🧬 Molecule Viewer</h2>
+            <div class="controls">
+                <label>Select Molecule:</label>
+                <select id="molecule-select" onchange="switchMolecule()">
+'''
+    
+    # Add molecule options
+    for i, row in df.iterrows():
+        mol_id = row.get("molecule_id", "unknown")
+        state = row.get("optimized_state", "")
+        label = f"{mol_id} [{state}]" if state and str(state) != "nan" else mol_id
+        html += f'                    <option value="{i}">{label}</option>\n'
+    
+    html += f'''                </select>
+'''
+    
+    if include_3d:
+        html += '''                <button onclick="setStyle('stick')">Stick</button>
+                <button onclick="setStyle('sphere')">Spacefill</button>
+                <button onclick="setStyle('ballstick')" class="active">Ball & Stick</button>
+                <button onclick="toggleSpin()">🔄 Spin</button>
+'''
+    
+    html += '''            </div>
+'''
+    
+    if include_3d:
+        html += f'''            <div id="viewer-3d" style="background: {"#1e1e2e" if dark_theme else "#f0f0f5"};"></div>
+'''
+    
+    html += '''            
+            <!-- Molecule Info -->
+            <div id="mol-info" class="metric-grid" style="margin-top: 20px;"></div>
+        </div>
+'''
+    
+    if include_spectra:
+        html += '''        
+        <!-- Spectra Section -->
+        <div class="section">
+            <h2>📈 Spectra</h2>
+            <div class="tabs">
+                <div class="tab active" onclick="showSpectraTab('ir')">IR</div>
+                <div class="tab" onclick="showSpectraTab('raman')">Raman</div>
+                <div class="tab" onclick="showSpectraTab('uv')">UV-Vis</div>
+            </div>
+            <div id="spectra-ir" class="tab-content active">
+                <div id="ir-chart" class="chart-container"></div>
+            </div>
+            <div id="spectra-raman" class="tab-content">
+                <div id="raman-chart" class="chart-container"></div>
+            </div>
+            <div id="spectra-uv" class="tab-content">
+                <div id="uv-chart" class="chart-container"></div>
+            </div>
+        </div>
+'''
+    
+    if include_energy:
+        html += '''        
+        <!-- Energy Section -->
+        <div class="section">
+            <h2>⚡ Energy Comparison</h2>
+            <div id="energy-chart" class="chart-container"></div>
+        </div>
+'''
+    
+    if include_orbitals:
+        html += '''        
+        <!-- Orbitals Section -->
+        <div class="section">
+            <h2>🔮 Molecular Orbitals</h2>
+            <div id="orbital-chart" class="chart-container"></div>
+        </div>
+'''
+    
+    # Data table
+    html += f'''        
+        <!-- Data Table -->
+        <div class="section">
+            <h2>📊 Complete Data</h2>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Molecule</th>
+                            <th>State</th>
+                            <th>SMILES</th>
+                            <th>Energy (Eh)</th>
+                            <th>HOMO (eV)</th>
+                            <th>LUMO (eV)</th>
+                            <th>Gap (eV)</th>
+                            <th>Method</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+'''
     
     for idx, row in df.iterrows():
         mol_id = row.get("molecule_id", "N/A")
         state = row.get("optimized_state", "N/A")
+        smiles = row.get("smiles", "N/A")
         energy = row.get("gibbs_Eh") or row.get("single_point_Eh")
         homo = row.get("homo_energy")
         lumo = row.get("lumo_energy")
+        gap = row.get("homo_lumo_gap")
+        method = row.get("method_id", "N/A")
         
-        html += f"""            <tr>
-                <td>{mol_id}</td>
-                <td>{state}</td>
-                <td>{f'{energy:.4f}' if energy else 'N/A'}</td>
-                <td>{f'{homo:.3f}' if homo else 'N/A'}</td>
-                <td>{f'{lumo:.3f}' if lumo else 'N/A'}</td>
-            </tr>
-"""
+        smiles_display = str(smiles)[:30] + "..." if smiles and len(str(smiles)) > 30 else smiles
+        
+        html += f'''                        <tr>
+                            <td><strong>{mol_id}</strong></td>
+                            <td>{state}</td>
+                            <td title="{smiles}">{smiles_display if smiles and str(smiles) != "nan" else "N/A"}</td>
+                            <td>{f'{energy:.6f}' if energy else 'N/A'}</td>
+                            <td>{f'{homo:.3f}' if homo else 'N/A'}</td>
+                            <td>{f'{lumo:.3f}' if lumo else 'N/A'}</td>
+                            <td>{f'{gap:.3f}' if gap else 'N/A'}</td>
+                            <td>{method}</td>
+                        </tr>
+'''
     
-    html += """        </table>
+    html += f'''                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <footer>
+            Generated by ORCA Visualization Platform | {pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")}
+        </footer>
     </div>
+    
+    <script>
+        // Embedded molecule data
+        const molecules = {molecules_json};
+        
+        let viewer = null;
+        let spinning = false;
+        let spinInterval = null;
+        let currentStyle = 'ballstick';
+        let currentMolIndex = 0;
+        
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', function() {{
+            if (document.getElementById('viewer-3d')) {{
+                initViewer();
+            }}
+            updateMolInfo(0);
+            if (document.getElementById('energy-chart')) {{
+                renderEnergyChart();
+            }}
+            if (document.getElementById('orbital-chart')) {{
+                renderOrbitalChart();
+            }}
+            renderSpectra(0);
+        }});
+        
+        function initViewer() {{
+            viewer = $3Dmol.createViewer('viewer-3d', {{
+                backgroundColor: '{"#1e1e2e" if dark_theme else "#f0f0f5"}'
+            }});
+            loadMolecule(0);
+        }}
+        
+        function loadMolecule(index) {{
+            if (!viewer || !molecules[index]) return;
+            currentMolIndex = index;
+            
+            const mol = molecules[index];
+            viewer.removeAllModels();
+            
+            if (mol.xyz) {{
+                viewer.addModel(mol.xyz, 'xyz');
+                applyStyle(currentStyle);
+                viewer.zoomTo();
+                viewer.render();
+            }}
+            
+            updateMolInfo(index);
+            renderSpectra(index);
+        }}
+        
+        function switchMolecule() {{
+            const select = document.getElementById('molecule-select');
+            loadMolecule(parseInt(select.value));
+        }}
+        
+        function setStyle(style) {{
+            currentStyle = style;
+            applyStyle(style);
+            
+            // Update button states
+            document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+        }}
+        
+        function applyStyle(style) {{
+            if (!viewer) return;
+            
+            if (style === 'stick') {{
+                viewer.setStyle({{}}, {{stick: {{radius: 0.15}}}});
+            }} else if (style === 'sphere') {{
+                viewer.setStyle({{}}, {{sphere: {{scale: 0.8}}}});
+            }} else {{
+                viewer.setStyle({{}}, {{stick: {{radius: 0.12}}, sphere: {{scale: 0.25}}}});
+            }}
+            viewer.render();
+        }}
+        
+        function toggleSpin() {{
+            spinning = !spinning;
+            if (spinning) {{
+                spinInterval = setInterval(() => {{
+                    viewer.rotate(1, {{x: 0, y: 1, z: 0}});
+                    viewer.render();
+                }}, 40);
+            }} else {{
+                clearInterval(spinInterval);
+            }}
+        }}
+        
+        function updateMolInfo(index) {{
+            const mol = molecules[index];
+            if (!mol) return;
+            
+            const infoDiv = document.getElementById('mol-info');
+            infoDiv.innerHTML = `
+                <div class="metric"><div class="metric-value">${{mol.atoms || 'N/A'}}</div><div class="metric-label">Atoms</div></div>
+                <div class="metric"><div class="metric-value">${{mol.energy ? mol.energy.toFixed(4) : 'N/A'}}</div><div class="metric-label">Energy (Eh)</div></div>
+                <div class="metric"><div class="metric-value">${{mol.homo ? mol.homo.toFixed(2) : 'N/A'}}</div><div class="metric-label">HOMO (eV)</div></div>
+                <div class="metric"><div class="metric-value">${{mol.lumo ? mol.lumo.toFixed(2) : 'N/A'}}</div><div class="metric-label">LUMO (eV)</div></div>
+            `;
+        }}
+        
+        function showSpectraTab(type) {{
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById('spectra-' + type).classList.add('active');
+        }}
+        
+        function renderSpectra(index) {{
+            const mol = molecules[index];
+            if (!mol) return;
+            
+            // IR Chart
+            if (mol.ir && mol.ir.length > 0 && document.getElementById('ir-chart')) {{
+                const x = mol.ir.map(p => p.freq);
+                const y = mol.ir.map(p => p.intensity);
+                
+                Plotly.newPlot('ir-chart', [{{
+                    x: x, y: y,
+                    type: 'scatter', mode: 'lines',
+                    line: {{color: '#00ff88', width: 1.5}},
+                    fill: 'tozeroy', fillcolor: 'rgba(0,255,136,0.1)'
+                }}], {{
+                    title: 'IR Spectrum',
+                    xaxis: {{title: 'Wavenumber (cm⁻¹)', autorange: 'reversed'}},
+                    yaxis: {{title: 'Intensity'}},
+                    paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                    plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                    font: {{color: '{text_primary}'}}
+                }}, {{responsive: true}});
+            }}
+            
+            // Raman Chart
+            if (mol.raman && mol.raman.length > 0 && document.getElementById('raman-chart')) {{
+                const x = mol.raman.map(p => p.freq);
+                const y = mol.raman.map(p => p.activity);
+                
+                Plotly.newPlot('raman-chart', [{{
+                    x: x, y: y,
+                    type: 'scatter', mode: 'lines',
+                    line: {{color: '#ff6b6b', width: 1.5}},
+                    fill: 'tozeroy', fillcolor: 'rgba(255,107,107,0.1)'
+                }}], {{
+                    title: 'Raman Spectrum',
+                    xaxis: {{title: 'Wavenumber (cm⁻¹)', autorange: 'reversed'}},
+                    yaxis: {{title: 'Activity'}},
+                    paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                    plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                    font: {{color: '{text_primary}'}}
+                }}, {{responsive: true}});
+            }}
+        }}
+        
+        function renderEnergyChart() {{
+            const labels = molecules.map(m => m.label);
+            const energies = molecules.map(m => m.energy || 0);
+            
+            Plotly.newPlot('energy-chart', [{{
+                x: labels,
+                y: energies,
+                type: 'bar',
+                marker: {{color: '#667eea'}}
+            }}], {{
+                title: 'Energy Comparison',
+                xaxis: {{title: 'Molecule'}},
+                yaxis: {{title: 'Energy (Eh)'}},
+                paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                font: {{color: '{text_primary}'}}
+            }}, {{responsive: true}});
+        }}
+        
+        function renderOrbitalChart() {{
+            const labels = molecules.map(m => m.label);
+            const homos = molecules.map(m => m.homo || 0);
+            const lumos = molecules.map(m => m.lumo || 0);
+            
+            Plotly.newPlot('orbital-chart', [
+                {{x: labels, y: homos, name: 'HOMO', type: 'bar', marker: {{color: '#ff6b6b'}}}},
+                {{x: labels, y: lumos, name: 'LUMO', type: 'bar', marker: {{color: '#4ecdc4'}}}}
+            ], {{
+                title: 'HOMO/LUMO Energy Levels',
+                xaxis: {{title: 'Molecule'}},
+                yaxis: {{title: 'Energy (eV)'}},
+                barmode: 'group',
+                paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                font: {{color: '{text_primary}'}}
+            }}, {{responsive: true}});
+        }}
+    </script>
 </body>
-</html>"""
+</html>'''
     
     return html
+
+
+def prepare_molecules_json(df: pd.DataFrame) -> str:
+    """Prepare molecule data as JSON for embedding in HTML."""
+    molecules = []
+    
+    for idx, row in df.iterrows():
+        mol_id = row.get("molecule_id", "unknown")
+        state = row.get("optimized_state", "")
+        label = f"{mol_id} [{state}]" if state and str(state) != "nan" else mol_id
+        
+        mol_data = {
+            "label": label,
+            "mol_id": mol_id,
+            "state": state if state and str(state) != "nan" else None,
+            "smiles": row.get("smiles") if row.get("smiles") and str(row.get("smiles")) != "nan" else None,
+            "energy": row.get("gibbs_Eh") or row.get("single_point_Eh"),
+            "homo": row.get("homo_energy"),
+            "lumo": row.get("lumo_energy"),
+            "gap": row.get("homo_lumo_gap"),
+            "method": row.get("method_id"),
+            "xyz": None,
+            "atoms": 0,
+            "ir": [],
+            "raman": []
+        }
+        
+        # Build XYZ string
+        coords = row.get("cart_coords")
+        if coords is not None and hasattr(coords, 'empty') and not coords.empty:
+            n_atoms = len(coords)
+            mol_data["atoms"] = n_atoms
+            xyz_lines = [str(n_atoms), mol_id]
+            
+            for _, atom in coords.iterrows():
+                el = str(atom.get("atom", atom.get("element", "C")))
+                x = float(atom.get("x", 0))
+                y = float(atom.get("y", 0))
+                z = float(atom.get("z", 0))
+                xyz_lines.append(f"{el} {x:.6f} {y:.6f} {z:.6f}")
+            
+            mol_data["xyz"] = "\\n".join(xyz_lines)
+        
+        # Add IR data
+        ir = row.get("ir")
+        if ir is not None and hasattr(ir, 'empty') and not ir.empty:
+            ir_data = []
+            for _, peak in ir.iterrows():
+                freq_col = [c for c in ir.columns if 'freq' in c.lower()][0] if any('freq' in c.lower() for c in ir.columns) else None
+                int_col = [c for c in ir.columns if 'intensity' in c.lower() or 'eps' in c.lower()][0] if any('intensity' in c.lower() or 'eps' in c.lower() for c in ir.columns) else None
+                
+                if freq_col and int_col:
+                    ir_data.append({
+                        "freq": float(peak[freq_col]),
+                        "intensity": float(peak[int_col])
+                    })
+            mol_data["ir"] = ir_data
+        
+        # Add Raman data
+        raman = row.get("raman")
+        if raman is not None and hasattr(raman, 'empty') and not raman.empty:
+            raman_data = []
+            for _, peak in raman.iterrows():
+                freq_col = [c for c in raman.columns if 'freq' in c.lower()][0] if any('freq' in c.lower() for c in raman.columns) else None
+                act_col = [c for c in raman.columns if 'activity' in c.lower()][0] if any('activity' in c.lower() for c in raman.columns) else None
+                
+                if freq_col and act_col:
+                    raman_data.append({
+                        "freq": float(peak[freq_col]),
+                        "activity": float(peak[act_col])
+                    })
+            mol_data["raman"] = raman_data
+        
+        molecules.append(mol_data)
+    
+    return json.dumps(molecules, default=str)

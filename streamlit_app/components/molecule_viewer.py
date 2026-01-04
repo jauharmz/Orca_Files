@@ -413,6 +413,12 @@ def render_2d_view(mol_row: pd.Series):
     mol = None
     source = None
     
+    # Debug: show SMILES availability
+    if smiles and str(smiles) != "nan":
+        st.caption(f"📋 SMILES: `{smiles}`")
+    else:
+        st.caption("📋 SMILES: Not available (using coordinates)")
+    
     # Try SMILES first
     if smiles and str(smiles) != "nan":
         try:
