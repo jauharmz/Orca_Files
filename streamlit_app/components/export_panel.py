@@ -249,32 +249,46 @@ def render_html_export(df: pd.DataFrame):
             dark_theme = st.checkbox("Dark Theme", False, key="html_dark")
             compact_mode = st.checkbox("Compact Mode", False, key="html_compact")
     
-    if st.button("🚀 Generate HTML Report", type="primary"):
-        try:
-            with st.spinner("Generating report..."):
-                html = generate_html_report(
-                    df, 
-                    include_3d=include_3d,
-                    include_spectra=include_spectra,
-                    include_energy=include_energy,
-                    include_orbitals=include_orbitals,
-                    dark_theme=dark_theme,
-                    compact_mode=compact_mode
-                )
-            
+    # Initialize session state for HTML
+    if "generated_html" not in st.session_state:
+        st.session_state.generated_html = None
+        st.session_state.html_size = 0
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        if st.button("🚀 Generate HTML Report", type="primary"):
+            try:
+                with st.spinner("Generating report..."):
+                    html = generate_html_report(
+                        df, 
+                        include_3d=include_3d,
+                        include_spectra=include_spectra,
+                        include_energy=include_energy,
+                        include_orbitals=include_orbitals,
+                        dark_theme=dark_theme,
+                        compact_mode=compact_mode
+                    )
+                    st.session_state.generated_html = html
+                    st.session_state.html_size = len(html) // 1024
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"Failed to generate report: {e}")
+                import traceback
+                st.code(traceback.format_exc())
+    
+    with col2:
+        # Show download button if HTML was generated
+        if st.session_state.generated_html:
             st.download_button(
                 "⬇️ Download HTML Report",
-                html,
+                st.session_state.generated_html,
                 "orca_report.html",
                 "text/html",
                 key="html_download"
             )
-            st.success(f"✅ Report generated! ({len(html)//1024} KB)")
-            
-        except Exception as e:
-            st.error(f"Failed to generate report: {e}")
-            import traceback
-            st.code(traceback.format_exc())
+            st.success(f"✅ Report ready! ({st.session_state.html_size} KB)")
 
 
 def generate_html_report(
