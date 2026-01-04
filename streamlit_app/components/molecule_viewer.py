@@ -115,8 +115,9 @@ def render_3d_view(mol_row: pd.Series):
         # Row 1: Style and Color
         c1, c2, c3 = st.columns(3)
         with c1:
-            style = st.selectbox("Style", ["Ball & Stick", "Stick", "Spacefill"], 
-                               key="mol3d_style", index=0)
+            style = st.selectbox("Style", 
+                ["Ball & Stick", "Stick", "Spacefill (CPK)", "Line (Wire)", "Cross"], 
+                key="mol3d_style", index=0)
         with c2:
             color_options = ["Standard (Jmol)", "Professional (Light Carbon)", "Vibrant (Teal Carbon)"]
             if charges:
@@ -134,10 +135,15 @@ def render_3d_view(mol_row: pd.Series):
         with c6:
             spin = st.checkbox("Spin Animation", False, key="mol3d_spin")
         
-        # Row 3: Advanced settings
+        # Row 3: Surface options
         c7, c8, c9 = st.columns(3)
         with c7:
-            bg_color = st.color_picker("Background", "#1e1e2e", key="mol3d_bg")
+            if show_surface:
+                surface_type = st.selectbox("Surface Type", 
+                    ["VDW (Space-filling)", "SAS (Solvent Accessible)", "SES (Molecular)"],
+                    key="mol3d_surftype")
+            else:
+                surface_type = "VDW (Space-filling)"
         with c8:
             if show_surface:
                 surface_opacity = st.slider("Surface Opacity", 0.1, 1.0, 0.5, key="mol3d_opacity")
@@ -148,6 +154,15 @@ def render_3d_view(mol_row: pd.Series):
                 label_size = st.slider("Label Size", 8, 16, 10, key="mol3d_label_size")
             else:
                 label_size = 10
+        
+        # Row 4: Advanced settings
+        c10, c11, c12 = st.columns(3)
+        with c10:
+            bg_color = st.color_picker("Background", "#1e1e2e", key="mol3d_bg")
+        with c11:
+            stick_radius = st.slider("Bond Radius", 0.05, 0.25, 0.12, key="mol3d_radius")
+        with c12:
+            sphere_scale = st.slider("Atom Scale", 0.1, 1.0, 0.25, key="mol3d_scale")
     
     # Build XYZ string
     n_atoms = len(coords)
@@ -179,14 +194,14 @@ def render_3d_view(mol_row: pd.Series):
     if color_mode == "Electrostatic (Charge)" and charges:
         # Use charge-based coloring
         color_js = f'''
-        viewer.setStyle({{}}, {{{get_style_type(style)}: {{
+        viewer.setStyle({{}}, {{{get_style_type(style, stick_radius, sphere_scale)}: {{
             colorscheme: {{prop: 'partialCharge', gradient: 'rwb', min: -0.25, max: 0.25}}{material_spec}
         }}}});
         '''
     elif color_mode == "Professional (Light Carbon)":
         color_scheme = "{'C': '#d3d3d3', 'H': 'white', 'N': '#3050F8', 'O': '#FF0D0D', 'S': '#FFFF30', 'F': '#90E050', 'Cl': '#1FF01F'}"
         color_js = f'''
-        viewer.setStyle({{}}, {{{get_style_type(style)}: {{
+        viewer.setStyle({{}}, {{{get_style_type(style, stick_radius, sphere_scale)}: {{
             colorscheme: {{colorfunc: function(atom) {{
                 var colors = {color_scheme};
                 return colors[atom.elem] || '#808080';
@@ -196,7 +211,7 @@ def render_3d_view(mol_row: pd.Series):
     elif color_mode == "Vibrant (Teal Carbon)":
         color_scheme = "{'C': '#008080', 'H': 'white', 'N': '#483D8B', 'O': '#FF4500', 'S': '#FFD700'}"
         color_js = f'''
-        viewer.setStyle({{}}, {{{get_style_type(style)}: {{
+        viewer.setStyle({{}}, {{{get_style_type(style, stick_radius, sphere_scale)}: {{
             colorscheme: {{colorfunc: function(atom) {{
                 var colors = {color_scheme};
                 return colors[atom.elem] || '#808080';
@@ -204,12 +219,18 @@ def render_3d_view(mol_row: pd.Series):
         }}}});
         '''
     else:  # Standard Jmol
-        style_spec = get_style_spec(style, material_spec)
+        style_spec = get_style_spec(style, material_spec, stick_radius, sphere_scale)
         color_js = f'viewer.setStyle({{}}, {style_spec});'
     
-    # Surface JavaScript
+    # Surface JavaScript with surface type
     if show_surface:
-        surface_js = f'viewer.addSurface($3Dmol.SurfaceType.VDW, {{opacity: {surface_opacity}, color: "white"}});'
+        surf_type_map = {
+            "VDW (Space-filling)": "$3Dmol.SurfaceType.VDW",
+            "SAS (Solvent Accessible)": "$3Dmol.SurfaceType.SAS",
+            "SES (Molecular)": "$3Dmol.SurfaceType.SES"
+        }
+        surf_type_js = surf_type_map.get(surface_type, "$3Dmol.SurfaceType.VDW")
+        surface_js = f'viewer.addSurface({surf_type_js}, {{opacity: {surface_opacity}, color: "white"}});'
     else:
         surface_js = ""
     
@@ -324,41 +345,70 @@ viewer.render();
     st.caption("💡 Hover over atoms for details. Scroll to zoom, drag to rotate.")
 
 
-def get_style_type(style: str) -> str:
-    """Get the 3Dmol style type string."""
+def get_style_type(style: str, stick_radius: float = 0.12, sphere_scale: float = 0.25) -> str:
+    """Get the 3Dmol style type string with parameters."""
     if style == "Ball & Stick":
-        return "stick"
-    elif style == "Spacefill":
-        return "sphere"
-    else:
-        return "stick"
+        return f'"stick": {{"radius": {stick_radius}}}, "sphere": {{"scale": {sphere_scale}}}'
+    elif style == "Spacefill (CPK)":
+        return f'"sphere": {{"scale": 0.85}}'
+    elif style == "Line (Wire)":
+        return f'"line": {{"linewidth": 2}}'
+    elif style == "Cross":
+        return f'"cross": {{"radius": 0.3}}'
+    else:  # Stick
+        return f'"stick": {{"radius": {stick_radius}}}'
 
 
-def get_style_spec(style: str, material_spec: str) -> str:
+def get_style_spec(style: str, material_spec: str, stick_radius: float = 0.12, sphere_scale: float = 0.25) -> str:
     """Get the full style specification for 3Dmol."""
     if style == "Ball & Stick":
-        return f'{{"stick": {{"radius": 0.12{material_spec}}}, "sphere": {{"scale": 0.25{material_spec}}}}}'
-    elif style == "Spacefill":
+        return f'{{"stick": {{"radius": {stick_radius}{material_spec}}}, "sphere": {{"scale": {sphere_scale}{material_spec}}}}}'
+    elif style == "Spacefill (CPK)":
         return f'{{"sphere": {{"scale": 0.85{material_spec}}}}}'
+    elif style == "Line (Wire)":
+        return f'{{"line": {{"linewidth": 2}}}}'
+    elif style == "Cross":
+        return f'{{"cross": {{"radius": 0.3{material_spec}}}}}'
     else:  # Stick
-        return f'{{"stick": {{"radius": 0.12{material_spec}}}}}'
+        return f'{{"stick": {{"radius": {stick_radius}{material_spec}}}}}'
 
 
 def render_2d_view(mol_row: pd.Series):
-    """Render 2D molecular structure using RDKit - from SMILES or coordinates."""
+    """Render 2D molecular structure using RDKit with extensive customization."""
     
     smiles = mol_row.get("smiles")
     coords = mol_row.get("cart_coords")
     
-    # Settings
-    with st.expander("⚙️ 2D View Settings", expanded=False):
-        c1, c2 = st.columns(2)
+    # Settings with more RDKit options
+    with st.expander("⚙️ 2D View Settings", expanded=True):
+        # Row 1: Basic settings
+        c1, c2, c3 = st.columns(3)
         with c1:
-            img_size = st.slider("Image Size", 300, 600, 450, key="mol2d_size")
-            show_atom_indices = st.checkbox("Show Atom Indices", True, key="mol2d_indices")
+            img_size = st.slider("Image Size", 300, 700, 450, key="mol2d_size")
         with c2:
             bg_color = st.color_picker("Background", "#ffffff", key="mol2d_bg")
-            bond_width = st.slider("Bond Width", 1, 5, 2, key="mol2d_bond")
+        with c3:
+            color_palette = st.selectbox("Color Palette", 
+                ["Standard (RDKit)", "Black & White", "Avalon", "Dark Mode"],
+                key="mol2d_palette")
+        
+        # Row 2: Display options
+        c4, c5, c6 = st.columns(3)
+        with c4:
+            show_atom_indices = st.checkbox("Atom Indices", False, key="mol2d_indices")
+        with c5:
+            show_stereo = st.checkbox("Stereo Labels", True, key="mol2d_stereo")
+        with c6:
+            kekulize = st.checkbox("Kekulize Bonds", False, key="mol2d_kekulize")
+        
+        # Row 3: Line settings
+        c7, c8, c9 = st.columns(3)
+        with c7:
+            bond_width = st.slider("Bond Width", 1.0, 4.0, 2.0, key="mol2d_bond")
+        with c8:
+            atom_font = st.slider("Atom Font Size", 10, 24, 14, key="mol2d_fontsize")
+        with c9:
+            padding = st.slider("Padding", 0.0, 0.2, 0.05, key="mol2d_padding")
     
     mol = None
     source = None
@@ -423,21 +473,65 @@ def render_2d_view(mol_row: pd.Series):
         from rdkit.Chem import AllChem, Draw
         from rdkit.Chem.Draw import rdMolDraw2D
         
+        # Kekulize if requested
+        if kekulize:
+            try:
+                Chem.Kekulize(mol, clearAromaticFlags=True)
+            except Exception:
+                pass
+        
         # Compute 2D coordinates
         AllChem.Compute2DCoords(mol)
         
-        # Draw options
+        # Setup drawer
         drawer = rdMolDraw2D.MolDraw2DSVG(img_size, int(img_size * 0.88))
         opts = drawer.drawOptions()
-        opts.addAtomIndices = show_atom_indices
-        opts.bondLineWidth = bond_width
         
+        # Apply display options
+        opts.addAtomIndices = show_atom_indices
+        opts.addStereoAnnotation = show_stereo
+        opts.bondLineWidth = bond_width
+        opts.padding = padding
+        
+        # Font size - set min and max to same value for consistent sizing
+        opts.minFontSize = atom_font
+        opts.maxFontSize = atom_font + 4
+        
+        # Apply color palette
+        if color_palette == "Black & White":
+            opts.useBWAtomPalette()
+        elif color_palette == "Avalon":
+            try:
+                opts.useAvalonAtomPalette()
+            except Exception:
+                pass  # Fallback to default if not available
+        elif color_palette == "Dark Mode":
+            # Custom dark mode palette
+            opts.setBackgroundColour((0.1, 0.1, 0.15, 1.0))
+            # Set atom colors for dark background
+            opts.updateAtomPalette({
+                6: (0.9, 0.9, 0.9),   # Carbon - light gray
+                7: (0.3, 0.5, 1.0),   # Nitrogen - blue
+                8: (1.0, 0.3, 0.3),   # Oxygen - red
+                16: (1.0, 1.0, 0.3),  # Sulfur - yellow
+                9: (0.3, 1.0, 0.3),   # Fluorine - green
+                17: (0.3, 0.9, 0.3),  # Chlorine - green
+                35: (0.6, 0.3, 0.3),  # Bromine - brown
+                15: (1.0, 0.5, 0.0),  # Phosphorus - orange
+            })
+        
+        # Draw molecule
         drawer.DrawMolecule(mol)
         drawer.FinishDrawing()
         svg = drawer.GetDrawingText()
         
+        # Apply background color (override for non-dark mode)
+        if color_palette != "Dark Mode":
+            svg = svg.replace('style="background-color:#FFFFFF;', f'style="background-color:{bg_color};')
+        
         # Display
-        st.markdown(f'<div style="display:flex;justify-content:center;background:{bg_color};padding:20px;border-radius:10px;">{svg}</div>', unsafe_allow_html=True)
+        display_bg = "#1a1a24" if color_palette == "Dark Mode" else bg_color
+        st.markdown(f'<div style="display:flex;justify-content:center;background:{display_bg};padding:20px;border-radius:10px;">{svg}</div>', unsafe_allow_html=True)
         
         st.caption(f"📐 Source: {source}")
         
