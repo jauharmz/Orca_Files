@@ -1811,54 +1811,8 @@ def generate_html_report(
                 }}, {{responsive: true}});
             }}
         }}
-            
-            // Raman Chart
-            if (mol.raman && mol.raman.length > 0 && document.getElementById('raman-chart')) {{
-                let trace = {{}};
-                
-                if (spectraMode === 'line') {{
-                    const freqs = mol.raman.map(p => p.freq);
-                    const minFreq = Math.min(...freqs) - 200;
-                    const maxFreq = Math.max(...freqs) + 200;
-                    // Remap activity to intensity for broadening function
-                    const peaks = mol.raman.map(p => ({{freq: p.freq, intensity: p.activity}}));
-                    const broadened = gaussianBroadening(peaks, spectraFWHM, Math.max(0, minFreq), maxFreq);
-                    
-                    trace = {{
-                        x: broadened.x, y: broadened.y,
-                        type: 'scatter', mode: 'lines',
-                        line: {{color: '#ff6b6b', width: 2}},
-                        fill: 'tozeroy', fillcolor: 'rgba(255,107,107,0.1)',
-                        name: 'Raman Spectrum'
-                    }};
-                }} else {{
-                    const x = [];
-                    const y = [];
-                    mol.raman.forEach(p => {{
-                        x.push(p.freq, p.freq, null);
-                        y.push(0, p.activity, null);
-                    }});
-                    
-                    trace = {{
-                        x: x, y: y,
-                        type: 'scatter', mode: 'lines',
-                        line: {{color: '#ff6b6b', width: 2}},
-                        name: 'Peaks'
-                    }};
-                }}
-                
-                Plotly.newPlot('raman-chart', [trace], {{
-                    title: 'Raman Spectrum',
-                    xaxis: {{title: 'Wavenumber (cm⁻¹)', autorange: 'reversed'}},
-                    yaxis: {{title: 'Activity'}},
-                    paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
-                    plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
-                    font: {{color: '{text_primary}'}}
-                }}, {{responsive: true}});
-            }}
-        }}
-            
-            
+        
+        
 
         
         function renderEnergyChart() {{
