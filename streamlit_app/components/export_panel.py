@@ -1658,7 +1658,7 @@ def generate_html_report(
             
             // IR Chart
             const irDiv = document.getElementById('ir-chart');
-            if (irDiv && irDiv.offsetParent !== null) {{
+            if (irDiv) {{
                 const traces = [];
                 indices.forEach((idx, i) => {{
                     const mol = molecules[idx];
@@ -1715,7 +1715,7 @@ def generate_html_report(
             
             // Raman Chart
             const ramanDiv = document.getElementById('raman-chart');
-            if (ramanDiv && ramanDiv.offsetParent !== null) {{
+            if (ramanDiv) {{
                 const traces = [];
                 indices.forEach((idx, i) => {{
                     const mol = molecules[idx];
@@ -1772,7 +1772,7 @@ def generate_html_report(
             
              // UV-Vis Chart
             const uvDiv = document.getElementById('uvvis-chart');
-            if (uvDiv && uvDiv.offsetParent !== null) {{
+            if (uvDiv) {{
                  const traces = [];
                  indices.forEach((idx, i) => {{
                     const mol = molecules[idx];
