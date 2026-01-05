@@ -812,12 +812,42 @@ def generate_html_report(
         
         /* Responsive */
         @media (max-width: 768px) {{
-            .container {{ padding: 20px 15px; }}
-            .section {{ padding: 25px; }}
-            .report-header {{ padding: 40px 20px; }}
-            .report-header h1 {{ font-size: 1.8em; }}
+            .container {{ padding: 20px 10px; }}
+            .section {{ padding: 20px 15px; }}
+            .report-header {{ padding: 30px 15px; }}
+            .report-header h1 {{ font-size: 1.5em; }}
             .stats-grid {{ grid-template-columns: repeat(2, 1fr); }}
-            .mol-info-grid {{ grid-template-columns: repeat(2, 1fr); }}
+            .mol-info-grid {{ grid-template-columns: 1fr; }}
+            .controls {{ flex-direction: column; }}
+            #viewer-3d {{ height: 350px; }}
+            .chart-container {{ height: 350px; }}
+            .tabs {{ flex-wrap: wrap; }}
+            .tab {{ flex: 1 1 auto; text-align: center; padding: 10px; }}
+            table {{ font-size: 12px; }}
+            td, th {{ padding: 8px 6px; }}
+            .settings-row {{ flex-direction: column; }}
+        }}
+        
+        @media (max-width: 480px) {{
+            .report-header h1 {{ font-size: 1.3em; }}
+            .section {{ padding: 15px 10px; }}
+            #viewer-3d {{ height: 280px; }}
+            .chart-container {{ height: 280px; }}
+            .tab {{ padding: 8px 5px; font-size: 12px; }}
+        }}
+        
+        /* Table styles to prevent truncation */
+        table td, table th {{
+            word-break: break-word;
+            overflow-wrap: break-word;
+            max-width: 300px;
+        }}
+        
+        table td.smiles-cell {{
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            max-width: 200px;
+            word-break: break-all;
         }}
     </style>
 </head>
@@ -1031,20 +1061,7 @@ def generate_html_report(
         </section>
 '''
     
-    if include_energy:
-        html += '''        
-        <!-- 4. Energy Analysis -->
-        <section id="energy-analysis" class="section">
-            <h2>⚡ 4. Energy Analysis</h2>
-            
-            <p>
-                Comparative energy analysis of all molecular systems. The chart below shows the Gibbs free energy 
-                (or single-point energy where thermochemistry is not available) for each calculation.
-            </p>
-            
-            <div id="energy-chart" class="chart-container"></div>
-        </section>
-'''
+    # Note: Energy Analysis section is now only included once (after Vibrational Analysis) with full controls
     
     if include_orbitals:
         html += '''        
@@ -1184,12 +1201,12 @@ def generate_html_report(
         gap = row.get("homo_lumo_gap")
         method = row.get("method_id", "N/A")
         
-        smiles_display = str(smiles)[:30] + "..." if smiles and len(str(smiles)) > 30 else smiles
+        smiles_display = str(smiles)[:60] + "..." if smiles and len(str(smiles)) > 60 else smiles
         
         html += f'''                        <tr>
                             <td><strong>{mol_id}</strong></td>
                             <td>{state}</td>
-                            <td title="{smiles}">{smiles_display if smiles and str(smiles) != "nan" else "N/A"}</td>
+                            <td class="smiles-cell" title="{smiles}">{smiles_display if smiles and str(smiles) != "nan" else "N/A"}</td>
                             <td>{f'{energy:.6f}' if energy else 'N/A'}</td>
                             <td>{f'{homo:.3f}' if homo else 'N/A'}</td>
                             <td>{f'{lumo:.3f}' if lumo else 'N/A'}</td>
