@@ -254,10 +254,8 @@ def render_html_export(df: pd.DataFrame):
     if not report_name.endswith(".html"):
         report_name += ".html"
     
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        generate_clicked = st.button("🚀 Generate Report", type="primary")
+    # Generate button
+    generate_clicked = st.button("🚀 Generate Report", type="primary", use_container_width=True)
     
     if generate_clicked:
         try:
@@ -267,8 +265,6 @@ def render_html_export(df: pd.DataFrame):
             # Use script directory for reliable path
             script_dir = Path(__file__).parent.parent  # streamlit_app folder
             save_path = script_dir / report_name
-            
-            st.caption(f"📂 Target save path: `{save_path}`")
             
             with st.spinner("Generating comprehensive report (this may take a moment)..."):
                 html = generate_html_report(
@@ -284,40 +280,41 @@ def render_html_export(df: pd.DataFrame):
                 # Store in session state for download button
                 st.session_state['report_html'] = html
                 st.session_state['report_name'] = report_name
+                st.session_state['report_path'] = str(save_path)
                 
                 # Save to disk
                 with open(save_path, "w", encoding="utf-8") as f:
                     f.write(html)
                 
-                file_size_mb = len(html) / (1024 * 1024)
+                st.session_state['report_size_kb'] = save_path.stat().st_size / 1024
+                st.session_state['report_generated'] = True
                 
-            st.success(f"✅ Report generated! ({file_size_mb:.1f} MB)")
-            
-            # Immediate Verification
-            if save_path.exists():
-                st.info(f"💾 File SAVED to: `{save_path}`")
-                st.caption(f"Size: {save_path.stat().st_size / 1024:.1f} KB")
-            else:
-                st.error(f"❌ File NOT FOUND at expected path!")
-            
         except Exception as e:
             st.error(f"Failed to generate report: {e}")
             import traceback
             st.code(traceback.format_exc())
 
-    # Show download button if report exists in session state (always visible after generation)
-    if 'report_html' in st.session_state:
-        with col2:
-            st.download_button(
-                label="📥 Download HTML Report",
-                data=st.session_state['report_html'],
-                file_name=st.session_state.get('report_name', 'orca_report.html'),
-                mime="text/html",
-                type="primary",
-                key="html_download_btn"
-            )
+    # Show download section if report exists in session state
+    if st.session_state.get('report_generated', False) and 'report_html' in st.session_state:
+        st.success(f"✅ Report generated successfully!")
+        
+        # File info
+        st.info(f"💾 **Saved to:** `{st.session_state.get('report_path', 'N/A')}`")
+        st.caption(f"📊 Size: {st.session_state.get('report_size_kb', 0):.1f} KB")
+        
+        # Download button - full width for visibility
+        st.download_button(
+            label="📥 Download HTML Report",
+            data=st.session_state['report_html'],
+            file_name=st.session_state.get('report_name', 'orca_report.html'),
+            mime="text/html",
+            type="primary",
+            use_container_width=True,
+            key="html_download_btn"
+        )
+        
         st.markdown("---")
-        st.caption("💡 If download button doesn't work, check the saved file path above.")
+        st.caption("💡 You can also open the saved file directly from the path above.")
 
 
 def generate_html_report(
