@@ -737,7 +737,7 @@ def generate_html_report(
         
         .settings-row {{
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 15px;
             margin-top: 15px;
         }}
@@ -781,12 +781,215 @@ def generate_html_report(
             font-weight: 600;
         }}
         
+        /* Multi-Select Dropdown */
+        .multiselect-container {{
+            position: relative;
+            width: 100%;
+        }}
+        
+        .multiselect-dropdown {{
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(0,0,0,0.15);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+        
+        .multiselect-dropdown:hover {{
+            border-color: var(--accent);
+        }}
+        
+        .multiselect-options {{
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 250px;
+            overflow-y: auto;
+            background: var(--bg-card);
+            border: 1px solid rgba(0,0,0,0.15);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            z-index: 100;
+            display: none;
+            margin-top: 4px;
+        }}
+        
+        .multiselect-options.show {{
+            display: block;
+        }}
+        
+        .multiselect-option {{
+            padding: 10px 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: background 0.15s;
+        }}
+        
+        .multiselect-option:hover {{
+            background: var(--bg-primary);
+        }}
+        
+        .multiselect-option.selected {{
+            background: rgba(14, 165, 233, 0.1);
+        }}
+        
+        .multiselect-option input[type="checkbox"] {{
+            width: 16px;
+            height: 16px;
+            accent-color: var(--accent);
+        }}
+        
+        .multiselect-pills {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }}
+        
+        .pill {{
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: var(--accent);
+            color: white;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }}
+        
+        .pill .remove {{
+            cursor: pointer;
+            opacity: 0.8;
+            font-size: 14px;
+        }}
+        
+        .pill .remove:hover {{
+            opacity: 1;
+        }}
+        
+        .multiselect-actions {{
+            display: flex;
+            gap: 8px;
+            padding: 8px 14px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }}
+        
+        .multiselect-actions button {{
+            padding: 4px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+        }}
+        
+        /* Properties Tabs (Sub-tabs) */
+        .prop-tabs {{
+            display: flex;
+            gap: 4px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            padding-bottom: 0;
+        }}
+        
+        .prop-tab {{
+            padding: 8px 16px;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            background: transparent;
+            color: var(--text-secondary);
+            border: none;
+            transition: all 0.2s;
+        }}
+        
+        .prop-tab:hover {{
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }}
+        
+        .prop-tab.active {{
+            background: var(--accent);
+            color: white;
+        }}
+        
+        .prop-content {{
+            display: none;
+        }}
+        
+        .prop-content.active {{
+            display: block;
+        }}
+        
         /* Coordinate/Data Tables */
         .data-scroll {{
             max-height: 400px;
             overflow-y: auto;
             border-radius: 8px;
             margin-top: 15px;
+        }}
+        
+        /* Compact Data Table */
+        .compact-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }}
+        
+        .compact-table th, .compact-table td {{
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+        }}
+        
+        .compact-table th {{
+            background: var(--bg-primary);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }}
+        
+        .compact-table tr:hover td {{
+            background: var(--bg-primary);
+        }}
+        
+        /* Range Input with Dual Handles */
+        .dual-range {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }}
+        
+        .dual-range input[type="number"] {{
+            width: 70px;
+            padding: 6px 8px;
+            border-radius: 4px;
+            border: 1px solid rgba(0,0,0,0.15);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 13px;
+            text-align: center;
+        }}
+        
+        /* Inline Checkbox Label */
+        .checkbox-inline {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }}
+        
+        .checkbox-inline input {{
+            width: 16px;
+            height: 16px;
         }}
         
         /* Footer */
@@ -814,15 +1017,22 @@ def generate_html_report(
             .report-header {{ padding: 30px 15px; }}
             .report-header h1 {{ font-size: 1.5em; }}
             .stats-grid {{ grid-template-columns: repeat(2, 1fr); }}
-            .mol-info-grid {{ grid-template-columns: 1fr; }}
-            .controls {{ flex-direction: column; }}
+            .mol-info-grid {{ grid-template-columns: repeat(2, 1fr); gap: 10px; }}
+            .mol-info-grid .stat-card {{ padding: 15px; }}
+            .mol-info-grid .stat-value {{ font-size: 1.5em; }}
+            .controls {{ flex-direction: column; gap: 8px; }}
             #viewer-3d {{ height: 350px; }}
             .chart-container {{ height: 350px; }}
-            .tabs {{ flex-wrap: wrap; }}
-            .tab {{ flex: 1 1 auto; text-align: center; padding: 10px; }}
+            .tabs {{ flex-wrap: wrap; gap: 4px; }}
+            .tab {{ flex: 1 1 auto; text-align: center; padding: 10px 8px; font-size: 13px; }}
             table {{ font-size: 12px; }}
             td, th {{ padding: 8px 6px; }}
-            .settings-row {{ flex-direction: column; }}
+            .settings-row {{ grid-template-columns: 1fr !important; }}
+            .setting-group {{ margin-bottom: 10px; }}
+            .prop-tabs {{ flex-wrap: wrap; gap: 4px; }}
+            .prop-tab {{ font-size: 11px; padding: 6px 10px; }}
+            .multiselect-pills {{ gap: 4px; }}
+            .pill {{ font-size: 11px; padding: 3px 8px; }}
         }}
         
         @media (max-width: 480px) {{
@@ -830,7 +1040,14 @@ def generate_html_report(
             .section {{ padding: 15px 10px; }}
             #viewer-3d {{ height: 280px; }}
             .chart-container {{ height: 280px; }}
-            .tab {{ padding: 8px 5px; font-size: 12px; }}
+            .tab {{ padding: 8px 5px; font-size: 11px; min-width: 60px; }}
+            .mol-info-grid {{ grid-template-columns: 1fr 1fr; }}
+            .mol-info-grid .stat-card {{ padding: 12px 8px; }}
+            .mol-info-grid .stat-value {{ font-size: 1.2em; }}
+            .mol-info-grid .stat-label {{ font-size: 0.75em; }}
+            .stats-grid {{ gap: 10px; }}
+            .stats-grid .stat-card {{ padding: 15px 10px; }}
+            .stats-grid .stat-value {{ font-size: 1.8em; }}
         }}
         
         /* Table styles to prevent truncation */
@@ -982,6 +1199,7 @@ def generate_html_report(
                 <div class="tabs">
                     <div class="tab active" onclick="showMolTab('3d')">🔮 3D View</div>
                     <div class="tab" onclick="showMolTab('2d')">📐 2D View</div>
+                    <div class="tab" onclick="showMolTab('props')">📊 Properties</div>
                 </div>
 
                 <!-- 3D View Content -->
@@ -1044,14 +1262,129 @@ def generate_html_report(
                 
                 <!-- 2D View Content -->
                 <div id="mol-view-2d" class="tab-content">
-                    <div style="display: flex; justify-content: center; align-items: center; background: {"#ffffff" if not dark_theme else "#ffffff"}; border-radius: 8px; padding: 20px; min-height: 400px;">
+                    <!-- 2D Settings Panel -->
+                    <details class="settings-panel">
+                        <summary>2D Visualization Settings</summary>
+                        <div class="settings-row">
+                            <div class="setting-group">
+                                <label>Image Size</label>
+                                <input type="range" id="mol2d-size" min="300" max="700" step="50" value="450" onchange="update2DSettings()">
+                                <span class="range-value" id="mol2d-size-val">450px</span>
+                            </div>
+                            <div class="setting-group">
+                                <label>Background</label>
+                                <select id="mol2d-bg" onchange="update2DSettings()">
+                                    <option value="#ffffff">White</option>
+                                    <option value="#f5f5f5">Light Gray</option>
+                                    <option value="#000000">Black</option>
+                                    <option value="#1a1a24">Dark</option>
+                                </select>
+                            </div>
+                            <div class="setting-group">
+                                <label>Color Palette</label>
+                                <select id="mol2d-palette" onchange="update2DSettings()">
+                                    <option value="standard">Standard (RDKit)</option>
+                                    <option value="bw">Black & White</option>
+                                    <option value="dark">Dark Mode</option>
+                                </select>
+                            </div>
+                            <div class="setting-group">
+                                <label>Bond Width</label>
+                                <input type="range" id="mol2d-bondwidth" min="1.0" max="4.0" step="0.5" value="2.0" onchange="update2DSettings()">
+                                <span class="range-value" id="mol2d-bondwidth-val">2.0</span>
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <div class="setting-group">
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="mol2d-indices" onchange="update2DSettings()">
+                                    Show Atom Indices
+                                </label>
+                            </div>
+                            <div class="setting-group">
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="mol2d-stereo" checked onchange="update2DSettings()">
+                                    Show Stereo Labels
+                                </label>
+                            </div>
+                            <div class="setting-group">
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="mol2d-kekulize" onchange="update2DSettings()">
+                                    Kekulize Bonds
+                                </label>
+                            </div>
+                            <div class="setting-group">
+                                <label>Padding</label>
+                                <input type="range" id="mol2d-padding" min="0" max="0.2" step="0.02" value="0.05" onchange="update2DSettings()">
+                                <span class="range-value" id="mol2d-padding-val">0.05</span>
+                            </div>
+                        </div>
+                    </details>
+                    
+                    <div id="mol2d-container" style="display: flex; justify-content: center; align-items: center; background: #ffffff; border-radius: 8px; padding: 20px; min-height: 400px;">
                         <img id="img-2d" src="" alt="2D Structure" style="max-width: 100%; max-height: 400px; display: none;">
-                        <div id="no-2d-msg" style="color: #666;">No 2D image available (requires SMILES or RDKit)</div>
+                        <div id="no-2d-msg" style="color: #666;">No 2D image available (requires SMILES)</div>
                     </div>
                 </div>
-'''
-    
-    html += '''            
+                
+                <!-- Properties Tab Content -->
+                <div id="mol-view-props" class="tab-content">
+                    <div class="prop-tabs">
+                        <div class="prop-tab active" onclick="showPropSubTab('coords')">📍 Coordinates</div>
+                        <div class="prop-tab" onclick="showPropSubTab('properties')">⚡ Properties</div>
+                        <div class="prop-tab" onclick="showPropSubTab('mulliken')">💫 Mulliken</div>
+                        <div class="prop-tab" onclick="showPropSubTab('method')">🔧 Method</div>
+                    </div>
+                    
+                    <!-- Coordinates Sub-Tab -->
+                    <div id="prop-coords" class="prop-content active">
+                        <div class="data-scroll">
+                            <table class="compact-table" id="coords-table">
+                                <thead>
+                                    <tr><th>#</th><th>Atom</th><th>X (Å)</th><th>Y (Å)</th><th>Z (Å)</th></tr>
+                                </thead>
+                                <tbody id="coords-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Properties Sub-Tab -->
+                    <div id="prop-properties" class="prop-content">
+                        <div class="data-scroll">
+                            <table class="compact-table" id="props-table">
+                                <thead>
+                                    <tr><th>Property</th><th>Value</th></tr>
+                                </thead>
+                                <tbody id="props-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Mulliken Sub-Tab -->
+                    <div id="prop-mulliken" class="prop-content">
+                        <div class="data-scroll">
+                            <table class="compact-table" id="mulliken-table">
+                                <thead>
+                                    <tr><th>#</th><th>Atom</th><th>Charge</th><th>Spin</th></tr>
+                                </thead>
+                                <tbody id="mulliken-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Method Sub-Tab -->
+                    <div id="prop-method" class="prop-content">
+                        <div class="data-scroll">
+                            <table class="compact-table" id="method-table">
+                                <thead>
+                                    <tr><th>Parameter</th><th>Value</th></tr>
+                                </thead>
+                                <tbody id="method-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            
                 <!-- Molecule Info -->
                 <div id="mol-info" class="mol-info-grid"></div>
             </div>
