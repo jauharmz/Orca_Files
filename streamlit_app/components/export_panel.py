@@ -2774,8 +2774,8 @@ def generate_html_report(
                 }},
                 yaxis: {{title: 'Energy (eV)'}},
                 annotations: annotations,
-                paper_bgcolor: '{\"#2a2a3e\" if dark_theme else \"#fff\"}',
-                plot_bgcolor: '{\"#2a2a3e\" if dark_theme else \"#fff\"}',
+                paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
                 font: {{color: '{text_primary}'}},
                 margin: {{l: 60, r: 30, t: 50, b: 80}}
             }}, {{responsive: true}});
@@ -2934,8 +2934,8 @@ def generate_html_report(
                     y0: ramanShift, y1: ramanShift,
                     line: {{color: 'black', width: 1}}
                 }}],
-                paper_bgcolor: '{\"#2a2a3e\" if dark_theme else \"#fff\"}',
-                plot_bgcolor: '{\"#2a2a3e\" if dark_theme else \"#fff\"}',
+                paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
+                plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
                 font: {{color: '{text_primary}'}},
                 showlegend: true,
                 legend: {{yanchor: 'top', y: 0.99, xanchor: 'left', x: 0.01}},
