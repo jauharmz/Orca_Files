@@ -893,14 +893,14 @@ def generate_html_report(
             border-bottom: 1px solid rgba(0,0,0,0.1);
         }}
         
-        .multiselect-actions button {
+        .multiselect-actions button {{
             padding: 4px 10px;
             font-size: 12px;
             border-radius: 4px;
-        }
+        }}
         
         /* Multi-Select Grid Layout */
-        .multiselect-grid {
+        .multiselect-grid {{
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
@@ -911,9 +911,9 @@ def generate_html_report(
             background: var(--bg-primary);
             border-radius: 8px;
             border: 1px solid rgba(0,0,0,0.1);
-        }
+        }}
         
-        .multiselect-item {
+        .multiselect-item {{
             display: inline-flex;
             align-items: center;
             gap: 6px;
@@ -924,38 +924,38 @@ def generate_html_report(
             font-size: 13px;
             cursor: pointer;
             transition: all 0.15s;
-        }
+        }}
         
-        .multiselect-item:hover {
+        .multiselect-item:hover {{
             background: var(--accent);
             color: white;
             border-color: var(--accent);
-        }
+        }}
         
-        .multiselect-item input {
+        .multiselect-item input {{
             width: 14px;
             height: 14px;
             accent-color: var(--accent);
-        }
+        }}
         
-        .multiselect-item:has(input:checked) {
+        .multiselect-item:has(input:checked) {{
             background: var(--accent);
             color: white;
             border-color: var(--accent);
-        }
+        }}
         
-        .multiselect-actions-bar {
+        .multiselect-actions-bar {{
             display: flex;
             gap: 8px;
             margin-top: 10px;
-        }
+        }}
         
-        .multiselect-actions-bar button {
+        .multiselect-actions-bar button {{
             padding: 4px 10px;
             font-size: 11px;
             border-radius: 4px;
             background: var(--bg-card);
-        }
+        }}
         
         /* Properties Tabs (Sub-tabs) */
         .prop-tabs {{
