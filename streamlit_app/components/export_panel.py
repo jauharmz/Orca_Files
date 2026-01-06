@@ -710,7 +710,7 @@ def generate_html_report(
         /* Molecule Info Cards */
         .mol-info-grid {{
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             gap: 15px;
             margin-top: 20px;
         }}
@@ -884,11 +884,69 @@ def generate_html_report(
             border-bottom: 1px solid rgba(0,0,0,0.1);
         }}
         
-        .multiselect-actions button {{
+        .multiselect-actions button {
             padding: 4px 10px;
             font-size: 12px;
             border-radius: 4px;
-        }}
+        }
+        
+        /* Multi-Select Grid Layout */
+        .multiselect-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .multiselect-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--bg-card);
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        .multiselect-item:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+        
+        .multiselect-item input {
+            width: 14px;
+            height: 14px;
+            accent-color: var(--accent);
+        }
+        
+        .multiselect-item:has(input:checked) {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+        
+        .multiselect-actions-bar {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .multiselect-actions-bar button {
+            padding: 4px 10px;
+            font-size: 11px;
+            border-radius: 4px;
+            background: var(--bg-card);
+        }
         
         /* Properties Tabs (Sub-tabs) */
         .prop-tabs {{
@@ -1016,38 +1074,59 @@ def generate_html_report(
             .section {{ padding: 20px 15px; }}
             .report-header {{ padding: 30px 15px; }}
             .report-header h1 {{ font-size: 1.5em; }}
-            .stats-grid {{ grid-template-columns: repeat(2, 1fr); }}
-            .mol-info-grid {{ grid-template-columns: repeat(2, 1fr); gap: 10px; }}
-            .mol-info-grid .stat-card {{ padding: 15px; }}
-            .mol-info-grid .stat-value {{ font-size: 1.5em; }}
-            .controls {{ flex-direction: column; gap: 8px; }}
+            .stats-grid {{ grid-template-columns: repeat(2, 1fr); gap: 12px; }}
+            .mol-info-grid {{ grid-template-columns: repeat(2, 1fr); gap: 8px; }}
+            .mol-info-grid .stat-card {{ padding: 15px 10px; }}
+            .mol-info-grid .stat-value {{ font-size: 1.4em; }}
+            .mol-info-grid .stat-label {{ font-size: 0.8em; }}
+            .controls {{ flex-direction: column; gap: 8px; align-items: stretch; }}
+            .controls button, .controls select {{ width: 100%; justify-content: center; }}
             #viewer-3d {{ height: 350px; }}
             .chart-container {{ height: 350px; }}
             .tabs {{ flex-wrap: wrap; gap: 4px; }}
-            .tab {{ flex: 1 1 auto; text-align: center; padding: 10px 8px; font-size: 13px; }}
+            .tab {{ flex: 1 1 auto; text-align: center; padding: 10px 8px; font-size: 13px; min-width: 80px; }}
             table {{ font-size: 12px; }}
             td, th {{ padding: 8px 6px; }}
-            .settings-row {{ grid-template-columns: 1fr !important; }}
+            .settings-row {{ grid-template-columns: 1fr 1fr !important; gap: 12px; }}
             .setting-group {{ margin-bottom: 10px; }}
             .prop-tabs {{ flex-wrap: wrap; gap: 4px; }}
-            .prop-tab {{ font-size: 11px; padding: 6px 10px; }}
+            .prop-tab {{ font-size: 11px; padding: 6px 10px; flex: 1 1 auto; text-align: center; }}
             .multiselect-pills {{ gap: 4px; }}
             .pill {{ font-size: 11px; padding: 3px 8px; }}
+            .table-scroll {{ overflow-x: auto; -webkit-overflow-scrolling: touch; }}
+            .viewer-container {{ padding: 12px; }}
         }}
         
         @media (max-width: 480px) {{
-            .report-header h1 {{ font-size: 1.3em; }}
-            .section {{ padding: 15px 10px; }}
-            #viewer-3d {{ height: 280px; }}
-            .chart-container {{ height: 280px; }}
-            .tab {{ padding: 8px 5px; font-size: 11px; min-width: 60px; }}
-            .mol-info-grid {{ grid-template-columns: 1fr 1fr; }}
-            .mol-info-grid .stat-card {{ padding: 12px 8px; }}
-            .mol-info-grid .stat-value {{ font-size: 1.2em; }}
-            .mol-info-grid .stat-label {{ font-size: 0.75em; }}
-            .stats-grid {{ gap: 10px; }}
-            .stats-grid .stat-card {{ padding: 15px 10px; }}
-            .stats-grid .stat-value {{ font-size: 1.8em; }}
+            .report-header h1 {{ font-size: 1.2em; }}
+            .report-header .subtitle {{ font-size: 1em; }}
+            .section {{ padding: 12px 8px; }}
+            .section h2 {{ font-size: 1.3em; gap: 8px; }}
+            #viewer-3d {{ height: 260px; }}
+            .chart-container {{ height: 260px; }}
+            .tab {{ padding: 8px 4px; font-size: 10px; min-width: 55px; }}
+            .mol-info-grid {{ grid-template-columns: repeat(2, 1fr); gap: 6px; }}
+            .mol-info-grid .stat-card {{ padding: 10px 6px; }}
+            .mol-info-grid .stat-value {{ font-size: 1.1em; }}
+            .mol-info-grid .stat-label {{ font-size: 0.7em; }}
+            .stats-grid {{ gap: 8px; }}
+            .stats-grid .stat-card {{ padding: 12px 8px; }}
+            .stats-grid .stat-value {{ font-size: 1.6em; }}
+            .stats-grid .stat-label {{ font-size: 0.8em; }}
+            .settings-row {{ grid-template-columns: 1fr !important; }}
+            .controls button {{ padding: 8px 12px; font-size: 13px; }}
+            .prop-tabs {{ gap: 2px; }}
+            .prop-tab {{ font-size: 10px; padding: 5px 8px; }}
+            .dual-range {{ flex-wrap: wrap; }}
+            .dual-range input[type="number"] {{ width: 60px; }}
+        }}
+        
+        /* Table scroll wrapper */
+        .table-scroll {{
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 0 -10px;
+            padding: 0 10px;
         }}
         
         /* Table styles to prevent truncation */
@@ -1319,6 +1398,13 @@ def generate_html_report(
                                 <span class="range-value" id="mol2d-padding-val">0.05</span>
                             </div>
                         </div>
+                        <div class="settings-row">
+                            <div class="setting-group">
+                                <label>Atom Font Size</label>
+                                <input type="range" id="mol2d-fontsize" min="10" max="24" step="2" value="14" onchange="update2DSettings()">
+                                <span class="range-value" id="mol2d-fontsize-val">14</span>
+                            </div>
+                        </div>
                     </details>
                     
                     <div id="mol2d-container" style="display: flex; justify-content: center; align-items: center; background: #ffffff; border-radius: 8px; padding: 20px; min-height: 400px;">
@@ -1405,19 +1491,49 @@ def generate_html_report(
             </p>
             
             <!-- Orbital Settings -->
-            <details class="settings-panel">
+            <details class="settings-panel" open>
                 <summary>Orbital Visualization Settings</summary>
                 <div class="settings-row">
                     <div class="setting-group">
                         <label>Orbitals to Show (+/- HOMO)</label>
-                        <input type="range" id="orb-range-slider" min="3" max="20" value="6" onchange="updateOrbitalRange(this.value)">
-                        <span class="range-value" id="orb-range-val">6</span>
+                        <input type="range" id="orb-range-slider" min="3" max="20" value="10" onchange="updateOrbitalRange(this.value)">
+                        <span class="range-value" id="orb-range-val">10</span>
+                    </div>
+                    <div class="setting-group">
+                        <label>Gap Mode</label>
+                        <select id="orb-gap-mode" onchange="renderOrbitals(currentMolIndex)">
+                            <option value="HL">HOMO-LUMO</option>
+                            <option value="SL">SOMO-LUMO</option>
+                            <option value="SS">SOMO-SUMO</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
+                        <label class="checkbox-inline">
+                            <input type="checkbox" id="orb-connectors" onchange="renderOrbitals(currentMolIndex)">
+                            Connector Lines
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label class="checkbox-inline">
+                            <input type="checkbox" id="orb-labels" checked onchange="renderOrbitals(currentMolIndex)">
+                            Orbital Labels
+                        </label>
+                    </div>
+                </div>
+                <div class="setting-group" style="margin-top: 10px; width: 100%;">
+                    <label><strong>Select Molecules for Comparison:</strong></label>
+                    <div id="orbital-multiselect" class="multiselect-grid">
+                        <!-- Checkboxes injected by JS -->
                     </div>
                 </div>
             </details>
             <div id="orbital-chart" class="chart-container"></div>
+            <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">
+                <strong>Legend:</strong> Solid = Occupied, Dashed = Virtual, Dot-Dash = SOMO/SUMO. Bold lines = HOMO/LUMO.
+            </p>
         </section>
 '''
+
     
     if include_spectra:
         html += '''        
@@ -1427,17 +1543,32 @@ def generate_html_report(
             
             <p>
                 Infrared (IR) and Raman spectra provide fingerprints of molecular vibrations. 
-                Use the checkboxes below to overlay multiple spectra.
+                Use the settings panel to customize the visualization.
             </p>
             
             <!-- Spectra Settings -->
-            <details class="settings-panel">
+            <details class="settings-panel" open>
                 <summary>Spectra Visualization Settings</summary>
                 <div class="settings-row">
                     <div class="setting-group">
-                        <label>Broadening (FWHM)</label>
-                        <input type="range" id="fwhm-slider" min="1" max="50" value="10" onchange="updateSpectraBroadening(this.value)">
-                        <span class="range-value" id="fwhm-val">10 cm⁻¹</span>
+                        <label>Frequency Range (cm⁻¹)</label>
+                        <div class="dual-range">
+                            <input type="number" id="freq-min" value="400" min="0" max="4000" onchange="renderSpectra()">
+                            <span>to</span>
+                            <input type="number" id="freq-max" value="4000" min="0" max="5000" onchange="renderSpectra()">
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <label>FWHM Broadening (cm⁻¹)</label>
+                        <input type="range" id="fwhm-slider" min="1" max="100" value="20" onchange="updateSpectraBroadening(this.value)">
+                        <span class="range-value" id="fwhm-val">20 cm⁻¹</span>
+                    </div>
+                    <div class="setting-group">
+                        <label>Display Mode</label>
+                        <select id="spectra-display-mode" onchange="renderSpectra()">
+                            <option value="overlay">Overlay</option>
+                            <option value="stacked">Stacked</option>
+                        </select>
                     </div>
                     <div class="setting-group">
                         <label>Visualization Mode</label>
@@ -1445,6 +1576,35 @@ def generate_html_report(
                              <option value="line">Line (Smoothed)</option>
                              <option value="stick">Stick (Discrete)</option>
                         </select>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div class="setting-group">
+                        <label class="checkbox-inline">
+                            <input type="checkbox" id="normalize-spectra" checked onchange="renderSpectra()">
+                            Normalize Intensity
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label class="checkbox-inline">
+                            <input type="checkbox" id="show-regions" onchange="renderSpectra()">
+                            Show Region Boundaries
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label>Peak Labels</label>
+                        <select id="peak-label-mode" onchange="renderSpectra()">
+                            <option value="none">None</option>
+                            <option value="top5">Top 5</option>
+                            <option value="top10">Top 10</option>
+                            <option value="all">All Major</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
+                        <label class="checkbox-inline">
+                            <input type="checkbox" id="invert-x-axis" checked onchange="renderSpectra()">
+                            Invert X-Axis (IR)
+                        </label>
                     </div>
                 </div>
                 
@@ -1457,9 +1617,10 @@ def generate_html_report(
             </details>
             
             <div class="tabs">
-                <div class="tab active" onclick="showSpectraTab('ir')">IR Spectrum</div>
-                <div class="tab" onclick="showSpectraTab('raman')">Raman Spectrum</div>
-                <div class="tab" onclick="showSpectraTab('uvvis')">UV-Vis (TDDFT)</div>
+                <div class="tab active" onclick="showSpectraTab('ir')">🔴 IR Spectrum</div>
+                <div class="tab" onclick="showSpectraTab('raman')">🟢 Raman Spectrum</div>
+                <div class="tab" onclick="showSpectraTab('uvvis')">🟣 UV-Vis (TDDFT)</div>
+                <div class="tab" onclick="showSpectraTab('correlation')">🔗 IR-Raman</div>
             </div>
             <div id="spectra-ir" class="tab-content active">
                 <div id="ir-chart" class="chart-container"></div>
@@ -1468,10 +1629,88 @@ def generate_html_report(
                 <div id="raman-chart" class="chart-container"></div>
             </div>
             <div id="spectra-uvvis" class="tab-content">
+                <!-- UV-Vis specific settings -->
+                <details class="settings-panel">
+                    <summary>UV-Vis Settings</summary>
+                    <div class="settings-row">
+                        <div class="setting-group">
+                            <label>Wavelength Range (nm)</label>
+                            <div class="dual-range">
+                                <input type="number" id="uvvis-wl-min" value="200" min="100" max="900" onchange="renderSpectra()">
+                                <span>to</span>
+                                <input type="number" id="uvvis-wl-max" value="700" min="100" max="1000" onchange="renderSpectra()">
+                            </div>
+                        </div>
+                        <div class="setting-group">
+                            <label>FWHM Broadening (nm)</label>
+                            <input type="range" id="uvvis-fwhm" min="5" max="80" value="20" onchange="renderSpectra()">
+                            <span class="range-value" id="uvvis-fwhm-val">20 nm</span>
+                        </div>
+                        <div class="setting-group">
+                            <label class="checkbox-inline">
+                                <input type="checkbox" id="uvvis-show-sticks" checked onchange="renderSpectra()">
+                                Show Stick Spectrum
+                            </label>
+                        </div>
+                    </div>
+                </details>
                 <div id="uvvis-chart" class="chart-container"></div>
+            </div>
+            <div id="spectra-correlation" class="tab-content">
+                <!-- IR-Raman Correlation Settings -->
+                <details class="settings-panel" open>
+                    <summary>Correlation Settings</summary>
+                    <div class="settings-row">
+                        <div class="setting-group">
+                            <label>Select Molecule</label>
+                            <select id="corr-mol-select" onchange="renderCorrelation()">
+                                <!-- Options injected by JS -->
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label>Max Pairing Distance (cm⁻¹)</label>
+                            <input type="range" id="corr-max-delta" min="10" max="100" value="40" onchange="renderCorrelation()">
+                            <span class="range-value" id="corr-delta-val">40</span>
+                        </div>
+                        <div class="setting-group">
+                            <label>Peak Threshold (%)</label>
+                            <input type="range" id="corr-threshold" min="1" max="50" value="5" onchange="renderCorrelation()">
+                            <span class="range-value" id="corr-thresh-val">5%</span>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div class="setting-group">
+                            <label class="checkbox-inline">
+                                <input type="checkbox" id="corr-connectors" checked onchange="renderCorrelation()">
+                                Show Connector Lines
+                            </label>
+                        </div>
+                        <div class="setting-group">
+                            <label class="checkbox-inline">
+                                <input type="checkbox" id="corr-invert-x" checked onchange="renderCorrelation()">
+                                Invert X-Axis
+                            </label>
+                        </div>
+                        <div class="setting-group">
+                            <label>Peak Labels</label>
+                            <select id="corr-peak-mode" onchange="renderCorrelation()">
+                                <option value="paired">Paired Only</option>
+                                <option value="all">All Peaks</option>
+                                <option value="none">None</option>
+                            </select>
+                        </div>
+                    </div>
+                </details>
+                <div id="correlation-chart" class="chart-container"></div>
+                <div id="correlation-stats" style="display: flex; gap: 20px; justify-content: center; margin-top: 15px;">
+                    <div class="stat-card" style="padding: 15px 25px;"><div class="stat-value" id="corr-ir-peaks">0</div><div class="stat-label">IR Peaks</div></div>
+                    <div class="stat-card" style="padding: 15px 25px;"><div class="stat-value" id="corr-raman-peaks">0</div><div class="stat-label">Raman Peaks</div></div>
+                    <div class="stat-card" style="padding: 15px 25px;"><div class="stat-value" id="corr-paired">0</div><div class="stat-label">Paired</div></div>
+                </div>
             </div>
         </section>
 '''
+
     
     if include_energy:
         html += '''
@@ -1479,9 +1718,30 @@ def generate_html_report(
         <section id="energy-analysis" class="section">
             <h2>⚡ 4. Energy Analysis</h2>
             
-            <details class="settings-panel">
+            <p>
+                Comparative energy analysis across molecular systems. View absolute or relative energies 
+                and HOMO-LUMO gap diagrams.
+            </p>
+            
+            <details class="settings-panel" open>
                 <summary>Energy Comparison Settings</summary>
-                <div class="setting-group" style="width: 100%;">
+                <div class="settings-row">
+                    <div class="setting-group">
+                        <label class="checkbox-inline">
+                            <input type="checkbox" id="energy-relative" checked onchange="renderEnergyChart()">
+                            Show Relative Energy (kcal/mol)
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label>Energy Type</label>
+                        <select id="energy-type" onchange="renderEnergyChart()">
+                            <option value="auto">Auto (Gibbs or SP)</option>
+                            <option value="gibbs">Gibbs Only</option>
+                            <option value="sp">Single Point Only</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="setting-group" style="width: 100%; margin-top: 10px;">
                     <label><strong>Select Molecules to Compare:</strong></label>
                     <div id="energy-multiselect" class="multiselect-grid">
                         <!-- Checkboxes injected by JS -->
@@ -1489,9 +1749,25 @@ def generate_html_report(
                 </div>
             </details>
             
-            <div id="energy-chart" class="chart-container"></div>
+            <div class="tabs">
+                <div class="tab active" onclick="showEnergyTab('comparison')">📊 Energy Comparison</div>
+                <div class="tab" onclick="showEnergyTab('homolumo')">🔋 HOMO-LUMO Diagram</div>
+            </div>
+            
+            <div id="energy-comparison" class="tab-content active">
+                <div id="energy-chart" class="chart-container"></div>
+                <div id="energy-reference" style="text-align: center; margin-top: 10px; font-size: 13px; color: var(--text-secondary);"></div>
+            </div>
+            
+            <div id="energy-homolumo" class="tab-content">
+                <div id="homolumo-chart" class="chart-container"></div>
+                <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px; text-align: center;">
+                    Solid lines = HOMO (occupied), Dashed lines = LUMO (virtual). Gap values shown between levels.
+                </p>
+            </div>
         </section>
 '''
+
     
     # Data table
     html += f'''        
@@ -1816,25 +2092,41 @@ def generate_html_report(
 
         function showMolTab(mode) {{
             // Hide all mol view contents
-            document.getElementById('mol-view-3d').classList.remove('active');
-            document.getElementById('mol-view-2d').classList.remove('active');
+            ['mol-view-3d', 'mol-view-2d', 'mol-view-props'].forEach(id => {{
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('active');
+            }});
             
             // Deactivate all mol view tabs
-            document.querySelectorAll('.viewer-container .tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.viewer-container .tabs .tab').forEach(t => t.classList.remove('active'));
             
             // Activate clicked tab
-            event.target.classList.add('active');
+            if (event && event.target) event.target.classList.add('active');
             
             // Show content
-            document.getElementById('mol-view-' + mode).classList.add('active');
+            const targetEl = document.getElementById('mol-view-' + mode);
+            if (targetEl) targetEl.classList.add('active');
         }}
         
         function showSpectraTab(type) {{
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            // Scope to spectra section only
+            const section = document.getElementById('spectra-analysis');
+            if (!section) return;
             
-            event.target.classList.add('active');
-            document.getElementById('spectra-' + type).classList.add('active');
+            section.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+            ['spectra-ir', 'spectra-raman', 'spectra-uvvis', 'spectra-correlation'].forEach(id => {{
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('active');
+            }});
+            
+            if (event && event.target) event.target.classList.add('active');
+            const targetEl = document.getElementById('spectra-' + type);
+            if (targetEl) targetEl.classList.add('active');
+            
+            // If switching to correlation, trigger render
+            if (type === 'correlation') {{
+                renderCorrelation();
+            }}
         }}
         
         // Orbital variables
@@ -2033,7 +2325,7 @@ def generate_html_report(
                 
                 Plotly.newPlot('ir-chart', traces, {{
                     title: 'IR Spectrum',
-                    xaxis: {{title: 'Wavenumber (cm⁻¹)', autorange: 'reversed'}},
+                    xaxis: {{title: 'Wavenumber (cm⁻¹)', autorange: document.getElementById('invert-x-axis')?.checked ? 'reversed' : true}},
                     yaxis: {{title: 'Intensity'}},
                     paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
                     plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
@@ -2104,34 +2396,59 @@ def generate_html_report(
             const uvDiv = document.getElementById('uvvis-chart');
             if (uvDiv) {{
                  const traces = [];
+                 const uvFwhm = parseFloat(document.getElementById('uvvis-fwhm')?.value) || 20;
+                 const wlMin = parseFloat(document.getElementById('uvvis-wl-min')?.value) || 200;
+                 const wlMax = parseFloat(document.getElementById('uvvis-wl-max')?.value) || 700;
+                 const showSticks = document.getElementById('uvvis-show-sticks')?.checked ?? true;
+                 
+                 // Update FWHM display
+                 const fwhmVal = document.getElementById('uvvis-fwhm-val');
+                 if (fwhmVal) fwhmVal.textContent = uvFwhm + ' nm';
+                 
                  indices.forEach((idx, i) => {{
                     const mol = molecules[idx];
                     if (!mol.tddft || mol.tddft.length === 0) return;
                     
                     const color = colors[i % colors.length];
                     
-                    // Simple line logic for UV (Gaussian broadening on energy/nm)
-                    // For now, use stick
-                    const x = [];
-                    const y = [];
-                    mol.tddft.forEach(state => {{
-                        if(state.nm && state.f) {{
-                            x.push(state.nm, state.nm, null);
-                            y.push(0, state.f, null);
-                        }}
-                    }});
+                    // Convert TDDFT states to peaks for broadening
+                    const peaks = mol.tddft.filter(s => s.nm && s.f).map(s => ({{freq: s.nm, intensity: s.f}}));
+                    
+                    if (peaks.length === 0) return;
+                    
+                    // Gaussian broadening on wavelength
+                    const broadened = gaussianBroadening(peaks, uvFwhm, wlMin, wlMax);
                     
                     traces.push({{
-                        x: x, y: y,
+                        x: broadened.x, y: broadened.y,
                         type: 'scatter', mode: 'lines',
                         line: {{color: color, width: 2}},
+                        fill: indices.length === 1 ? 'tozeroy' : 'none',
+                        fillcolor: color + '1A',
                         name: mol.label
                     }});
+                    
+                    // Add stick spectrum if enabled
+                    if (showSticks) {{
+                        const stickX = [];
+                        const stickY = [];
+                        peaks.forEach(p => {{
+                            stickX.push(p.freq, p.freq, null);
+                            stickY.push(0, p.intensity, null);
+                        }});
+                        traces.push({{
+                            x: stickX, y: stickY,
+                            type: 'scatter', mode: 'lines',
+                            line: {{color: color, width: 1.5}},
+                            showlegend: false,
+                            hoverinfo: 'skip'
+                        }});
+                    }}
                  }});
 
                  Plotly.newPlot('uvvis-chart', traces, {{
-                    title: 'UV-Vis Spectrum',
-                    xaxis: {{title: 'Wavelength (nm)'}},
+                    title: 'UV-Vis Absorption Spectrum',
+                    xaxis: {{title: 'Wavelength (nm)', range: [wlMin, wlMax]}},
                     yaxis: {{title: 'Oscillator Strength'}},
                     paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
                     plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
@@ -2147,28 +2464,63 @@ def generate_html_report(
         
         function renderEnergyChart() {{
             const indices = getSelectedIndices('energy-multiselect');
+            const showRelative = document.getElementById('energy-relative')?.checked ?? false;
+            const energyType = document.getElementById('energy-type')?.value || 'auto';
+            
+            // Get energy based on type
+            function getEnergy(mol) {{
+                if (energyType === 'gibbs') return mol.gibbs;
+                if (energyType === 'sp') return mol.single_point;
+                // auto: prefer gibbs, fallback to sp
+                return mol.gibbs || mol.single_point || mol.energy;
+            }}
             
             const x = [];
-            const y = [];
+            let y = [];
             const markerColors = [];
             const text = [];
             
             indices.forEach(idx => {{
                 const mol = molecules[idx];
                 x.push(mol.label);
-                y.push(mol.energy || 0);
+                y.push(getEnergy(mol) || 0);
                 markerColors.push(idx === currentMolIndex ? '#667eea' : '#a3bffa');
-                text.push(`${{mol.energy ? mol.energy.toFixed(5) : 'N/A'}} Eh`);
+            }});
+            
+            // Apply relative energy calculation
+            let yLabel = 'Energy (Eh)';
+            let refLabel = '';
+            
+            if (showRelative && y.length > 0 && y.some(v => v !== 0)) {{
+                const minE = Math.min(...y.filter(v => v !== 0));
+                const refIdx = y.indexOf(minE);
+                refLabel = x[refIdx];
+                
+                // Convert to relative kcal/mol
+                y = y.map(e => {{
+                    if (e === 0) return 0;
+                    return (e - minE) * 627.509; // Eh to kcal/mol
+                }});
+                yLabel = 'Relative Energy (kcal/mol)';
+            }}
+            
+            // Generate text labels
+            y.forEach((energy, i) => {{
+                if (showRelative) {{
+                    text.push(`${{energy.toFixed(2)}} kcal/mol`);
+                }} else {{
+                    text.push(`${{energy.toFixed(5)}} Eh`);
+                }}
             }});
             
             const layout = {{
-                title: 'Energy Comparison',
+                title: showRelative ? 'Relative Energy Comparison' : 'Energy Comparison',
                 xaxis: {{title: 'Molecule'}},
-                yaxis: {{title: 'Energy (Eh)'}},
+                yaxis: {{title: yLabel}},
                 paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
                 plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
                 font: {{color: '{text_primary}'}},
-                margin: {{l: 60, r: 30, t: 50, b: 80}}
+                margin: {{l: 80, r: 30, t: 50, b: 80}}
             }};
             
             Plotly.newPlot('energy-chart', [{{
@@ -2176,8 +2528,19 @@ def generate_html_report(
                 type: 'bar',
                 marker: {{color: markerColors}},
                 text: text,
+                textposition: 'outside',
                 hoverinfo: 'x+text'
             }}], layout, {{responsive: true}});
+            
+            // Update reference label
+            const refDiv = document.getElementById('energy-reference');
+            if (refDiv) {{
+                if (showRelative && refLabel) {{
+                    refDiv.innerHTML = `<strong>Reference:</strong> ${{refLabel}} (set to 0.00 kcal/mol)`;
+                }} else {{
+                    refDiv.innerHTML = '';
+                }}
+            }}
         }}
         
         function updateMolInfo(index) {{
@@ -2206,6 +2569,440 @@ def generate_html_report(
             }}
             
             document.getElementById('mol-info').innerHTML = html;
+            
+            // Populate property tables
+            populatePropertyTables(mol);
+        }}
+        
+        function populatePropertyTables(mol) {{
+            // Coordinates table
+            const coordsTbody = document.getElementById('coords-tbody');
+            if (coordsTbody && mol.coords) {{
+                let html = '';
+                mol.coords.forEach((atom, i) => {{
+                    html += `<tr><td>${{i+1}}</td><td>${{atom.el}}</td><td>${{atom.x.toFixed(4)}}</td><td>${{atom.y.toFixed(4)}}</td><td>${{atom.z.toFixed(4)}}</td></tr>`;
+                }});
+                coordsTbody.innerHTML = html || '<tr><td colspan="5">No coordinate data</td></tr>';
+            }}
+            
+            // Properties table
+            const propsTbody = document.getElementById('props-tbody');
+            if (propsTbody) {{
+                let html = '';
+                const props = [
+                    ['Molecule ID', mol.label],
+                    ['State', mol.state || 'N/A'],
+                    ['SMILES', mol.smiles || 'N/A'],
+                    ['Energy (Eh)', mol.energy ? mol.energy.toFixed(6) : 'N/A'],
+                    ['HOMO (eV)', mol.homo ? mol.homo.toFixed(4) : 'N/A'],
+                    ['LUMO (eV)', mol.lumo ? mol.lumo.toFixed(4) : 'N/A'],
+                    ['Gap (eV)', mol.gap ? mol.gap.toFixed(4) : 'N/A'],
+                    ['Charge', mol.charge !== undefined ? mol.charge : 'N/A'],
+                    ['Multiplicity', mol.multiplicity || 'N/A']
+                ];
+                props.forEach(([k, v]) => {{
+                    html += `<tr><td><strong>${{k}}</strong></td><td>${{v}}</td></tr>`;
+                }});
+                propsTbody.innerHTML = html;
+            }}
+            
+            // Mulliken charges table
+            const mullikenTbody = document.getElementById('mulliken-tbody');
+            if (mullikenTbody && mol.mulliken) {{
+                let html = '';
+                mol.mulliken.forEach((item, i) => {{
+                    const charge = item.charge !== undefined ? item.charge.toFixed(4) : 'N/A';
+                    const spin = item.spin !== undefined ? item.spin.toFixed(4) : 'N/A';
+                    html += `<tr><td>${{i+1}}</td><td>${{item.atom || item.el || 'X'}}</td><td>${{charge}}</td><td>${{spin}}</td></tr>`;
+                }});
+                mullikenTbody.innerHTML = html || '<tr><td colspan="4">No Mulliken data</td></tr>';
+            }} else if (mullikenTbody) {{
+                mullikenTbody.innerHTML = '<tr><td colspan="4">No Mulliken data</td></tr>';
+            }}
+            
+            // Method table
+            const methodTbody = document.getElementById('method-tbody');
+            if (methodTbody) {{
+                let html = '';
+                const methodProps = [
+                    ['Functional', mol.functional || 'N/A'],
+                    ['Basis Set', mol.basis_set || 'N/A'],
+                    ['Dispersion', mol.dispersion || 'N/A'],
+                    ['Solvent', mol.solvent || 'N/A'],
+                    ['Method ID', mol.method_id || mol.method || 'N/A']
+                ];
+                methodProps.forEach(([k, v]) => {{
+                    html += `<tr><td><strong>${{k}}</strong></td><td>${{v}}</td></tr>`;
+                }});
+                methodTbody.innerHTML = html;
+            }}
+        }}
+        
+        // Property sub-tab navigation
+        function showPropSubTab(type) {{
+            ['coords', 'properties', 'mulliken', 'method'].forEach(t => {{
+                const el = document.getElementById('prop-' + t);
+                if (el) el.classList.remove('active');
+            }});
+            document.querySelectorAll('.prop-tab').forEach(tab => tab.classList.remove('active'));
+            
+            const targetContent = document.getElementById('prop-' + type);
+            if (targetContent) targetContent.classList.add('active');
+            
+            if (event && event.target) event.target.classList.add('active');
+        }}
+        
+        // 2D Settings update
+        function update2DSettings() {{
+            const size = document.getElementById('mol2d-size')?.value || 450;
+            const bg = document.getElementById('mol2d-bg')?.value || '#ffffff';
+            const fontsize = document.getElementById('mol2d-fontsize')?.value || 14;
+            
+            // Update display values
+            const sizeVal = document.getElementById('mol2d-size-val');
+            if (sizeVal) sizeVal.textContent = size + 'px';
+            const bonddVal = document.getElementById('mol2d-bondwidth-val');
+            if (bonddVal) bonddVal.textContent = document.getElementById('mol2d-bondwidth')?.value || '2.0';
+            const paddingVal = document.getElementById('mol2d-padding-val');
+            if (paddingVal) paddingVal.textContent = document.getElementById('mol2d-padding')?.value || '0.05';
+            const fontsizeVal = document.getElementById('mol2d-fontsize-val');
+            if (fontsizeVal) fontsizeVal.textContent = fontsize;
+            
+            // Update container
+            const container = document.getElementById('mol2d-container');
+            if (container) {{
+                container.style.background = bg;
+            }}
+        }}
+        
+        // Energy tab navigation
+        function showEnergyTab(type) {{
+            ['comparison', 'homolumo'].forEach(t => {{
+                const el = document.getElementById('energy-' + t);
+                if (el) el.classList.remove('active');
+            }});
+            
+            const section = document.getElementById('energy-analysis');
+            if (section) {{
+                section.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            }}
+            
+            const targetContent = document.getElementById('energy-' + type);
+            if (targetContent) targetContent.classList.add('active');
+            
+            if (event && event.target) event.target.classList.add('active');
+            
+            // Render chart if switching to homolumo
+            if (type === 'homolumo') {{
+                renderHomoLumoChart();
+            }}
+        }}
+        
+        // HOMO-LUMO Diagram
+        function renderHomoLumoChart() {{
+            const div = document.getElementById('homolumo-chart');
+            if (!div) return;
+            
+            const indices = getSelectedIndices('energy-multiselect');
+            const colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880'];
+            const traces = [];
+            const annotations = [];
+            
+            indices.forEach((idx, i) => {{
+                const mol = molecules[idx];
+                if (!mol.homo && !mol.lumo) return;
+                
+                const color = colors[i % colors.length];
+                const x = i;
+                
+                // HOMO line (solid)
+                if (mol.homo !== undefined && mol.homo !== null) {{
+                    traces.push({{
+                        x: [x - 0.3, x + 0.3],
+                        y: [mol.homo, mol.homo],
+                        mode: 'lines',
+                        line: {{color: color, width: 5}},
+                        showlegend: false,
+                        hovertemplate: `${{mol.label}}<br>HOMO: ${{mol.homo.toFixed(3)}} eV<extra></extra>`
+                    }});
+                }}
+                
+                // LUMO line (dashed)
+                if (mol.lumo !== undefined && mol.lumo !== null) {{
+                    traces.push({{
+                        x: [x - 0.3, x + 0.3],
+                        y: [mol.lumo, mol.lumo],
+                        mode: 'lines',
+                        line: {{color: color, width: 5, dash: 'dash'}},
+                        showlegend: false,
+                        hovertemplate: `${{mol.label}}<br>LUMO: ${{mol.lumo.toFixed(3)}} eV<extra></extra>`
+                    }});
+                }}
+                
+                // Connecting line with gap annotation
+                if (mol.homo !== undefined && mol.lumo !== undefined) {{
+                    traces.push({{
+                        x: [x, x],
+                        y: [mol.homo, mol.lumo],
+                        mode: 'lines',
+                        line: {{color: color, width: 1, dash: 'dot'}},
+                        showlegend: false,
+                        hoverinfo: 'skip'
+                    }});
+                    
+                    const gap = mol.lumo - mol.homo;
+                    annotations.push({{
+                        x: x,
+                        y: (mol.homo + mol.lumo) / 2,
+                        text: `${{gap.toFixed(2)}} eV`,
+                        showarrow: false,
+                        font: {{size: 10}},
+                        bgcolor: 'white',
+                        borderpad: 2
+                    }});
+                }}
+            }});
+            
+            const labels = indices.map(i => molecules[i].label);
+            
+            Plotly.newPlot(div, traces, {{
+                title: 'HOMO-LUMO Energy Levels',
+                xaxis: {{
+                    tickvals: indices.map((_, i) => i),
+                    ticktext: labels,
+                    title: 'Molecule'
+                }},
+                yaxis: {{title: 'Energy (eV)'}},
+                annotations: annotations,
+                paper_bgcolor: '{\"#2a2a3e\" if dark_theme else \"#fff\"}',
+                plot_bgcolor: '{\"#2a2a3e\" if dark_theme else \"#fff\"}',
+                font: {{color: '{text_primary}'}},
+                margin: {{l: 60, r: 30, t: 50, b: 80}}
+            }}, {{responsive: true}});
+        }}
+        
+        // IR-Raman Correlation
+        function renderCorrelation() {{
+            const div = document.getElementById('correlation-chart');
+            if (!div) return;
+            
+            const molSelect = document.getElementById('corr-mol-select');
+            if (!molSelect) return;
+            
+            // Populate molecule selector if empty
+            if (molSelect.options.length === 0) {{
+                molecules.forEach((mol, idx) => {{
+                    const opt = document.createElement('option');
+                    opt.value = idx;
+                    opt.textContent = mol.label;
+                    molSelect.appendChild(opt);
+                }});
+            }}
+            
+            const idx = parseInt(molSelect.value);
+            const mol = molecules[idx];
+            if (!mol) return;
+            
+            // Get settings
+            const freqMin = parseInt(document.getElementById('freq-min')?.value) || 400;
+            const freqMax = parseInt(document.getElementById('freq-max')?.value) || 4000;
+            const maxDelta = parseInt(document.getElementById('corr-max-delta')?.value) || 40;
+            const threshold = (parseInt(document.getElementById('corr-threshold')?.value) || 5) / 100;
+            const showConnectors = document.getElementById('corr-connectors')?.checked ?? true;
+            const invertX = document.getElementById('corr-invert-x')?.checked ?? true;
+            
+            // Update display values
+            const deltaVal = document.getElementById('corr-delta-val');
+            if (deltaVal) deltaVal.textContent = maxDelta;
+            const threshVal = document.getElementById('corr-thresh-val');
+            if (threshVal) threshVal.textContent = (threshold * 100) + '%';
+            
+            if (!mol.ir || mol.ir.length === 0 || !mol.raman || mol.raman.length === 0) {{
+                div.innerHTML = '<div style="text-align:center; padding: 40px; color: var(--text-secondary);">No IR or Raman data available for this molecule</div>';
+                return;
+            }}
+            
+            // Apply broadening
+            const fwhm = spectraFWHM;
+            const irBroad = gaussianBroadening(mol.ir, fwhm, freqMin, freqMax);
+            const ramanPeaks = mol.raman.map(p => ({{freq: p.freq, intensity: p.activity || p.intensity}}));
+            const ramanBroad = gaussianBroadening(ramanPeaks, fwhm, freqMin, freqMax);
+            
+            // Normalize
+            const irMax = Math.max(...irBroad.y);
+            const ramanMax = Math.max(...ramanBroad.y);
+            const irNorm = irBroad.y.map(v => v / irMax);
+            const ramanNorm = ramanBroad.y.map(v => v / ramanMax);
+            
+            // Find peaks (simple local maxima)
+            function findPeaks(y, thresh) {{
+                const peaks = [];
+                for (let i = 1; i < y.length - 1; i++) {{
+                    if (y[i] > y[i-1] && y[i] > y[i+1] && y[i] > thresh) {{
+                        peaks.push({{idx: i, val: y[i]}});
+                    }}
+                }}
+                return peaks;
+            }}
+            
+            const irPeaks = findPeaks(irNorm, threshold);
+            const ramanPeaks2 = findPeaks(ramanNorm, threshold);
+            
+            // Auto-pair by frequency
+            const pairs = [];
+            const usedIr = new Set();
+            const usedRaman = new Set();
+            
+            const candidates = [];
+            irPeaks.forEach((ip, iIdx) => {{
+                ramanPeaks2.forEach((rp, rIdx) => {{
+                    const irFreq = irBroad.x[ip.idx];
+                    const ramanFreq = ramanBroad.x[rp.idx];
+                    const delta = Math.abs(irFreq - ramanFreq);
+                    if (delta <= maxDelta) {{
+                        candidates.push({{delta, iIdx, rIdx, irFreq, ramanFreq, irInt: ip.val, ramanInt: rp.val}});
+                    }}
+                }});
+            }});
+            
+            candidates.sort((a, b) => a.delta - b.delta);
+            candidates.forEach(c => {{
+                if (!usedIr.has(c.iIdx) && !usedRaman.has(c.rIdx)) {{
+                    pairs.push(c);
+                    usedIr.add(c.iIdx);
+                    usedRaman.add(c.rIdx);
+                }}
+            }});
+            
+            // Build traces
+            const traces = [];
+            
+            // IR (inverted transmittance style)
+            traces.push({{
+                x: irBroad.x,
+                y: irNorm.map(v => 1 - v),
+                mode: 'lines',
+                line: {{color: '#EF553B', width: 1.5}},
+                name: 'IR (Transmittance)',
+                hovertemplate: 'IR: %{{x:.0f}} cm⁻¹<extra></extra>'
+            }});
+            
+            // Raman (shifted down)
+            const ramanShift = -0.3;
+            traces.push({{
+                x: ramanBroad.x,
+                y: ramanNorm.map(v => v + ramanShift - 1),
+                mode: 'lines',
+                line: {{color: '#636EFA', width: 1.5}},
+                name: 'Raman (Intensity)',
+                hovertemplate: 'Raman: %{{x:.0f}} cm⁻¹<extra></extra>'
+            }});
+            
+            // Connector lines
+            if (showConnectors) {{
+                pairs.forEach((p, i) => {{
+                    const irY = 1 - p.irInt;
+                    const ramanY = p.ramanInt + ramanShift - 1;
+                    const midX = (p.irFreq + p.ramanFreq) / 2;
+                    const midY = (irY + ramanY) / 2;
+                    
+                    traces.push({{
+                        x: [p.irFreq, p.irFreq, midX, p.ramanFreq, p.ramanFreq],
+                        y: [irY, 0.1, midY, ramanShift - 0.1, ramanY],
+                        mode: 'lines',
+                        line: {{color: 'gray', width: 1, dash: 'dash'}},
+                        showlegend: false,
+                        hoverinfo: 'skip'
+                    }});
+                }});
+            }}
+            
+            const layout = {{
+                title: `IR-Raman Correlation: ${{mol.label}}`,
+                xaxis: {{
+                    title: 'Wavenumber (cm⁻¹)',
+                    autorange: invertX ? 'reversed' : true
+                }},
+                yaxis: {{
+                    tickvals: [1, 0.5, 0, ramanShift - 0.5, ramanShift - 1],
+                    ticktext: ['0%', '50%', '100% IR', '0.5', '1.0 Raman'],
+                    showgrid: false
+                }},
+                shapes: [{{
+                    type: 'line',
+                    x0: freqMin, x1: freqMax,
+                    y0: ramanShift, y1: ramanShift,
+                    line: {{color: 'black', width: 1}}
+                }}],
+                paper_bgcolor: '{\"#2a2a3e\" if dark_theme else \"#fff\"}',
+                plot_bgcolor: '{\"#2a2a3e\" if dark_theme else \"#fff\"}',
+                font: {{color: '{text_primary}'}},
+                showlegend: true,
+                legend: {{yanchor: 'top', y: 0.99, xanchor: 'left', x: 0.01}},
+                margin: {{t: 50, b: 50, l: 60, r: 30}}
+            }};
+            
+            Plotly.newPlot(div, traces, layout, {{responsive: true}});
+            
+            // Update stats
+            document.getElementById('corr-ir-peaks').textContent = irPeaks.length;
+            document.getElementById('corr-raman-peaks').textContent = ramanPeaks2.length;
+            document.getElementById('corr-paired').textContent = pairs.length;
+        }}
+        
+        // Generate checkboxes with Select All / Clear All
+        function generateCheckboxes(containerId, onChangeHandler) {{
+            const div = document.getElementById(containerId);
+            if (!div) return;
+            
+            div.innerHTML = '';
+            
+            // Add action buttons
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'multiselect-actions-bar';
+            actionsDiv.innerHTML = `
+                <button type="button" onclick="selectAllCheckboxes('${{containerId}}', true)">Select All</button>
+                <button type="button" onclick="selectAllCheckboxes('${{containerId}}', false)">Clear All</button>
+            `;
+            div.appendChild(actionsDiv);
+            
+            // Add checkboxes
+            const checkboxContainer = document.createElement('div');
+            checkboxContainer.style.display = 'flex';
+            checkboxContainer.style.flexWrap = 'wrap';
+            checkboxContainer.style.gap = '6px';
+            checkboxContainer.style.marginTop = '10px';
+            
+            molecules.forEach((mol, idx) => {{
+                const label = document.createElement('label');
+                label.className = 'multiselect-item';
+                
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.value = idx;
+                input.checked = idx < Math.min(10, molecules.length); // Default first 10
+                input.onchange = () => onChangeHandler();
+                
+                label.appendChild(input);
+                label.appendChild(document.createTextNode(mol.label));
+                checkboxContainer.appendChild(label);
+            }});
+            
+            div.appendChild(checkboxContainer);
+        }}
+        
+        function selectAllCheckboxes(containerId, checked) {{
+            const div = document.getElementById(containerId);
+            if (!div) return;
+            
+            div.querySelectorAll('input[type="checkbox"]').forEach(cb => {{
+                cb.checked = checked;
+            }});
+            
+            // Trigger re-render based on container
+            if (containerId.includes('spectra')) renderSpectra();
+            else if (containerId.includes('energy')) renderEnergyChart();
+            else if (containerId.includes('orbital')) renderOrbitals(currentMolIndex);
         }}
     </script>
 </body>
