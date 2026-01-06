@@ -254,17 +254,41 @@ def render_html_export(df: pd.DataFrame):
     if not report_name.endswith(".html"):
         report_name += ".html"
     
+    # Show download button if report already exists in session state
+    if st.session_state.get('report_generated', False) and 'report_html' in st.session_state:
+        st.success(f"✅ Report generated successfully!")
+        
+        # File info
+        if st.session_state.get('report_path'):
+            st.info(f"💾 **Saved to:** `{st.session_state.get('report_path', 'N/A')}`")
+        st.caption(f"📊 Size: {st.session_state.get('report_size_kb', 0):.1f} KB")
+        
+        # Download button - full width for visibility
+        st.download_button(
+            label="📥 Download HTML Report",
+            data=st.session_state['report_html'],
+            file_name=st.session_state.get('report_name', 'orca_report.html'),
+            mime="text/html",
+            type="primary",
+            use_container_width=True,
+            key="html_download_btn"
+        )
+        
+        st.markdown("---")
+        
+        # Re-generate button
+        if st.button("🔄 Generate New Report", use_container_width=True):
+            st.session_state['report_generated'] = False
+            st.session_state.pop('report_html', None)
+            st.rerun()
+        return
+    
     # Generate button
     generate_clicked = st.button("🚀 Generate Report", type="primary", use_container_width=True)
     
     if generate_clicked:
         try:
-            import os
             from pathlib import Path
-            
-            # Use script directory for reliable path
-            script_dir = Path(__file__).parent.parent  # streamlit_app folder
-            save_path = script_dir / report_name
             
             with st.spinner("Generating comprehensive report (this may take a moment)..."):
                 html = generate_html_report(
@@ -280,41 +304,26 @@ def render_html_export(df: pd.DataFrame):
                 # Store in session state for download button
                 st.session_state['report_html'] = html
                 st.session_state['report_name'] = report_name
-                st.session_state['report_path'] = str(save_path)
-                
-                # Save to disk
-                with open(save_path, "w", encoding="utf-8") as f:
-                    f.write(html)
-                
-                st.session_state['report_size_kb'] = save_path.stat().st_size / 1024
+                st.session_state['report_size_kb'] = len(html.encode('utf-8')) / 1024
                 st.session_state['report_generated'] = True
+                
+                # Try to save to disk (optional - works locally but may fail on Colab)
+                try:
+                    script_dir = Path(__file__).parent.parent  # streamlit_app folder
+                    save_path = script_dir / report_name
+                    with open(save_path, "w", encoding="utf-8") as f:
+                        f.write(html)
+                    st.session_state['report_path'] = str(save_path)
+                except Exception:
+                    st.session_state['report_path'] = None  # Skip local save on Colab
+                
+            # Force rerun to show download button
+            st.rerun()
                 
         except Exception as e:
             st.error(f"Failed to generate report: {e}")
             import traceback
             st.code(traceback.format_exc())
-
-    # Show download section if report exists in session state
-    if st.session_state.get('report_generated', False) and 'report_html' in st.session_state:
-        st.success(f"✅ Report generated successfully!")
-        
-        # File info
-        st.info(f"💾 **Saved to:** `{st.session_state.get('report_path', 'N/A')}`")
-        st.caption(f"📊 Size: {st.session_state.get('report_size_kb', 0):.1f} KB")
-        
-        # Download button - full width for visibility
-        st.download_button(
-            label="📥 Download HTML Report",
-            data=st.session_state['report_html'],
-            file_name=st.session_state.get('report_name', 'orca_report.html'),
-            mime="text/html",
-            type="primary",
-            use_container_width=True,
-            key="html_download_btn"
-        )
-        
-        st.markdown("---")
-        st.caption("💡 You can also open the saved file directly from the path above.")
 
 
 def generate_html_report(
