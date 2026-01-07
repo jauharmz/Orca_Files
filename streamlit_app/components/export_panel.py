@@ -233,6 +233,9 @@ def render_json_export(df: pd.DataFrame):
 def render_html_export(df: pd.DataFrame):
     """Export comprehensive interactive HTML report."""
     
+    # DEBUG: Verify function is called
+    print("DEBUG: render_html_export called")  # This goes to terminal
+    
     st.markdown("##### 🎨 Interactive HTML Report")
     st.info("📄 Generates a **self-contained HTML file** with interactive 3D molecules, spectra, and data tables.")
     
