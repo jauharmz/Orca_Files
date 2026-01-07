@@ -241,6 +241,12 @@ def render_html_export(df: pd.DataFrame):
         st.session_state.html_report_data = None
     if 'html_report_name' not in st.session_state:
         st.session_state.html_report_name = "orca_report.html"
+    if 'html_save_success' not in st.session_state:
+        st.session_state.html_save_success = None
+    if 'html_save_path' not in st.session_state:
+        st.session_state.html_save_path = None
+    if 'html_save_error' not in st.session_state:
+        st.session_state.html_save_error = None
     
     # Export options
     with st.expander("⚙️ Export Options", expanded=True):
@@ -260,6 +266,56 @@ def render_html_export(df: pd.DataFrame):
     if not report_name.endswith(".html"):
         report_name += ".html"
     
+    # Save path configuration
+    from pathlib import Path
+    import tempfile
+    
+    # Default save locations (in order of preference)
+    default_paths = []
+    
+    # 1. Current working directory
+    cwd = Path.cwd()
+    default_paths.append(str(cwd))
+    
+    # 2. User home directory
+    home = Path.home()
+    default_paths.append(str(home))
+    
+    # 3. Downloads folder
+    downloads = home / "Downloads"
+    if downloads.exists():
+        default_paths.append(str(downloads))
+    
+    # 4. Temp directory as fallback
+    default_paths.append(tempfile.gettempdir())
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_paths = []
+    for p in default_paths:
+        if p not in seen:
+            seen.add(p)
+            unique_paths.append(p)
+    
+    save_directory = st.selectbox(
+        "💾 Save Directory",
+        options=unique_paths,
+        index=0,
+        key="html_save_dir",
+        help="Select where to save the HTML file locally"
+    )
+    
+    # Option to enter custom path
+    custom_path = st.text_input(
+        "Or enter custom path (optional)",
+        value="",
+        key="html_custom_path",
+        help="Leave empty to use the selected directory above"
+    )
+    
+    if custom_path.strip():
+        save_directory = custom_path.strip()
+    
     # Generate button
     col1, col2 = st.columns(2)
     with col1:
@@ -269,6 +325,10 @@ def render_html_export(df: pd.DataFrame):
     
     if clear_btn:
         st.session_state.html_report_data = None
+        st.session_state.html_report_name = "orca_report.html"
+        st.session_state.html_save_success = None
+        st.session_state.html_save_path = None
+        st.session_state.html_save_error = None
         st.rerun()
     
     if generate_btn:
@@ -287,7 +347,25 @@ def render_html_export(df: pd.DataFrame):
             # Store in session state
             st.session_state.html_report_data = html
             st.session_state.html_report_name = report_name
-            st.rerun()  # Rerun to show download button
+            
+            # Try to save to disk
+            save_path = Path(save_directory) / report_name
+            try:
+                # Ensure directory exists
+                save_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(save_path, "w", encoding="utf-8") as f:
+                    f.write(html)
+                st.session_state.html_save_success = True
+                st.session_state.html_save_path = str(save_path)
+                st.session_state.html_save_error = None
+            except PermissionError:
+                st.session_state.html_save_success = False
+                st.session_state.html_save_error = f"Permission denied: Cannot write to {save_path}"
+            except Exception as save_err:
+                st.session_state.html_save_success = False
+                st.session_state.html_save_error = f"Failed to save: {save_err}"
+            
+            st.rerun()  # Rerun to show results
                 
         except Exception as e:
             st.error(f"❌ Failed to generate report: {e}")
@@ -301,6 +379,14 @@ def render_html_export(df: pd.DataFrame):
         
         st.success(f"✅ Report generated! Size: {len(html.encode('utf-8')) / 1024:.1f} KB")
         
+        # Show save status
+        if st.session_state.html_save_success is True:
+            st.caption(f"💾 Saved to: `{st.session_state.html_save_path}`")
+        elif st.session_state.html_save_success is False:
+            st.warning(f"⚠️ {st.session_state.html_save_error}")
+            st.caption("Use the download button below instead.")
+        
+        # Always show download button - this is the primary download method
         st.download_button(
             label="📥 Download HTML Report",
             data=html,
@@ -310,17 +396,7 @@ def render_html_export(df: pd.DataFrame):
             use_container_width=True,
             key="html_dl_btn"
         )
-        
-        # Try to save to disk
-        try:
-            from pathlib import Path
-            script_dir = Path(__file__).parent.parent
-            save_path = script_dir / name
-            with open(save_path, "w", encoding="utf-8") as f:
-                f.write(html)
-            st.caption(f"💾 Also saved to: `{save_path}`")
-        except Exception:
-            pass
+
 
 
 def generate_html_report(
