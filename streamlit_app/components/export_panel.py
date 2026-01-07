@@ -332,6 +332,7 @@ def render_html_export(df: pd.DataFrame):
         st.rerun()
     
     if generate_btn:
+        st.info("🔄 Starting report generation...")  # Debug
         try:
             with st.spinner("Generating comprehensive report (this may take a moment)..."):
                 html = generate_html_report(
@@ -343,6 +344,8 @@ def render_html_export(df: pd.DataFrame):
                     dark_theme=dark_theme,
                     compact_mode=compact_mode
                 )
+            
+            st.info(f"✅ Generated {len(html)} characters")  # Debug
             
             # Store in session state
             st.session_state.html_report_data = html
