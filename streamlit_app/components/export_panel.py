@@ -1169,9 +1169,9 @@ def generate_html_report(
                 <li><a href="#executive-summary">1. Executive Summary</a></li>
                 <li><a href="#methodology">2. Computational Methods</a></li>
                 <li><a href="#molecular-structures">3. Molecular Structures</a></li>
-                <li><a href="#energy-analysis">4. Energy Analysis</a></li>
-                <li><a href="#electronic-structure">5. Electronic Structure</a></li>
-                <li><a href="#vibrational-analysis">6. Vibrational Analysis</a></li>
+                <li><a href="#electronic-structure">4. Electronic Structure</a></li>
+                <li><a href="#energy-analysis">5. Energy Analysis</a></li>
+                <li><a href="#spectra-analysis">6. Vibrational Analysis</a></li>
                 <li><a href="#data-appendix">7. Complete Data Appendix</a></li>
             </ul>
         </nav>
@@ -1490,9 +1490,9 @@ def generate_html_report(
     
     if include_orbitals:
         html += '''        
-        <!-- 5. Electronic Structure -->
+        <!-- 4. Electronic Structure -->
         <section id="electronic-structure" class="section">
-            <h2>🔮 5. Electronic Structure</h2>
+            <h2>🔮 4. Electronic Structure</h2>
             
             <p>
                 HOMO (Highest Occupied Molecular Orbital) and LUMO (Lowest Unoccupied Molecular Orbital) energy levels 
@@ -1503,6 +1503,12 @@ def generate_html_report(
             <details class="settings-panel" open>
                 <summary>Orbital Visualization Settings</summary>
                 <div class="settings-row">
+                    <div class="setting-group">
+                        <label>Select Molecule</label>
+                        <select id="orbital-mol-select" onchange="renderOrbitals(parseInt(this.value))">
+                            <!-- Options injected by JS -->
+                        </select>
+                    </div>
                     <div class="setting-group">
                         <label>Orbitals to Show (+/- HOMO)</label>
                         <input type="range" id="orb-range-slider" min="3" max="20" value="10" onchange="updateOrbitalRange(this.value)">
@@ -1547,7 +1553,7 @@ def generate_html_report(
     if include_spectra:
         html += '''        
         <!-- 6. Vibrational Analysis -->
-        <section id="vibrational-analysis" class="section">
+        <section id="spectra-analysis" class="section">
             <h2>📈 6. Vibrational Analysis</h2>
             
             <p>
@@ -1723,9 +1729,9 @@ def generate_html_report(
     
     if include_energy:
         html += '''
-        <!-- 4. Energy Analysis -->
+        <!-- 5. Energy Analysis -->
         <section id="energy-analysis" class="section">
-            <h2>⚡ 4. Energy Analysis</h2>
+            <h2>⚡ 5. Energy Analysis</h2>
             
             <p>
                 Comparative energy analysis across molecular systems. View absolute or relative energies 
@@ -1889,6 +1895,25 @@ def generate_html_report(
             generateCheckboxes('spectra-multiselect', renderSpectra);
             generateCheckboxes('energy-multiselect', renderEnergyChart);
             console.log("InitViewer: Checkboxes generated");
+            
+            // Populate molecule dropdowns
+            const orbSelect = document.getElementById('orbital-mol-select');
+            const corrSelect = document.getElementById('corr-mol-select');
+            molecules.forEach((mol, idx) => {{
+                if (orbSelect) {{
+                    const opt = document.createElement('option');
+                    opt.value = idx;
+                    opt.textContent = mol.label;
+                    orbSelect.appendChild(opt);
+                }}
+                if (corrSelect) {{
+                    const opt = document.createElement('option');
+                    opt.value = idx;
+                    opt.textContent = mol.label;
+                    corrSelect.appendChild(opt);
+                }}
+            }});
+            console.log("InitViewer: Molecule dropdowns populated");
             
             loadMolecule(0);
             console.log("InitViewer: Complete");
@@ -2558,7 +2583,7 @@ def generate_html_report(
             
             let html = `
                 <div class="stat-card"><div class="stat-value">${{mol.atoms || 0}}</div><div class="stat-label">Atoms</div></div>
-                <div class="stat-card"><div class="stat-value">${{mol.energy ? mol.energy.toFixed(4) : 'N/A'}}</div><div class="stat-label">Energy (Eh)</div></div>
+                <div class="stat-card"><div class="stat-value">${{mol.energy ? mol.energy.toFixed(2) : 'N/A'}}</div><div class="stat-label">Energy (Eh)</div></div>
                 <div class="stat-card"><div class="stat-value">${{mol.homo ? mol.homo.toFixed(2) : 'N/A'}}</div><div class="stat-label">HOMO (eV)</div></div>
                 <div class="stat-card"><div class="stat-value">${{mol.lumo ? mol.lumo.toFixed(2) : 'N/A'}}</div><div class="stat-label">LUMO (eV)</div></div>
             `;
