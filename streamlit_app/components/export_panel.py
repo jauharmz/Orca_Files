@@ -236,6 +236,12 @@ def render_html_export(df: pd.DataFrame):
     st.markdown("##### 🎨 Interactive HTML Report")
     st.info("📄 Generates a **self-contained HTML file** with interactive 3D molecules, spectra, and data tables.")
     
+    # Initialize session state keys
+    if 'html_report_data' not in st.session_state:
+        st.session_state.html_report_data = None
+    if 'html_report_name' not in st.session_state:
+        st.session_state.html_report_name = "orca_report.html"
+    
     # Export options
     with st.expander("⚙️ Export Options", expanded=True):
         c1, c2, c3 = st.columns(3)
@@ -250,15 +256,23 @@ def render_html_export(df: pd.DataFrame):
             compact_mode = st.checkbox("Compact Mode", False, key="html_compact")
     
     # Report filename
-    report_name = st.text_input("Report Filename", value="orca_report.html", key="html_filename")
+    report_name = st.text_input("Report Filename", value="orca_report.html", key="html_filename_input")
     if not report_name.endswith(".html"):
         report_name += ".html"
     
     # Generate button
-    if st.button("🚀 Generate Report", type="primary", use_container_width=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        generate_btn = st.button("🚀 Generate Report", type="primary", use_container_width=True)
+    with col2:
+        clear_btn = st.button("🗑️ Clear", use_container_width=True)
+    
+    if clear_btn:
+        st.session_state.html_report_data = None
+        st.rerun()
+    
+    if generate_btn:
         try:
-            from pathlib import Path
-            
             with st.spinner("Generating comprehensive report (this may take a moment)..."):
                 html = generate_html_report(
                     df, 
@@ -270,33 +284,43 @@ def render_html_export(df: pd.DataFrame):
                     compact_mode=compact_mode
                 )
             
-            # Show success and download immediately
-            st.success(f"✅ Report generated successfully! Size: {len(html.encode('utf-8')) / 1024:.1f} KB")
-            
-            # Download button
-            st.download_button(
-                label="📥 Download HTML Report",
-                data=html,
-                file_name=report_name,
-                mime="text/html",
-                type="primary",
-                use_container_width=True
-            )
-            
-            # Try to save to disk (optional)
-            try:
-                script_dir = Path(__file__).parent.parent
-                save_path = script_dir / report_name
-                with open(save_path, "w", encoding="utf-8") as f:
-                    f.write(html)
-                st.info(f"💾 Also saved to: `{save_path}`")
-            except Exception:
-                pass  # Skip local save on Colab
+            # Store in session state
+            st.session_state.html_report_data = html
+            st.session_state.html_report_name = report_name
+            st.rerun()  # Rerun to show download button
                 
         except Exception as e:
-            st.error(f"Failed to generate report: {e}")
+            st.error(f"❌ Failed to generate report: {e}")
             import traceback
             st.code(traceback.format_exc())
+    
+    # Show download button if report exists
+    if st.session_state.html_report_data:
+        html = st.session_state.html_report_data
+        name = st.session_state.html_report_name
+        
+        st.success(f"✅ Report generated! Size: {len(html.encode('utf-8')) / 1024:.1f} KB")
+        
+        st.download_button(
+            label="📥 Download HTML Report",
+            data=html,
+            file_name=name,
+            mime="text/html",
+            type="primary",
+            use_container_width=True,
+            key="html_dl_btn"
+        )
+        
+        # Try to save to disk
+        try:
+            from pathlib import Path
+            script_dir = Path(__file__).parent.parent
+            save_path = script_dir / name
+            with open(save_path, "w", encoding="utf-8") as f:
+                f.write(html)
+            st.caption(f"💾 Also saved to: `{save_path}`")
+        except Exception:
+            pass
 
 
 def generate_html_report(
