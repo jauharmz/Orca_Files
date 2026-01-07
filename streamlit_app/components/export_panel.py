@@ -817,6 +817,33 @@ def generate_html_report(
         .settings-panel summary::-webkit-details-marker {{ display: none; }}
         .settings-panel summary::before {{ content: "⚙️ "; }}
         
+        /* Collapsible Section Content (for charts) */
+        .section-content {{
+            background: var(--bg-primary);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            border: 1px solid rgba(0,0,0,0.1);
+        }}
+        
+        .section-content summary {{
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-primary);
+            padding: 8px 0;
+            list-style: none;
+            font-size: 1.1em;
+        }}
+        
+        .section-content summary::-webkit-details-marker {{ display: none; }}
+        .section-content summary::before {{ content: "▶ "; font-size: 0.8em; }}
+        .section-content[open] summary::before {{ content: "▼ "; font-size: 0.8em; }}
+        
+        /* Spectra panels in stacked mode */
+        .spectra-panel {{
+            transition: margin 0.2s ease;
+        }}
+        
         .settings-row {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1559,7 +1586,7 @@ def generate_html_report(
         </section>
 '''
     
-    # Note: Energy Analysis section is now only included once (after Vibrational Analysis) with full controls
+    # Section order: 4. Electronic Structure → 5. Energy Analysis → 6. Vibrational Analysis
     
     if include_orbitals:
         html += '''        
@@ -1615,14 +1642,78 @@ def generate_html_report(
                     </div>
                 </div>
             </details>
-            <div id="orbital-chart" class="chart-container"></div>
-            <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">
-                <strong>Legend:</strong> Solid = Occupied, Dashed = Virtual, Dot-Dash = SOMO/SUMO. Bold lines = HOMO/LUMO.
-            </p>
+            
+            <details class="section-content" open>
+                <summary>🔮 Orbital Energy Diagram</summary>
+                <div id="orbital-chart" class="chart-container"></div>
+                <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">
+                    <strong>Legend:</strong> Solid = Occupied, Dashed = Virtual, Dot-Dash = SOMO/SUMO. Bold lines = HOMO/LUMO.
+                </p>
+            </details>
         </section>
 '''
 
-    
+    # 5. Energy Analysis (moved before Vibrational Analysis)
+    if include_energy:
+        html += '''
+        <!-- 5. Energy Analysis -->
+        <section id="energy-analysis" class="section">
+            <h2>⚡ 5. Energy Analysis</h2>
+            
+            <p>
+                Comparative energy analysis across molecular systems. View absolute or relative energies 
+                and HOMO-LUMO gap diagrams.
+            </p>
+            
+            <details class="settings-panel">
+                <summary>Energy Comparison Settings</summary>
+                <div class="settings-row">
+                    <div class="setting-group">
+                        <label class="checkbox-inline">
+                            <input type="checkbox" id="energy-relative" checked onchange="renderEnergyChart()">
+                            Show Relative Energy (kcal/mol)
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label>Energy Type</label>
+                        <select id="energy-type" onchange="renderEnergyChart()">
+                            <option value="auto">Auto (Gibbs or SP)</option>
+                            <option value="gibbs">Gibbs Only</option>
+                            <option value="sp">Single Point Only</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="setting-group" style="width: 100%; margin-top: 10px;">
+                    <label><strong>Select Molecules to Compare:</strong></label>
+                    <div id="energy-multiselect" class="multiselect-grid">
+                        <!-- Checkboxes injected by JS -->
+                    </div>
+                </div>
+            </details>
+            
+            <details class="section-content" open>
+                <summary>📊 Energy Charts</summary>
+                <div class="tabs">
+                    <div class="tab active" onclick="showEnergyTab('comparison')">📊 Energy Comparison</div>
+                    <div class="tab" onclick="showEnergyTab('homolumo')">🔋 HOMO-LUMO Diagram</div>
+                </div>
+                
+                <div id="energy-comparison" class="tab-content active">
+                    <div id="energy-chart" class="chart-container"></div>
+                    <div id="energy-reference" style="text-align: center; margin-top: 10px; font-size: 13px; color: var(--text-secondary);"></div>
+                </div>
+                
+                <div id="energy-homolumo" class="tab-content">
+                    <div id="homolumo-chart" class="chart-container"></div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px; text-align: center;">
+                        Solid lines = HOMO (occupied), Dashed lines = LUMO (virtual). Gap values shown between levels.
+                    </p>
+                </div>
+            </details>
+        </section>
+'''
+
+    # 6. Vibrational/Spectra Analysis  
     if include_spectra:
         html += '''        
         <!-- 6. Vibrational Analysis -->
@@ -1704,155 +1795,123 @@ def generate_html_report(
                 </div>
             </details>
             
-            <div class="tabs">
+            <!-- Display Mode Toggle -->
+            <div class="stack-toggle" style="margin: 15px 0; display: flex; gap: 10px; align-items: center;">
+                <button id="btn-stack-all" onclick="toggleStackedView()" style="padding: 8px 16px;">
+                    📊 Show All Stacked
+                </button>
+                <span id="stack-mode-label" style="font-size: 13px; color: var(--text-secondary);">Tab View</span>
+            </div>
+            
+            <!-- Tab Navigation (hidden in stacked mode) -->
+            <div id="spectra-tabs" class="tabs">
                 <div class="tab active" onclick="showSpectraTab('ir')">🔴 IR Spectrum</div>
                 <div class="tab" onclick="showSpectraTab('raman')">🟢 Raman Spectrum</div>
                 <div class="tab" onclick="showSpectraTab('uvvis')">🟣 UV-Vis (TDDFT)</div>
                 <div class="tab" onclick="showSpectraTab('correlation')">🔗 IR-Raman</div>
             </div>
-            <div id="spectra-ir" class="tab-content active">
-                <div id="ir-chart" class="chart-container"></div>
-            </div>
-            <div id="spectra-raman" class="tab-content">
-                <div id="raman-chart" class="chart-container"></div>
-            </div>
-            <div id="spectra-uvvis" class="tab-content">
-                <!-- UV-Vis specific settings -->
-                <details class="settings-panel">
-                    <summary>UV-Vis Settings</summary>
-                    <div class="settings-row">
-                        <div class="setting-group">
-                            <label>Wavelength Range (nm)</label>
-                            <div class="dual-range">
-                                <input type="number" id="uvvis-wl-min" value="200" min="100" max="900" onchange="renderSpectra()">
-                                <span>to</span>
-                                <input type="number" id="uvvis-wl-max" value="700" min="100" max="1000" onchange="renderSpectra()">
+            
+            <!-- Spectra Charts Container -->
+            <div id="spectra-charts-container">
+                <div id="spectra-ir" class="tab-content active spectra-panel">
+                    <details class="section-content" open>
+                        <summary>🔴 IR Spectrum</summary>
+                        <div id="ir-chart" class="chart-container"></div>
+                    </details>
+                </div>
+                <div id="spectra-raman" class="tab-content spectra-panel">
+                    <details class="section-content" open>
+                        <summary>🟢 Raman Spectrum</summary>
+                        <div id="raman-chart" class="chart-container"></div>
+                    </details>
+                </div>
+            <div id="spectra-uvvis" class="tab-content spectra-panel">
+                <details class="section-content" open>
+                    <summary>🟣 UV-Vis (TDDFT)</summary>
+                    <!-- UV-Vis specific settings -->
+                    <details class="settings-panel">
+                        <summary>UV-Vis Settings</summary>
+                        <div class="settings-row">
+                            <div class="setting-group">
+                                <label>Wavelength Range (nm)</label>
+                                <div class="dual-range">
+                                    <input type="number" id="uvvis-wl-min" value="200" min="100" max="900" onchange="renderSpectra()">
+                                    <span>to</span>
+                                    <input type="number" id="uvvis-wl-max" value="700" min="100" max="1000" onchange="renderSpectra()">
+                                </div>
+                            </div>
+                            <div class="setting-group">
+                                <label>FWHM Broadening (nm)</label>
+                                <input type="range" id="uvvis-fwhm" min="5" max="80" value="20" onchange="renderSpectra()">
+                                <span class="range-value" id="uvvis-fwhm-val">20 nm</span>
+                            </div>
+                            <div class="setting-group">
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="uvvis-show-sticks" checked onchange="renderSpectra()">
+                                    Show Stick Spectrum
+                                </label>
                             </div>
                         </div>
-                        <div class="setting-group">
-                            <label>FWHM Broadening (nm)</label>
-                            <input type="range" id="uvvis-fwhm" min="5" max="80" value="20" onchange="renderSpectra()">
-                            <span class="range-value" id="uvvis-fwhm-val">20 nm</span>
+                    </details>
+                    <div id="uvvis-chart" class="chart-container"></div>
+                </details>
+            </div>
+            <div id="spectra-correlation" class="tab-content spectra-panel">
+                <details class="section-content" open>
+                    <summary>🔗 IR-Raman Correlation</summary>
+                    <!-- IR-Raman Correlation Settings -->
+                    <details class="settings-panel">
+                        <summary>Correlation Settings</summary>
+                        <div class="settings-row">
+                            <div class="setting-group">
+                                <label>Select Molecule</label>
+                                <select id="corr-mol-select" onchange="renderCorrelation()">
+                                    <!-- Options injected by JS -->
+                                </select>
+                            </div>
+                            <div class="setting-group">
+                                <label>Max Pairing Distance (cm⁻¹)</label>
+                                <input type="range" id="corr-max-delta" min="10" max="100" value="40" onchange="renderCorrelation()">
+                                <span class="range-value" id="corr-delta-val">40</span>
+                            </div>
+                            <div class="setting-group">
+                                <label>Peak Threshold (%)</label>
+                                <input type="range" id="corr-threshold" min="1" max="50" value="5" onchange="renderCorrelation()">
+                                <span class="range-value" id="corr-thresh-val">5%</span>
+                            </div>
                         </div>
-                        <div class="setting-group">
-                            <label class="checkbox-inline">
-                                <input type="checkbox" id="uvvis-show-sticks" checked onchange="renderSpectra()">
-                                Show Stick Spectrum
-                            </label>
+                        <div class="settings-row">
+                            <div class="setting-group">
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="corr-connectors" checked onchange="renderCorrelation()">
+                                    Show Connector Lines
+                                </label>
+                            </div>
+                            <div class="setting-group">
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="corr-invert-x" checked onchange="renderCorrelation()">
+                                    Invert X-Axis
+                                </label>
+                            </div>
+                            <div class="setting-group">
+                                <label>Peak Labels</label>
+                                <select id="corr-peak-mode" onchange="renderCorrelation()">
+                                    <option value="paired">Paired Only</option>
+                                    <option value="all">All Peaks</option>
+                                    <option value="none">None</option>
+                                </select>
+                            </div>
                         </div>
+                    </details>
+                    <div id="correlation-chart" class="chart-container"></div>
+                    <div id="correlation-stats" style="display: flex; gap: 20px; justify-content: center; margin-top: 15px;">
+                        <div class="stat-card" style="padding: 15px 25px;"><div class="stat-value" id="corr-ir-peaks">0</div><div class="stat-label">IR Peaks</div></div>
+                        <div class="stat-card" style="padding: 15px 25px;"><div class="stat-value" id="corr-raman-peaks">0</div><div class="stat-label">Raman Peaks</div></div>
+                        <div class="stat-card" style="padding: 15px 25px;"><div class="stat-value" id="corr-paired">0</div><div class="stat-label">Paired</div></div>
                     </div>
                 </details>
-                <div id="uvvis-chart" class="chart-container"></div>
             </div>
-            <div id="spectra-correlation" class="tab-content">
-                <!-- IR-Raman Correlation Settings -->
-                <details class="settings-panel" open>
-                    <summary>Correlation Settings</summary>
-                    <div class="settings-row">
-                        <div class="setting-group">
-                            <label>Select Molecule</label>
-                            <select id="corr-mol-select" onchange="renderCorrelation()">
-                                <!-- Options injected by JS -->
-                            </select>
-                        </div>
-                        <div class="setting-group">
-                            <label>Max Pairing Distance (cm⁻¹)</label>
-                            <input type="range" id="corr-max-delta" min="10" max="100" value="40" onchange="renderCorrelation()">
-                            <span class="range-value" id="corr-delta-val">40</span>
-                        </div>
-                        <div class="setting-group">
-                            <label>Peak Threshold (%)</label>
-                            <input type="range" id="corr-threshold" min="1" max="50" value="5" onchange="renderCorrelation()">
-                            <span class="range-value" id="corr-thresh-val">5%</span>
-                        </div>
-                    </div>
-                    <div class="settings-row">
-                        <div class="setting-group">
-                            <label class="checkbox-inline">
-                                <input type="checkbox" id="corr-connectors" checked onchange="renderCorrelation()">
-                                Show Connector Lines
-                            </label>
-                        </div>
-                        <div class="setting-group">
-                            <label class="checkbox-inline">
-                                <input type="checkbox" id="corr-invert-x" checked onchange="renderCorrelation()">
-                                Invert X-Axis
-                            </label>
-                        </div>
-                        <div class="setting-group">
-                            <label>Peak Labels</label>
-                            <select id="corr-peak-mode" onchange="renderCorrelation()">
-                                <option value="paired">Paired Only</option>
-                                <option value="all">All Peaks</option>
-                                <option value="none">None</option>
-                            </select>
-                        </div>
-                    </div>
-                </details>
-                <div id="correlation-chart" class="chart-container"></div>
-                <div id="correlation-stats" style="display: flex; gap: 20px; justify-content: center; margin-top: 15px;">
-                    <div class="stat-card" style="padding: 15px 25px;"><div class="stat-value" id="corr-ir-peaks">0</div><div class="stat-label">IR Peaks</div></div>
-                    <div class="stat-card" style="padding: 15px 25px;"><div class="stat-value" id="corr-raman-peaks">0</div><div class="stat-label">Raman Peaks</div></div>
-                    <div class="stat-card" style="padding: 15px 25px;"><div class="stat-value" id="corr-paired">0</div><div class="stat-label">Paired</div></div>
-                </div>
-            </div>
-        </section>
-'''
-
-    
-    if include_energy:
-        html += '''
-        <!-- 5. Energy Analysis -->
-        <section id="energy-analysis" class="section">
-            <h2>⚡ 5. Energy Analysis</h2>
-            
-            <p>
-                Comparative energy analysis across molecular systems. View absolute or relative energies 
-                and HOMO-LUMO gap diagrams.
-            </p>
-            
-            <details class="settings-panel" open>
-                <summary>Energy Comparison Settings</summary>
-                <div class="settings-row">
-                    <div class="setting-group">
-                        <label class="checkbox-inline">
-                            <input type="checkbox" id="energy-relative" checked onchange="renderEnergyChart()">
-                            Show Relative Energy (kcal/mol)
-                        </label>
-                    </div>
-                    <div class="setting-group">
-                        <label>Energy Type</label>
-                        <select id="energy-type" onchange="renderEnergyChart()">
-                            <option value="auto">Auto (Gibbs or SP)</option>
-                            <option value="gibbs">Gibbs Only</option>
-                            <option value="sp">Single Point Only</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="setting-group" style="width: 100%; margin-top: 10px;">
-                    <label><strong>Select Molecules to Compare:</strong></label>
-                    <div id="energy-multiselect" class="multiselect-grid">
-                        <!-- Checkboxes injected by JS -->
-                    </div>
-                </div>
-            </details>
-            
-            <div class="tabs">
-                <div class="tab active" onclick="showEnergyTab('comparison')">📊 Energy Comparison</div>
-                <div class="tab" onclick="showEnergyTab('homolumo')">🔋 HOMO-LUMO Diagram</div>
-            </div>
-            
-            <div id="energy-comparison" class="tab-content active">
-                <div id="energy-chart" class="chart-container"></div>
-                <div id="energy-reference" style="text-align: center; margin-top: 10px; font-size: 13px; color: var(--text-secondary);"></div>
-            </div>
-            
-            <div id="energy-homolumo" class="tab-content">
-                <div id="homolumo-chart" class="chart-container"></div>
-                <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px; text-align: center;">
-                    Solid lines = HOMO (occupied), Dashed lines = LUMO (virtual). Gap values shown between levels.
-                </p>
-            </div>
+            </div><!-- End spectra-charts-container -->
         </section>
 '''
 
@@ -2233,6 +2292,56 @@ def generate_html_report(
             // If switching to correlation, trigger render
             if (type === 'correlation') {{
                 renderCorrelation();
+            }}
+        }}
+        
+        // Stacked view mode for spectra
+        let spectraStackedMode = false;
+        
+        function toggleStackedView() {{
+            spectraStackedMode = !spectraStackedMode;
+            const btn = document.getElementById('btn-stack-all');
+            const label = document.getElementById('stack-mode-label');
+            const tabs = document.getElementById('spectra-tabs');
+            const panels = document.querySelectorAll('.spectra-panel');
+            
+            if (spectraStackedMode) {{
+                // Stacked mode: hide tabs, show all panels
+                if (tabs) tabs.style.display = 'none';
+                if (btn) {{
+                    btn.textContent = '📋 Tab View';
+                    btn.classList.add('active');
+                }}
+                if (label) label.textContent = 'Stacked View (All Visible)';
+                
+                panels.forEach(panel => {{
+                    panel.classList.add('active');
+                    panel.style.display = 'block';
+                    panel.style.marginBottom = '20px';
+                }});
+                
+                // Render all charts
+                renderSpectra();
+                renderCorrelation();
+            }} else {{
+                // Tab mode: show tabs, show only active panel
+                if (tabs) tabs.style.display = 'flex';
+                if (btn) {{
+                    btn.textContent = '📊 Show All Stacked';
+                    btn.classList.remove('active');
+                }}
+                if (label) label.textContent = 'Tab View';
+                
+                panels.forEach((panel, i) => {{
+                    if (i === 0) {{
+                        panel.classList.add('active');
+                        panel.style.display = 'block';
+                    }} else {{
+                        panel.classList.remove('active');
+                        panel.style.display = 'none';
+                    }}
+                    panel.style.marginBottom = '0';
+                }});
             }}
         }}
         
