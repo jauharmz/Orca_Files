@@ -233,9 +233,6 @@ def render_json_export(df: pd.DataFrame):
 def render_html_export(df: pd.DataFrame):
     """Export comprehensive interactive HTML report."""
     
-    # DEBUG: Verify function is called
-    print("DEBUG: render_html_export called")  # This goes to terminal
-    
     st.markdown("##### 🎨 Interactive HTML Report")
     st.info("📄 Generates a **self-contained HTML file** with interactive 3D molecules, spectra, and data tables.")
     
@@ -335,7 +332,6 @@ def render_html_export(df: pd.DataFrame):
         st.rerun()
     
     if generate_btn:
-        st.info("🔄 Starting report generation...")  # Debug
         try:
             with st.spinner("Generating comprehensive report (this may take a moment)..."):
                 html = generate_html_report(
@@ -347,8 +343,6 @@ def render_html_export(df: pd.DataFrame):
                     dark_theme=dark_theme,
                     compact_mode=compact_mode
                 )
-            
-            st.info(f"✅ Generated {len(html)} characters")  # Debug
             
             # Store in session state
             st.session_state.html_report_data = html
@@ -848,6 +842,50 @@ def generate_html_report(
         /* Spectra panels in stacked mode */
         .spectra-panel {{
             transition: margin 0.2s ease;
+        }}
+        
+        /* Data table containers (collapsed by default) */
+        .data-table-container {{
+            background: var(--bg-primary);
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 15px;
+            border: 1px solid rgba(0,0,0,0.05);
+        }}
+        
+        .data-table-container summary {{
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--text-secondary);
+            font-size: 0.9em;
+            padding: 5px 0;
+            list-style: none;
+        }}
+        
+        .data-table-container summary::-webkit-details-marker {{ display: none; }}
+        .data-table-container summary::before {{ content: "📋 "; }}
+        
+        .data-table-container table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85em;
+            margin-top: 10px;
+        }}
+        
+        .data-table-container th, .data-table-container td {{
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }}
+        
+        .data-table-container th {{
+            background: var(--bg-secondary);
+            font-weight: 600;
+            color: var(--accent);
+        }}
+        
+        .data-table-container tr:hover {{
+            background: rgba(0,0,0,0.02);
         }}
         
         .settings-row {{
@@ -1653,8 +1691,14 @@ def generate_html_report(
                 <summary>🔮 Orbital Energy Diagram</summary>
                 <div id="orbital-chart" class="chart-container"></div>
                 <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">
-                    <strong>Legend:</strong> Solid = Occupied, Dashed = Virtual, Dot-Dash = SOMO/SUMO. Bold lines = HOMO/LUMO.
+                    <strong>Legend:</strong> Solid = Occupied, Dashed = Virtual. Bold lines = HOMO/LUMO.
                 </p>
+                
+                <!-- Orbital Data Table -->
+                <details class="data-table-container">
+                    <summary>📊 Orbital Data Table</summary>
+                    <div id="orbital-data-table" style="overflow-x: auto; margin-top: 10px;"></div>
+                </details>
             </details>
         </section>
 '''
@@ -1823,12 +1867,20 @@ def generate_html_report(
                     <details class="section-content" open>
                         <summary>🔴 IR Spectrum</summary>
                         <div id="ir-chart" class="chart-container"></div>
+                        <details class="data-table-container">
+                            <summary>📊 IR Peak Data</summary>
+                            <div id="ir-data-table"></div>
+                        </details>
                     </details>
                 </div>
                 <div id="spectra-raman" class="tab-content spectra-panel">
                     <details class="section-content" open>
                         <summary>🟢 Raman Spectrum</summary>
                         <div id="raman-chart" class="chart-container"></div>
+                        <details class="data-table-container">
+                            <summary>📊 Raman Peak Data</summary>
+                            <div id="raman-data-table"></div>
+                        </details>
                     </details>
                 </div>
             <div id="spectra-uvvis" class="tab-content spectra-panel">
@@ -1860,6 +1912,10 @@ def generate_html_report(
                         </div>
                     </details>
                     <div id="uvvis-chart" class="chart-container"></div>
+                    <details class="data-table-container">
+                        <summary>📊 UV-Vis Transitions</summary>
+                        <div id="uvvis-data-table"></div>
+                    </details>
                 </details>
             </div>
             <div id="spectra-correlation" class="tab-content spectra-panel">
@@ -2426,6 +2482,48 @@ def generate_html_report(
             }};
             
             Plotly.newPlot('orbital-chart', [], layout, {{responsive: true}});
+            
+            // Populate orbital data table
+            renderDataTable('orbital-data-table', 
+                ['Energy (eV)', 'Occupation', 'Type'],
+                subset.map(o => {{
+                    const isOcc = (o.occ !== undefined && o.occ > 0.1) || (mol.homo !== undefined && o.energy <= mol.homo + 0.001);
+                    const isHomo = mol.homo !== undefined && Math.abs(o.energy - mol.homo) < 0.01;
+                    const isLumo = mol.lumo !== undefined && Math.abs(o.energy - mol.lumo) < 0.01;
+                    let type = isOcc ? 'Occupied' : 'Virtual';
+                    if (isHomo) type = 'HOMO';
+                    if (isLumo) type = 'LUMO';
+                    return [
+                        o.energy.toFixed(4),
+                        o.occ !== undefined ? o.occ.toFixed(2) : '-',
+                        type
+                    ];
+                }})
+            );
+        }}
+        
+        // Helper function to render data tables
+        function renderDataTable(containerId, headers, rows) {{
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            if (rows.length === 0) {{
+                container.innerHTML = '<p style="color: var(--text-secondary); padding: 10px;">No data available</p>';
+                return;
+            }}
+            
+            let html = '<table><thead><tr>';
+            headers.forEach(h => html += `<th>${{h}}</th>`);
+            html += '</tr></thead><tbody>';
+            
+            rows.forEach(row => {{
+                html += '<tr>';
+                row.forEach(cell => html += `<td>${{cell}}</td>`);
+                html += '</tr>';
+            }});
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
         }}
         
         // Spectra variables
@@ -2555,6 +2653,17 @@ def generate_html_report(
                     showlegend: indices.length > 1,
                     margin: {{t: 30, b: 30, l: 50, r: 20}}
                 }}, {{responsive: true}});
+                
+                // Populate IR data table
+                const irRows = [];
+                indices.forEach(idx => {{
+                    const mol = molecules[idx];
+                    if (!mol.ir) return;
+                    mol.ir.slice(0, 20).forEach(p => {{
+                        irRows.push([mol.label, p.freq.toFixed(1), p.intensity.toFixed(4)]);
+                    }});
+                }});
+                renderDataTable('ir-data-table', ['Molecule', 'Frequency (cm⁻¹)', 'Intensity'], irRows);
             }}
             
             // Raman Chart
@@ -2612,6 +2721,17 @@ def generate_html_report(
                     showlegend: indices.length > 1,
                     margin: {{t: 30, b: 30, l: 50, r: 20}}
                 }}, {{responsive: true}});
+                
+                // Populate Raman data table
+                const ramanRows = [];
+                indices.forEach(idx => {{
+                    const mol = molecules[idx];
+                    if (!mol.raman) return;
+                    mol.raman.slice(0, 20).forEach(p => {{
+                        ramanRows.push([mol.label, p.freq.toFixed(1), p.activity.toFixed(4)]);
+                    }});
+                }});
+                renderDataTable('raman-data-table', ['Molecule', 'Frequency (cm⁻¹)', 'Activity'], ramanRows);
             }}
             
              // UV-Vis Chart
@@ -2678,6 +2798,23 @@ def generate_html_report(
                     showlegend: indices.length > 1,
                     margin: {{t: 30, b: 30, l: 50, r: 20}}
                 }}, {{responsive: true}});
+                
+                // Populate UV-Vis data table
+                const uvRows = [];
+                indices.forEach(idx => {{
+                    const mol = molecules[idx];
+                    if (!mol.tddft) return;
+                    mol.tddft.slice(0, 15).forEach(s => {{
+                        uvRows.push([
+                            mol.label, 
+                            s.state || '-',
+                            s.nm ? s.nm.toFixed(1) : '-',
+                            s.eV ? s.eV.toFixed(3) : '-',
+                            s.f ? s.f.toFixed(4) : '-'
+                        ]);
+                    }});
+                }});
+                renderDataTable('uvvis-data-table', ['Molecule', 'State', 'λ (nm)', 'Energy (eV)', 'Osc. Str.'], uvRows);
             }}
         }}
         
