@@ -2428,10 +2428,9 @@ def generate_html_report(
             
             // Sort by energy
             let orbs = [...mol.orbitals].sort((a, b) => a.energy - b.energy);
-            const homoval = mol.homo || (orbs.length > 0 ? orbs[orbs.length/2].energy : 0);
+            const homoval = mol.homo || (orbs.length > 0 ? orbs[Math.floor(orbs.length/2)].energy : 0);
             
             // Filter to N closest to HOMO
-            // Calculate distance to HOMO
             orbs.forEach(o => o.dist = Math.abs(o.energy - homoval));
             orbs.sort((a, b) => a.dist - b.dist);
             
@@ -2440,48 +2439,55 @@ def generate_html_report(
             // Sort back by energy for drawing
             subset.sort((a, b) => a.energy - b.energy);
             
-            const shapes = [];
-            const annotations = [];
+            // Create Scatter traces for each orbital (using line mode)
+            const traces = [];
             
-            subset.forEach(o => {{
+            subset.forEach((o, i) => {{
                 const isOcc = (o.occ !== undefined && o.occ > 0.1) || (mol.homo !== undefined && o.energy <= mol.homo + 0.001);
-                const color = isOcc ? '#3366cc' : '#cccccc';
-                const labelColor = isOcc ? '#3366cc' : '#999999';
+                const isHomo = mol.homo !== undefined && Math.abs(o.energy - mol.homo) < 0.01;
+                const isLumo = mol.lumo !== undefined && Math.abs(o.energy - mol.lumo) < 0.01;
                 
-                // Draw line
-                shapes.push({{
-                    type: 'line',
-                    x0: 0.2, x1: 0.8,
-                    y0: o.energy, y1: o.energy,
-                    line: {{color: color, width: 3}}
+                const lineWidth = (isHomo || isLumo) ? 5 : 3;
+                const dash = isOcc ? 'solid' : 'dash';
+                const color = isOcc ? '#636EFA' : '#EF553B';
+                
+                // Each orbital is a horizontal line trace
+                traces.push({{
+                    x: [0.2, 0.8],
+                    y: [o.energy, o.energy],
+                    mode: 'lines',
+                    line: {{color: color, width: lineWidth, dash: dash}},
+                    showlegend: false,
+                    hovertemplate: `${{isHomo ? 'HOMO' : isLumo ? 'LUMO' : isOcc ? 'Occupied' : 'Virtual'}}<br>Energy: ${{o.energy.toFixed(4)}} eV<extra></extra>`
                 }});
                 
-                // Label (Index/Occ)
-                let text = "";
-                if (o.occ !== undefined) text += `Occ: ${{o.occ.toFixed(1)}}`;
-                
-                annotations.push({{
-                    x: 0.82, y: o.energy,
-                    text: `${{o.energy.toFixed(2)}} eV`,
-                    showarrow: false,
-                    xanchor: 'left',
-                    font: {{size: 10, color: labelColor}}
-                }});
+                // Add HOMO/LUMO label annotation
+                if (isHomo || isLumo) {{
+                    traces.push({{
+                        x: [0.85],
+                        y: [o.energy],
+                        mode: 'text',
+                        text: [isHomo ? 'HOMO' : 'LUMO'],
+                        textposition: 'middle right',
+                        textfont: {{size: 11, color: color}},
+                        showlegend: false,
+                        hoverinfo: 'skip'
+                    }});
+                }}
             }});
             
             const layout = {{
                 title: `Orbital Energy Levels (${{mol.label}})`,
                 xaxis: {{showgrid: false, zeroline: false, showticklabels: false, range: [0, 1]}},
                 yaxis: {{title: 'Energy (eV)'}},
-                shapes: shapes,
-                annotations: annotations,
                 paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
                 plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
                 font: {{color: '{text_primary}'}},
-                margin: {{l: 60, r: 100, t: 50, b: 30}}
+                margin: {{l: 60, r: 100, t: 50, b: 30}},
+                hovermode: 'closest'
             }};
             
-            Plotly.newPlot('orbital-chart', [], layout, {{responsive: true}});
+            Plotly.newPlot('orbital-chart', traces, layout, {{responsive: true}});
             
             // Populate orbital data table
             renderDataTable('orbital-data-table', 
