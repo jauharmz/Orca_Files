@@ -2458,7 +2458,8 @@ def generate_html_report(
                     mode: 'lines',
                     line: {{color: color, width: lineWidth, dash: dash}},
                     showlegend: false,
-                    hovertemplate: `${{isHomo ? 'HOMO' : isLumo ? 'LUMO' : isOcc ? 'Occupied' : 'Virtual'}}<br>Energy: ${{o.energy.toFixed(4)}} eV<extra></extra>`
+                    name: (isHomo ? 'HOMO' : isLumo ? 'LUMO' : isOcc ? 'Occupied' : 'Virtual') + ' ' + o.energy.toFixed(4) + ' eV',
+                    hoverinfo: 'name'
                 }});
                 
                 // Add HOMO/LUMO label annotation
