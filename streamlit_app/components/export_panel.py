@@ -1658,35 +1658,9 @@ def generate_html_report(
                 <summary>Orbital Visualization Settings</summary>
                 <div class="settings-row">
                     <div class="setting-group">
-                        <label>Select Molecule</label>
-                        <select id="orbital-mol-select" onchange="renderOrbitals(parseInt(this.value))">
-                            <!-- Options injected by JS -->
-                        </select>
-                    </div>
-                    <div class="setting-group">
                         <label>Orbitals to Show (+/- HOMO)</label>
                         <input type="range" id="orb-range-slider" min="3" max="20" value="10" onchange="updateOrbitalRange(this.value)">
                         <span class="range-value" id="orb-range-val">10</span>
-                    </div>
-                    <div class="setting-group">
-                        <label>Gap Mode</label>
-                        <select id="orb-gap-mode" onchange="renderOrbitals(currentMolIndex)">
-                            <option value="HL">HOMO-LUMO</option>
-                            <option value="SL">SOMO-LUMO</option>
-                            <option value="SS">SOMO-SUMO</option>
-                        </select>
-                    </div>
-                    <div class="setting-group">
-                        <label class="checkbox-inline">
-                            <input type="checkbox" id="orb-connectors" onchange="renderOrbitals(currentMolIndex)">
-                            Connector Lines
-                        </label>
-                    </div>
-                    <div class="setting-group">
-                        <label class="checkbox-inline">
-                            <input type="checkbox" id="orb-labels" checked onchange="renderOrbitals(currentMolIndex)">
-                            Orbital Labels
-                        </label>
                     </div>
                 </div>
                 <div class="setting-group" style="margin-top: 10px; width: 100%;">
@@ -1987,10 +1961,47 @@ def generate_html_report(
         </section>
 '''
 
-    
-    # Data table
+    # 7. Data Comparison Section
+    html += '''
+        <!-- 7. Data Comparison -->
+        <section id="data-comparison" class="section">
+            <h2>🔄 7. Data Comparison</h2>
+            
+            <p>
+                Compare molecular data side-by-side. Select molecules and data type to view horizontal comparison tables.
+            </p>
+            
+            <details class="settings-panel" open>
+                <summary>Comparison Settings</summary>
+                <div class="settings-row">
+                    <div class="setting-group" style="flex: 2;">
+                        <label><strong>Select Molecules:</strong></label>
+                        <div id="compare-multiselect" class="multiselect-grid">
+                            <!-- Checkboxes injected by JS -->
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <label>Data Type</label>
+                        <select id="compare-data-type" onchange="renderComparisonTable()">
+                            <option value="energy">Energies</option>
+                            <option value="ir">IR Frequencies</option>
+                            <option value="raman">Raman Frequencies</option>
+                            <option value="uvvis">UV-Vis (TDDFT)</option>
+                        </select>
+                    </div>
+                </div>
+            </details>
+            
+            <details class="section-content" open>
+                <summary>📊 Comparison Table</summary>
+                <div id="comparison-table" style="overflow-x: auto;"></div>
+            </details>
+        </section>
+'''
+
+    # 8. Data Appendix (renumbered)
     html += f'''        
-        <!-- 7. Data Appendix -->
+        <!-- 8. Data Appendix -->
         <section id="data-appendix" class="section">
             <h2>📊 7. Complete Data Appendix</h2>
             
@@ -2095,21 +2106,16 @@ def generate_html_report(
                 console.log("InitViewer: 3Dmol viewer created");
             }}
             
-            // Generate checkboxes
+            // Generate checkboxes for all multiselect sections
             generateCheckboxes('spectra-multiselect', renderSpectra);
             generateCheckboxes('energy-multiselect', renderEnergyChart);
+            generateCheckboxes('orbital-multiselect', renderOrbitals);
+            generateCheckboxes('compare-multiselect', renderComparisonTable);
             console.log("InitViewer: Checkboxes generated");
             
-            // Populate molecule dropdowns
-            const orbSelect = document.getElementById('orbital-mol-select');
+            // Populate molecule dropdowns (correlation only now)
             const corrSelect = document.getElementById('corr-mol-select');
             molecules.forEach((mol, idx) => {{
-                if (orbSelect) {{
-                    const opt = document.createElement('option');
-                    opt.value = idx;
-                    opt.textContent = mol.label;
-                    orbSelect.appendChild(opt);
-                }}
                 if (corrSelect) {{
                     const opt = document.createElement('option');
                     opt.value = idx;
@@ -2423,86 +2429,97 @@ def generate_html_report(
         function updateOrbitalRange(val) {{
             orbitalRange = parseInt(val);
             document.getElementById('orb-range-val').textContent = val;
-            renderOrbitals(currentMolIndex);
+            renderOrbitals();
         }}
         
-        function renderOrbitals(index) {{
+        function renderOrbitals() {{
             const div = document.getElementById('orbital-chart');
             if (!div) return;
             
-            const mol = molecules[index];
-            if (!mol || !mol.orbitals || mol.orbitals.length === 0) {{
-                div.innerHTML = '<div style="text-align:center; padding: 20px;">No orbital data available</div>';
+            const indices = getSelectedIndices('orbital-multiselect');
+            if (indices.length === 0) {{
+                div.innerHTML = '<div style="text-align:center; padding: 20px;">Select molecules to view orbital data</div>';
                 return;
             }}
             
-            // Sort by energy
-            let orbs = [...mol.orbitals].sort((a, b) => a.energy - b.energy);
-            const homoval = mol.homo || (orbs.length > 0 ? orbs[orbs.length/2].energy : 0);
-            
-            // Filter to N closest to HOMO
-            // Calculate distance to HOMO
-            orbs.forEach(o => o.dist = Math.abs(o.energy - homoval));
-            orbs.sort((a, b) => a.dist - b.dist);
-            
-            // Take top N*2
-            let subset = orbs.slice(0, orbitalRange * 2);
-            // Sort back by energy for drawing
-            subset.sort((a, b) => a.energy - b.energy);
-            
-            // Create traces for each orbital level (using line traces)
+            const colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880'];
             const traces = [];
+            const tableRows = [];
             
-            subset.forEach(o => {{
-                const isOcc = (o.occ !== undefined && o.occ > 0.1) || (mol.homo !== undefined && o.energy <= mol.homo + 0.001);
-                const isHomo = mol.homo !== undefined && Math.abs(o.energy - mol.homo) < 0.01;
-                const isLumo = mol.lumo !== undefined && Math.abs(o.energy - mol.lumo) < 0.01;
+            // Calculate x-position for each molecule
+            const molWidth = 0.8 / indices.length;
+            const molGap = 0.05;
+            
+            indices.forEach((idx, molIdx) => {{
+                const mol = molecules[idx];
+                if (!mol || !mol.orbitals || mol.orbitals.length === 0) return;
                 
-                const lineWidth = (isHomo || isLumo) ? 5 : 3;
-                const color = isOcc ? '#636EFA' : '#EF553B';
-                const dash = isOcc ? 'solid' : 'dash';
+                const color = colors[molIdx % colors.length];
+                const xStart = 0.1 + molIdx * molWidth + molGap/2;
+                const xEnd = xStart + molWidth - molGap;
                 
-                // Each orbital as a horizontal line trace
+                // Sort by energy
+                let orbs = [...mol.orbitals].sort((a, b) => a.energy - b.energy);
+                const homoval = mol.homo || (orbs.length > 0 ? orbs[Math.floor(orbs.length/2)].energy : 0);
+                
+                // Filter to N closest to HOMO
+                orbs.forEach(o => o.dist = Math.abs(o.energy - homoval));
+                orbs.sort((a, b) => a.dist - b.dist);
+                let subset = orbs.slice(0, orbitalRange * 2);
+                subset.sort((a, b) => a.energy - b.energy);
+                
+                subset.forEach(o => {{
+                    const isOcc = (o.occ !== undefined && o.occ > 0.1) || (mol.homo !== undefined && o.energy <= mol.homo + 0.001);
+                    const isHomo = mol.homo !== undefined && Math.abs(o.energy - mol.homo) < 0.01;
+                    const isLumo = mol.lumo !== undefined && Math.abs(o.energy - mol.lumo) < 0.01;
+                    
+                    const lineWidth = (isHomo || isLumo) ? 5 : 3;
+                    const dash = isOcc ? 'solid' : 'dash';
+                    
+                    traces.push({{
+                        x: [xStart, xEnd],
+                        y: [o.energy, o.energy],
+                        mode: 'lines',
+                        line: {{color: color, width: lineWidth, dash: dash}},
+                        showlegend: false,
+                        name: mol.label + ' - ' + (isHomo ? 'HOMO' : isLumo ? 'LUMO' : isOcc ? 'Occ' : 'Virt') + ': ' + o.energy.toFixed(3) + ' eV',
+                        hoverinfo: 'name'
+                    }});
+                    
+                    // Add to table
+                    const type = isHomo ? 'HOMO' : isLumo ? 'LUMO' : isOcc ? 'Occupied' : 'Virtual';
+                    tableRows.push([mol.label, o.energy.toFixed(4), o.occ !== undefined ? o.occ.toFixed(2) : '-', type]);
+                }});
+                
+                // Add molecule label at bottom
                 traces.push({{
-                    x: [0.2, 0.8],
-                    y: [o.energy, o.energy],
-                    mode: 'lines',
-                    line: {{color: color, width: lineWidth, dash: dash}},
+                    x: [(xStart + xEnd) / 2],
+                    y: [subset.length > 0 ? subset[0].energy - 0.3 : 0],
+                    mode: 'text',
+                    text: [mol.label],
+                    textfont: {{size: 10, color: color}},
                     showlegend: false,
-                    name: (isHomo ? 'HOMO' : isLumo ? 'LUMO' : isOcc ? 'Occupied' : 'Virtual') + ': ' + o.energy.toFixed(3) + ' eV',
-                    hoverinfo: 'name'
+                    hoverinfo: 'skip'
                 }});
             }});
             
             const layout = {{
-                title: 'Orbital Energy Levels (' + mol.label + ')',
+                title: 'Orbital Energy Comparison',
                 xaxis: {{showgrid: false, zeroline: false, showticklabels: false, range: [0, 1]}},
                 yaxis: {{title: 'Energy (eV)'}},
                 paper_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
                 plot_bgcolor: '{"#2a2a3e" if dark_theme else "#fff"}',
                 font: {{color: '{text_primary}'}},
-                margin: {{l: 60, r: 100, t: 50, b: 30}},
+                margin: {{l: 60, r: 40, t: 50, b: 50}},
                 hovermode: 'closest'
             }};
             
             Plotly.newPlot('orbital-chart', traces, layout, {{responsive: true}});
             
-            // Populate orbital data table
+            // Populate orbital data table with molecule column
             renderDataTable('orbital-data-table', 
-                ['Energy (eV)', 'Occupation', 'Type'],
-                subset.map(o => {{
-                    const isOcc = (o.occ !== undefined && o.occ > 0.1) || (mol.homo !== undefined && o.energy <= mol.homo + 0.001);
-                    const isHomo = mol.homo !== undefined && Math.abs(o.energy - mol.homo) < 0.01;
-                    const isLumo = mol.lumo !== undefined && Math.abs(o.energy - mol.lumo) < 0.01;
-                    let type = isOcc ? 'Occupied' : 'Virtual';
-                    if (isHomo) type = 'HOMO';
-                    if (isLumo) type = 'LUMO';
-                    return [
-                        o.energy.toFixed(4),
-                        o.occ !== undefined ? o.occ.toFixed(2) : '-',
-                        type
-                    ];
-                }})
+                ['Molecule', 'Energy (eV)', 'Occupation', 'Type'],
+                tableRows
             );
         }}
         
@@ -2528,6 +2545,81 @@ def generate_html_report(
             
             html += '</tbody></table>';
             container.innerHTML = html;
+        }}
+        
+        // Comparison table renderer
+        function renderComparisonTable() {{
+            const container = document.getElementById('comparison-table');
+            if (!container) return;
+            
+            const indices = getSelectedIndices('compare-multiselect');
+            if (indices.length === 0) {{
+                container.innerHTML = '<p style="color: var(--text-secondary); padding: 15px;">Select molecules to compare</p>';
+                return;
+            }}
+            
+            const dataType = document.getElementById('compare-data-type').value || 'energy';
+            const selectedMols = indices.map(i => molecules[i]).filter(m => m);
+            
+            let headers = ['Property'];
+            selectedMols.forEach(mol => headers.push(mol.label));
+            
+            let rows = [];
+            
+            if (dataType === 'energy') {{
+                const props = [
+                    ['Gibbs Energy (Eh)', 'gibbs', 6],
+                    ['Single Point (Eh)', 'single_point', 6],
+                    ['HOMO (eV)', 'homo', 4],
+                    ['LUMO (eV)', 'lumo', 4],
+                    ['Gap (eV)', 'gap', 4]
+                ];
+                props.forEach(p => {{
+                    let row = [p[0]];
+                    selectedMols.forEach(mol => {{
+                        const val = mol[p[1]];
+                        row.push(val !== undefined && val !== null ? val.toFixed(p[2]) : '-');
+                    }});
+                    rows.push(row);
+                }});
+            }} else if (dataType === 'ir' || dataType === 'raman') {{
+                const valueKey = dataType === 'ir' ? 'intensity' : 'activity';
+                let maxPeaks = 0;
+                selectedMols.forEach(mol => {{
+                    if (mol[dataType]) maxPeaks = Math.max(maxPeaks, mol[dataType].length);
+                }});
+                for (let i = 0; i < Math.min(maxPeaks, 30); i++) {{
+                    let row = ['Peak ' + (i + 1)];
+                    selectedMols.forEach(mol => {{
+                        if (mol[dataType] && mol[dataType][i]) {{
+                            const p = mol[dataType][i];
+                            row.push(p.freq.toFixed(1) + ' (' + (p[valueKey] ? p[valueKey].toFixed(3) : '-') + ')');
+                        }} else {{
+                            row.push('-');
+                        }}
+                    }});
+                    rows.push(row);
+                }}
+            }} else if (dataType === 'uvvis') {{
+                let maxStates = 0;
+                selectedMols.forEach(mol => {{
+                    if (mol.tddft) maxStates = Math.max(maxStates, mol.tddft.length);
+                }});
+                for (let i = 0; i < Math.min(maxStates, 15); i++) {{
+                    let row = ['S' + (i + 1)];
+                    selectedMols.forEach(mol => {{
+                        if (mol.tddft && mol.tddft[i]) {{
+                            const s = mol.tddft[i];
+                            row.push((s.nm ? s.nm.toFixed(1) : '-') + ' nm (f=' + (s.f ? s.f.toFixed(4) : '-') + ')');
+                        }} else {{
+                            row.push('-');
+                        }}
+                    }});
+                    rows.push(row);
+                }}
+            }}
+            
+            renderDataTable('comparison-table', headers, rows);
         }}
         
         // Spectra variables
