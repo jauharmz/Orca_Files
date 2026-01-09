@@ -344,9 +344,15 @@ def render_html_export(df: pd.DataFrame):
                     compact_mode=compact_mode
                 )
             
+            # Debug: show generation result
+            st.info(f"DEBUG: Generated HTML with {len(html)} characters")
+            
             # Store in session state
             st.session_state.html_report_data = html
             st.session_state.html_report_name = report_name
+            
+            # Debug: confirm session state set
+            st.info(f"DEBUG: Session state updated")
             
             # Try to save to disk
             save_path = Path(save_directory) / report_name
@@ -358,14 +364,18 @@ def render_html_export(df: pd.DataFrame):
                 st.session_state.html_save_success = True
                 st.session_state.html_save_path = str(save_path)
                 st.session_state.html_save_error = None
+                st.info(f"DEBUG: Saved to {save_path}")
             except PermissionError:
                 st.session_state.html_save_success = False
                 st.session_state.html_save_error = f"Permission denied: Cannot write to {save_path}"
+                st.info("DEBUG: Permission denied on save")
             except Exception as save_err:
                 st.session_state.html_save_success = False
                 st.session_state.html_save_error = f"Failed to save: {save_err}"
+                st.info(f"DEBUG: Save error: {save_err}")
             
-            st.rerun()  # Rerun to show results
+            # Don't rerun - let the UI continue to show results
+            # st.rerun()  # Removed - this may cause issues
                 
         except Exception as e:
             st.error(f"❌ Failed to generate report: {e}")
