@@ -1,0 +1,37 @@
+# src/core/__init__.py
+"""Core abstractions and base classes."""
+
+from .base_parser import BaseParser
+from .base_visualizer import BaseVisualizer
+from .data_models import (
+    GeometryData,
+    EnergyData,
+    OrbitalData,
+    SpectraData,
+    TDDFTData,
+    MethodData,
+    ParseResult,
+)
+from .molecule_store import MoleculeStore
+from .exceptions import (
+    ORCAParseError,
+    ORCAFileError,
+    ORCAValidationError,
+)
+
+__all__ = [
+    "BaseParser",
+    "BaseVisualizer",
+    "GeometryData",
+    "EnergyData",
+    "OrbitalData",
+    "SpectraData",
+    "TDDFTData",
+    "MethodData",
+    "ParseResult",
+    "MoleculeStore",
+    "ORCAParseError",
+    "ORCAFileError",
+    "ORCAValidationError",
+]
+
