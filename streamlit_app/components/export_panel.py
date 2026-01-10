@@ -1326,7 +1326,8 @@ def generate_html_report(
                 <li><a href="#electronic-structure">4. Electronic Structure</a></li>
                 <li><a href="#energy-analysis">5. Energy Analysis</a></li>
                 <li><a href="#spectra-analysis">6. Vibrational Analysis</a></li>
-                <li><a href="#data-appendix">7. Complete Data Appendix</a></li>
+                <li><a href="#data-comparison">7. Data Comparison</a></li>
+                <li><a href="#data-appendix">8. Complete Data Appendix</a></li>
             </ul>
         </nav>
         
@@ -2003,7 +2004,7 @@ def generate_html_report(
     html += f'''        
         <!-- 8. Data Appendix -->
         <section id="data-appendix" class="section">
-            <h2>📊 7. Complete Data Appendix</h2>
+            <h2>📊 8. Complete Data Appendix</h2>
             
             <p>
                 Complete tabulated data for all calculations including molecular identities, electronic states, 
